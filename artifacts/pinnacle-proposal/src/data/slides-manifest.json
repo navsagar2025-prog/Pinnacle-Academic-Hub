@@ -4,7 +4,7 @@
     "position": 1,
     "filepath": "src/pages/slides/Slide01Cover.tsx",
     "title": "Cover — Pinnacle Academic Classes",
-    "description": "Title slide with institute name, tagline, and digital transformation platform introduction.",
+    "description": "Title slide with institute name, logo placeholder, tagline, and digital transformation platform introduction.",
     "speakerNotes": ""
   },
   {
@@ -40,8 +40,16 @@
     "speakerNotes": ""
   },
   {
-    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567824",
     "position": 6,
+    "filepath": "src/pages/slides/Slide06Homepage.tsx",
+    "title": "Homepage Structure — Section by Section",
+    "description": "Eight homepage sections: hero, trust indicators, courses, why Pinnacle, toppers, faculty, testimonials, sticky CTA.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
+    "position": 7,
     "filepath": "src/pages/slides/Slide06LeadGen.tsx",
     "title": "Built to Generate Admissions",
     "description": "Lead generation features: enquiry form, demo class booking, WhatsApp, click-to-call.",
@@ -49,7 +57,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567807",
-    "position": 7,
+    "position": 8,
     "filepath": "src/pages/slides/Slide07Design.tsx",
     "title": "Premium Academic Design Direction",
     "description": "Color palette (navy, teal, maroon, gold) and design principles for the website.",
@@ -57,7 +65,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567808",
-    "position": 8,
+    "position": 9,
     "filepath": "src/pages/slides/Slide08SecPortals.tsx",
     "title": "Section 02 — Role-Based Portals",
     "description": "Section divider introducing the secure role-based portal system.",
@@ -65,7 +73,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567809",
-    "position": 9,
+    "position": 10,
     "filepath": "src/pages/slides/Slide09Architecture.tsx",
     "title": "Portal Access Architecture",
     "description": "Diagram showing Admin, Student, Parent, and Teacher access levels and capabilities.",
@@ -73,7 +81,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567810",
-    "position": 10,
+    "position": 11,
     "filepath": "src/pages/slides/Slide10Student.tsx",
     "title": "Student Portal — Features",
     "description": "Six student portal features: live classes, recordings, materials, papers, timetable, fees.",
@@ -81,7 +89,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567811",
-    "position": 11,
+    "position": 12,
     "filepath": "src/pages/slides/Slide11Parent.tsx",
     "title": "Parent Portal — Dashboard",
     "description": "Five parent portal features: child overview, fees, timetable, notices, recordings.",
@@ -89,7 +97,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567812",
-    "position": 12,
+    "position": 13,
     "filepath": "src/pages/slides/Slide12Teacher.tsx",
     "title": "Teacher Portal — Workspace",
     "description": "Five teacher portal features: schedule classes, upload materials, post notices, papers, batch view.",
@@ -97,7 +105,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567813",
-    "position": 13,
+    "position": 14,
     "filepath": "src/pages/slides/Slide13Admin.tsx",
     "title": "Admin Panel — Complete Control",
     "description": "Admin capabilities: user management, content management, fee records, website content.",
@@ -105,7 +113,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567814",
-    "position": 14,
+    "position": 15,
     "filepath": "src/pages/slides/Slide14SecLive.tsx",
     "title": "Section 03 — Live Classes & Recordings",
     "description": "Section divider introducing the Zoom-powered live class and recording system.",
@@ -113,7 +121,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567815",
-    "position": 15,
+    "position": 16,
     "filepath": "src/pages/slides/Slide15HowLive.tsx",
     "title": "How a Live Class Works",
     "description": "Five-step workflow: schedule, Zoom created, students join, recorded, replay available.",
@@ -121,7 +129,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567816",
-    "position": 16,
+    "position": 17,
     "filepath": "src/pages/slides/Slide16WhyZoom.tsx",
     "title": "Why We Chose Zoom",
     "description": "Four reasons: trusted by Indian families, cloud recording, no extra infrastructure, Android-ready.",
@@ -129,7 +137,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567817",
-    "position": 17,
+    "position": 18,
     "filepath": "src/pages/slides/Slide17SecTech.tsx",
     "title": "Section 04 — Technology & Architecture",
     "description": "Section divider introducing the technology stack and architecture.",
@@ -137,15 +145,23 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567818",
-    "position": 18,
+    "position": 19,
     "filepath": "src/pages/slides/Slide18TechStack.tsx",
     "title": "The Technology Stack",
-    "description": "Five technologies: Next.js 15, PostgreSQL, Clerk Auth, Zoom API, Cloud Storage.",
+    "description": "Five technologies: Next.js 15, PostgreSQL, Clerk Auth, Zoom API, Replit App Storage.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567825",
+    "position": 20,
+    "filepath": "src/pages/slides/Slide19Security.tsx",
+    "title": "Data Security & Storage",
+    "description": "Four security layers: Replit App Storage, role-based access control, Clerk auth, data isolation.",
     "speakerNotes": ""
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567819",
-    "position": 19,
+    "position": 21,
     "filepath": "src/pages/slides/Slide19Android.tsx",
     "title": "Designed for Android from Day One",
     "description": "Four Android-readiness principles: shared database, versioned API, FCM ready, delta sync.",
@@ -153,7 +169,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567820",
-    "position": 20,
+    "position": 22,
     "filepath": "src/pages/slides/Slide20SecRoadmap.tsx",
     "title": "Section 05 — Future Roadmap",
     "description": "Section divider introducing the future development roadmap.",
@@ -161,7 +177,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567821",
-    "position": 21,
+    "position": 23,
     "filepath": "src/pages/slides/Slide21Roadmap.tsx",
     "title": "The Road Ahead",
     "description": "Phase 2 Android app features and future additions including fee gateway, attendance, SMS.",
@@ -169,7 +185,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567822",
-    "position": 22,
+    "position": 24,
     "filepath": "src/pages/slides/Slide22Needs.tsx",
     "title": "What We Need From You",
     "description": "Five requirements: Zoom account, logo, course info, results/testimonials, WhatsApp number.",
@@ -177,7 +193,7 @@
   },
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567823",
-    "position": 23,
+    "position": 25,
     "filepath": "src/pages/slides/Slide23Closing.tsx",
     "title": "Next Steps — Let's Build This Together",
     "description": "Closing slide with institute name, address, and call to action.",
