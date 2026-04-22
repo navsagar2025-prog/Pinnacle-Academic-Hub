@@ -25,21 +25,40 @@ export default function Slide23Closing() {
         >
           Pinnacle Academic Classes — Digital Platform
         </p>
-        <div className="w-[14vw] h-[2px] bg-accent mb-[5vh]" />
-        <div className="flex flex-col items-center gap-[1.5vh]">
-          <p className="font-body text-white text-[1.8vw] font-medium">
+        <div className="w-[14vw] h-[2px] bg-accent mb-[4vh]" />
+        <div className="flex gap-[8vw] mb-[4vh]">
+          <div className="flex flex-col items-center gap-[0.8vh]">
+            <p className="font-body text-[1.4vw] uppercase tracking-widest" style={{ color: "rgba(201,168,76,0.75)" }}>
+              Call / WhatsApp
+            </p>
+            <p className="font-body text-white text-[1.9vw] font-medium">
+              +91 — your number
+            </p>
+          </div>
+          <div className="w-[1px]" style={{ background: "rgba(255,255,255,0.2)" }} />
+          <div className="flex flex-col items-center gap-[0.8vh]">
+            <p className="font-body text-[1.4vw] uppercase tracking-widest" style={{ color: "rgba(201,168,76,0.75)" }}>
+              Email
+            </p>
+            <p className="font-body text-white text-[1.9vw] font-medium">
+              info@pinnacleacademic.in
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-[1vh]">
+          <p className="font-body text-white text-[1.7vw] font-medium">
             PINNACLE ACADEMIC CLASSES
           </p>
-          <p className="font-body text-[1.6vw]" style={{ color: "rgba(255,255,255,0.6)" }}>
+          <p className="font-body text-[1.5vw]" style={{ color: "rgba(255,255,255,0.55)" }}>
             Shop No. 1–5, Shop Mart, Plot GH-03, Gaur City 2, Sector 16C, Greater Noida, UP 201009
           </p>
-          <p className="font-body text-[1.6vw] mt-[1vh]" style={{ color: "rgba(201,168,76,0.85)" }}>
+          <p className="font-body text-[1.5vw]" style={{ color: "rgba(201,168,76,0.75)" }}>
             A Unit of KCK Corporate Services Pvt. Ltd.
           </p>
         </div>
       </div>
       <div className="absolute bottom-[4vh] right-[5vw]">
-        <p className="font-body text-[1.5vw]" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <p className="font-body text-[1.5vw]" style={{ color: "rgba(255,255,255,0.3)" }}>
           Prepared April 2026
         </p>
       </div>
