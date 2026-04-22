@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "vhr6D3cqgjmsBmBjwZsHX"
@@ -18,3 +17,9 @@ id = "udNLw9TKt_CU2O47lKpzV"
 uri = "file://artifacts/pinnacle-demo/public/about-classroom.png"
 type = "image"
 title = "Modern digital smart classroom"
+
+[[outputs]]
+id = "jhP1TGROmtZdwwJFcSbXT"
+uri = "file://pinnacle-demo-website.zip"
+type = "unspecified"
+title = "Pinnacle Demo Website — cPanel Ready (ZIP)"
