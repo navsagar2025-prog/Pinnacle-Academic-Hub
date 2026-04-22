@@ -54,6 +54,13 @@ export default function TeacherDashboard() {
                 <div className="font-semibold text-sm text-foreground">{c.subject} — {c.topic}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{c.batch} · {c.time}</div>
               </div>
+              <button
+                disabled
+                title="Demo mode — live class links will open Zoom in production"
+                className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold opacity-60 cursor-not-allowed"
+              >
+                Start Class
+              </button>
             </div>
           ))}
 

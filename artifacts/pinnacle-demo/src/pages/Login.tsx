@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { GraduationCap, Users, BookOpen } from "lucide-react";
+import { GraduationCap, Users, BookOpen, ShieldCheck } from "lucide-react";
 
 const roles = [
   {
@@ -25,6 +25,14 @@ const roles = [
     icon: BookOpen,
     color: "bg-[#8B1A1A]",
     route: "/portal/teacher",
+  },
+  {
+    key: "admin",
+    label: "Admin / Staff Login",
+    description: "Full control panel — manage students, batches, fees, enquiries, results, and institute settings.",
+    icon: ShieldCheck,
+    color: "bg-[#1a3a5c]",
+    route: "/portal/admin",
   },
 ];
 
@@ -55,21 +63,21 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-5xl">
           {roles.map((role) => {
             const Icon = role.icon;
             return (
               <button
                 key={role.key}
                 onClick={() => handleSelect(role)}
-                className="group text-left rounded-2xl border border-border bg-card p-8 hover:border-primary/40 hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="group text-left rounded-2xl border border-border bg-card p-6 hover:border-primary/40 hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <div className={`${role.color} w-12 h-12 rounded-xl flex items-center justify-center mb-5 text-white group-hover:scale-110 transition-transform`}>
+                <div className={`${role.color} w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform`}>
                   <Icon className="w-6 h-6" />
                 </div>
                 <h2 className="font-bold text-lg text-foreground mb-2">{role.label}</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">{role.description}</p>
-                <div className="mt-6 text-sm font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
+                <div className="mt-5 text-sm font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
                   Enter Portal <span>→</span>
                 </div>
               </button>

@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useState } from "react";
-import { Menu, X, LogOut, GraduationCap, Users, BookOpen } from "lucide-react";
+import { Menu, X, LogOut, GraduationCap, Users, BookOpen, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface NavItem {
@@ -11,16 +11,17 @@ interface NavItem {
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: "student" | "parent" | "teacher";
+  role: "student" | "parent" | "teacher" | "admin";
   navItems: NavItem[];
   userName?: string;
   userSub?: string;
 }
 
 const roleConfig = {
-  student: { label: "Student Portal", color: "bg-primary", icon: GraduationCap },
-  parent: { label: "Parent Portal", color: "bg-secondary", icon: Users },
-  teacher: { label: "Teacher Portal", color: "bg-[#8B1A1A]", icon: BookOpen },
+  student: { label: "Student Portal", color: "bg-primary",        icon: GraduationCap },
+  parent:  { label: "Parent Portal",  color: "bg-secondary",      icon: Users },
+  teacher: { label: "Teacher Portal", color: "bg-[#8B1A1A]",      icon: BookOpen },
+  admin:   { label: "Admin Panel",    color: "bg-[#1a3a5c]",      icon: ShieldCheck },
 };
 
 export function PortalLayout({ children, role, navItems, userName = "Demo User", userSub }: PortalLayoutProps) {

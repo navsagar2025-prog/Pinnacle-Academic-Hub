@@ -14,6 +14,7 @@ import Results from "@/pages/public/Results";
 import Notices from "@/pages/public/Notices";
 import FAQ from "@/pages/public/FAQ";
 import FeePayment from "@/pages/public/FeePayment";
+import Blog from "@/pages/public/Blog";
 import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
 import Terms from "@/pages/public/Terms";
 import RefundPolicy from "@/pages/public/RefundPolicy";
@@ -37,11 +38,22 @@ import TeacherMaterials from "@/pages/portal/teacher/Materials";
 import TeacherNotices from "@/pages/portal/teacher/Notices";
 import TeacherBatches from "@/pages/portal/teacher/Batches";
 
+import AdminDashboard from "@/pages/portal/admin/Dashboard";
+import AdminStudents from "@/pages/portal/admin/Students";
+import AdminTeachers from "@/pages/portal/admin/Teachers";
+import AdminBatches from "@/pages/portal/admin/Batches";
+import AdminFees from "@/pages/portal/admin/Fees";
+import AdminNotices from "@/pages/portal/admin/Notices";
+import AdminResults from "@/pages/portal/admin/Results";
+import AdminEnquiries from "@/pages/portal/admin/Enquiries";
+import AdminSettings from "@/pages/portal/admin/Settings";
+
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
+      {/* Public pages */}
       <Route path="/" component={Home} />
       <Route path="/about" component={About} />
       <Route path="/courses" component={Courses} />
@@ -52,11 +64,13 @@ function Router() {
       <Route path="/notices" component={Notices} />
       <Route path="/faq" component={FAQ} />
       <Route path="/fee-payment" component={FeePayment} />
+      <Route path="/blog" component={Blog} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms" component={Terms} />
       <Route path="/refund-policy" component={RefundPolicy} />
       <Route path="/login" component={Login} />
 
+      {/* Student portal */}
       <Route path="/portal/student" component={StudentDashboard} />
       <Route path="/portal/student/classes" component={StudentClasses} />
       <Route path="/portal/student/recordings" component={StudentRecordings} />
@@ -65,15 +79,28 @@ function Router() {
       <Route path="/portal/student/timetable" component={StudentTimetable} />
       <Route path="/portal/student/fees" component={StudentFees} />
 
+      {/* Parent portal */}
       <Route path="/portal/parent" component={ParentDashboard} />
       <Route path="/portal/parent/fees" component={ParentFees} />
       <Route path="/portal/parent/timetable" component={ParentTimetable} />
 
+      {/* Teacher portal */}
       <Route path="/portal/teacher" component={TeacherDashboard} />
       <Route path="/portal/teacher/schedule" component={TeacherSchedule} />
       <Route path="/portal/teacher/materials" component={TeacherMaterials} />
       <Route path="/portal/teacher/notices" component={TeacherNotices} />
       <Route path="/portal/teacher/batches" component={TeacherBatches} />
+
+      {/* Admin / Staff portal */}
+      <Route path="/portal/admin" component={AdminDashboard} />
+      <Route path="/portal/admin/students" component={AdminStudents} />
+      <Route path="/portal/admin/teachers" component={AdminTeachers} />
+      <Route path="/portal/admin/batches" component={AdminBatches} />
+      <Route path="/portal/admin/fees" component={AdminFees} />
+      <Route path="/portal/admin/notices" component={AdminNotices} />
+      <Route path="/portal/admin/results" component={AdminResults} />
+      <Route path="/portal/admin/enquiries" component={AdminEnquiries} />
+      <Route path="/portal/admin/settings" component={AdminSettings} />
 
       <Route component={NotFound} />
     </Switch>
