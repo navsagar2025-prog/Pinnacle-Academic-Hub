@@ -1,0 +1,174 @@
+Create a modern, professional, mobile-first website for a coaching institute based in Delhi, India, which is moving from offline operations to a digital-first model. The website should build trust with students and parents, generate admissions and demo enquiries, showcase courses and faculty, display results and testimonials, and prepare the foundation for future ERP, student, parent, and teacher portal integration. Education website guidance consistently emphasizes clear navigation, focused homepage messaging, strong calls to action, updated notices, and trust-building sections such as testimonials and results.
+
+Tech stack
+Build the project using:
+
+Next.js latest stable for the frontend and full-stack website framework. The official Next.js sources show version 16 as the current stable major line, with stable 16.2 releases available in April 2026.
+
+Node.js 22 for the runtime environment on the server and deployment pipeline. Node.js 22 remains an LTS release line and is valid for production environments under the Node.js release model.
+
+Use a production-ready structure compatible with VPS hosting.
+
+Use SEO-friendly routing, server-side rendering or hybrid rendering where useful, and optimized image delivery.
+
+Keep the architecture ready for later API integration, authentication, and dashboard modules.
+
+Project goals
+The website should:
+
+Generate admissions enquiries and demo bookings.
+
+Clearly present courses, batches, faculty, institute highlights, and success stories.
+
+Build trust with students and parents through testimonials, achievements, FAQs, and transparent information.
+
+Support future features like fee payment, student login, parent login, teacher access, notices, and study material.
+
+Required pages
+Create these pages:
+
+Home
+
+About Us
+
+Courses / Programs
+
+Faculty / Teachers
+
+Admissions
+
+Results / Success Stories
+
+Study Material / Resources
+
+Notices / News / Events
+
+Testimonials
+
+Gallery
+
+Fee Payment
+
+Contact Us
+
+FAQ
+
+Blog
+
+Privacy Policy
+
+Terms & Conditions
+
+Refund Policy
+These page types match common education and coaching site structures, which typically include admissions, courses, resources, results, contact, policy, and update-oriented pages.
+
+Homepage structure
+Design the homepage with these sections:
+
+Hero section with strong academic positioning and clear CTA.
+
+Quick action buttons for Courses, Admissions, Demo Class, Results, Fee Payment, and Contact.
+
+Institute overview section.
+
+Featured courses and batches.
+
+Why choose us.
+
+Faculty highlights.
+
+Results and toppers section.
+
+Testimonials from students and parents.
+
+Notices / upcoming batches / announcements.
+
+Study material or blog preview.
+
+FAQ section.
+
+Final CTA banner.
+
+Footer with address, map, contact details, social links, and policies.
+Best-practice guidance for school and coaching homepages favors simple information hierarchy, social proof, and prominent actions over cluttered layouts.
+
+Functional requirements
+Include:
+
+Enquiry form
+
+Demo class booking form
+
+WhatsApp integration
+
+Click-to-call button
+
+Google Maps location
+
+Fee payment button/page
+
+Download brochure button
+
+Searchable or categorized course cards
+
+Notice board / latest updates
+
+Testimonials slider or cards
+
+Results highlight section
+
+SEO metadata and schema-friendly structure
+
+Mobile sticky CTA buttons
+Calls to action should appear across the page, especially in the hero, after course sections, after trust sections, and near the footer.
+
+Design direction
+Use a premium academic design language with clean layouts, disciplined spacing, professional typography, and trust-focused visual hierarchy. Preferred colors are navy, deep blue, teal, maroon, white, and light neutrals. Avoid flashy startup-style gradients, clutter, and generic SaaS design patterns. Education website advice strongly favors clarity, readability, simplicity, and trust over decorative excess.
+
+Content tone
+Write content in a professional, parent-friendly, trustworthy tone. Messaging should be direct and specific about who the institute serves, what outcomes it delivers, what courses are available, and how students can join. Coaching website guidance recommends clear niche messaging and specific offers instead of vague marketing copy.
+
+Performance and technical requirements
+Fully responsive design for mobile, tablet, and desktop.
+
+Fast loading and optimized for Core Web Vitals.
+
+SEO-ready architecture using Next.js best practices.
+
+Clean reusable component structure.
+
+Forms should be easy to manage and extend later.
+
+Prepare for future backend/API integration.
+
+Keep deployment ready for VPS with Node.js 22 and a reverse proxy such as Nginx.
+
+Use environment-based configuration for production readiness.
+Next.js 16 is positioned as the current stable framework line, and Node.js LTS releases are the recommended basis for production deployment.
+
+Future readiness
+Keep the project structured so that it can later support:
+
+Student portal
+
+Parent portal
+
+Teacher login
+
+Attendance
+
+Fee management
+
+Study material downloads
+
+Live classes
+
+ERP / CRM integration
+A maintainable site structure helps long-term expansion into operational systems.
+
+Short version
+Short prompt:
+Build a professional, mobile-first coaching institute website for a Delhi-based institute using Next.js latest stable and Node.js 22. The site should showcase courses, faculty, results, testimonials, admissions, notices, fee payment, and contact information, while building trust with students and parents and generating enquiries. Use a clean academic design, SEO-friendly structure, responsive layout, strong calls to action, and a scalable codebase ready for future student, parent, and teacher portals. Next.js 16 is the current stable major version as of April 2026, and Node.js 22 is an LTS production-suitable runtime line.
+
+One correction
+If you want the prompt to be technically most current, I would slightly refine your stack line to: “Use Next.js 16.x latest stable and Node.js 22 LTS.” Next.js 16 is the currently documented stable major release, while Node.js guidance recommends using LTS lines for production.
