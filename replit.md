@@ -25,3 +25,35 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+### 1. API Server (`artifacts/api-server`)
+- Express 5 + Drizzle ORM + PostgreSQL backend
+- Workflow: `artifacts/api-server: API Server` on port 8080
+
+### 2. Mockup Sandbox (`artifacts/mockup-sandbox`)
+- Vite dev server for canvas component previews
+- Workflow: `artifacts/mockup-sandbox: Component Preview Server` on port 8081
+
+### 3. Pinnacle Proposal (`artifacts/pinnacle-proposal`)
+- 25-slide pitch deck for Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.)
+- React + Vite, slides-style artifact at `/pinnacle-proposal`
+- Workflow: `artifacts/pinnacle-proposal: web` on port 23973
+
+### 4. Pinnacle Demo Website (`artifacts/pinnacle-demo`)
+- Full demo website for Pinnacle Academic Classes coaching institute
+- React + Vite + shadcn/ui + Tailwind CSS v4 + wouter routing
+- Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C; Fonts: Playfair Display + Plus Jakarta Sans
+- 30+ pages: 12 public pages + Student/Parent/Teacher portals (15 portal pages)
+- Role selector login (demo mode, no real auth); role stored in localStorage as `pinnacle_role`
+- All portal forms disabled with "Demo mode" tooltip
+- Workflow: `artifacts/pinnacle-demo: web` on port 24694
+
+#### Key files (Pinnacle Demo):
+- `src/App.tsx` — all 30+ routes (wouter Switch)
+- `src/components/layout/Navbar.tsx` — public navbar with hamburger menu
+- `src/components/layout/PortalLayout.tsx` — role-aware sidebar portal layout
+- `src/pages/Login.tsx` — role selector (Student / Parent / Teacher)
+- `src/index.css` — brand tokens and Tailwind theme
+- `vite.config.ts` — PORT + BASE_PATH env vars

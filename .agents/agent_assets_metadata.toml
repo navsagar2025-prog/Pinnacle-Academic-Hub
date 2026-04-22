@@ -6,3 +6,15 @@ id = "vhr6D3cqgjmsBmBjwZsHX"
 uri = "file://artifacts/pinnacle-proposal/public/hero-cover.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "CaicQTNrYccj_eLCQABzt"
+uri = "file://artifacts/pinnacle-demo/public/hero-bg.png"
+type = "image"
+title = "Indian coaching center students"
+
+[[generated]]
+id = "udNLw9TKt_CU2O47lKpzV"
+uri = "file://artifacts/pinnacle-demo/public/about-classroom.png"
+type = "image"
+title = "Modern digital smart classroom"
