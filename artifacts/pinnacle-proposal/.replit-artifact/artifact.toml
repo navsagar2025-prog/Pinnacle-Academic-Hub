@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/pinnacle-proposal/"
+title = "Pinnacle Academic Classes — Client Proposal"
+version = "1.0.0"
+id = "artifacts/pinnacle-proposal"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/pinnacle-proposal/" ]
+localPort = 23973
+
+[services.development]
+run = "pnpm --filter @workspace/pinnacle-proposal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pinnacle-proposal", "run", "build" ]
+publicDir = "artifacts/pinnacle-proposal/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23973"
+BASE_PATH = "/pinnacle-proposal/"
