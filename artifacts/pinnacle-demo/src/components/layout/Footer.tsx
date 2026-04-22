@@ -61,12 +61,25 @@ export function Footer() {
           </div>
         </div>
 
+        {/* Map Embed */}
+        <div className="mb-10 rounded-xl overflow-hidden border border-primary-foreground/10" style={{ height: 220 }}>
+          <iframe
+            title="Pinnacle Academic Classes Location"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.123456789!2d77.4288!3d28.6139!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390cef67a7b3b3b7%3A0x0!2sGaur+City+2%2C+Sector+16C%2C+Greater+Noida%2C+Uttar+Pradesh+201009!5e0!3m2!1sen!2sin!4v1713000000000!5m2!1sen!2sin"
+            width="100%"
+            height="220"
+            style={{ border: 0, display: "block" }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+
         <div className="border-t border-primary-foreground/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-primary-foreground/60 text-center md:text-left">
             © {new Date().getFullYear()} Pinnacle Academic Classes. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            {/* Social Placeholders */}
             <div className="w-8 h-8 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-accent hover:text-primary transition-colors cursor-pointer text-sm">f</div>
             <div className="w-8 h-8 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-accent hover:text-primary transition-colors cursor-pointer text-sm">t</div>
             <div className="w-8 h-8 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-accent hover:text-primary transition-colors cursor-pointer text-sm">in</div>
