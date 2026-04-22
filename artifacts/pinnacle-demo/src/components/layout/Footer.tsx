@@ -65,7 +65,7 @@ export function Footer() {
         <div className="mb-10 rounded-xl overflow-hidden border border-primary-foreground/10" style={{ height: 220 }}>
           <iframe
             title="Pinnacle Academic Classes Location"
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.123456789!2d77.4288!3d28.6139!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390cef67a7b3b3b7%3A0x0!2sGaur+City+2%2C+Sector+16C%2C+Greater+Noida%2C+Uttar+Pradesh+201009!5e0!3m2!1sen!2sin!4v1713000000000!5m2!1sen!2sin"
+            src="https://maps.google.com/maps?q=Gaur+City+2,+Sector+16C,+Greater+Noida,+Uttar+Pradesh+201009&output=embed&z=15"
             width="100%"
             height="220"
             style={{ border: 0, display: "block" }}
