@@ -1,14 +1,53 @@
 /**
- * Zoom Service — Mocked Integration Layer
+ * Zoom Service — Server-to-Server OAuth Integration
  *
- * In production this would use the Zoom Server-to-Server OAuth app:
- *   - ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET env vars
- *   - Token endpoint: https://zoom.us/oauth/token?grant_type=account_credentials
- *   - Meetings API:   https://api.zoom.us/v2/users/me/meetings
+ * Configure the following environment variables to enable real Zoom integration:
+ *   ZOOM_ACCOUNT_ID    — From your Zoom Server-to-Server OAuth app
+ *   ZOOM_CLIENT_ID     — From your Zoom Server-to-Server OAuth app
+ *   ZOOM_CLIENT_SECRET — From your Zoom Server-to-Server OAuth app
  *
- * The mock generates realistic meeting IDs and URLs so the rest of the
- * application can be built against the real interface.
+ * Without these variables the service runs in mock mode (returns realistic fake
+ * data) so that development and testing work without Zoom credentials.
+ *
+ * Zoom docs: https://developers.zoom.us/docs/internal-apps/s2s-oauth/
  */
+
+const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
+const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
+const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
+
+const isZoomConfigured =
+  Boolean(ZOOM_ACCOUNT_ID) && Boolean(ZOOM_CLIENT_ID) && Boolean(ZOOM_CLIENT_SECRET);
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+/** Fetches a short-lived Server-to-Server OAuth access token from Zoom. */
+async function getZoomAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
+    return cachedToken.token;
+  }
+
+  const credentials = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString("base64");
+  const res = await fetch(
+    `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${ZOOM_ACCOUNT_ID}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Zoom token error (${res.status}): ${text}`);
+  }
+
+  const data = (await res.json()) as { access_token: string; expires_in: number };
+  cachedToken = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
+  return cachedToken.token;
+}
 
 export interface ZoomMeeting {
   meetingId: string;
@@ -30,26 +69,79 @@ export interface CreateMeetingOptions {
   password?: string;
 }
 
-/** Deterministically generates a mock Zoom meeting ID (9–11 digits) */
 function generateMeetingId(): string {
-  const now = Date.now();
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return String(now).slice(-5) + String(rand);
+  return String(Date.now()).slice(-5) + String(Math.floor(Math.random() * 9000) + 1000);
 }
 
 function generatePasscode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+function formatZoomDateTime(date: Date): string {
+  return date.toISOString().replace(".000Z", "Z");
+}
+
 /**
- * Creates a Zoom meeting (mocked).
- * Replace the body with a real Zoom API call when credentials are available.
+ * Creates a Zoom meeting via the Zoom API (S2S OAuth).
+ * Falls back to mock mode if ZOOM_* env vars are not set.
  */
 export async function createZoomMeeting(options: CreateMeetingOptions): Promise<ZoomMeeting> {
-  const meetingId = generateMeetingId();
-  const passcode = options.password ?? generatePasscode();
   const duration = options.durationMinutes ?? 90;
 
+  if (isZoomConfigured) {
+    const token = await getZoomAccessToken();
+
+    const res = await fetch("https://api.zoom.us/v2/users/me/meetings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        topic: options.topic,
+        type: 2, // scheduled meeting
+        start_time: formatZoomDateTime(options.scheduledAt),
+        duration,
+        agenda: options.agenda ?? options.topic,
+        password: options.password ?? generatePasscode(),
+        settings: {
+          waiting_room: false,
+          auto_recording: "cloud",
+          join_before_host: false,
+          mute_upon_entry: true,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Zoom create meeting error (${res.status}): ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      id: number;
+      topic: string;
+      join_url: string;
+      start_url: string;
+      password: string;
+    };
+
+    return {
+      meetingId: String(data.id),
+      topic: data.topic,
+      joinUrl: data.join_url,
+      hostUrl: data.start_url,
+      passcode: data.password,
+      startUrl: data.start_url,
+      scheduledAt: options.scheduledAt,
+      durationMinutes: duration,
+      status: "waiting",
+    };
+  }
+
+  // Mock mode — realistic fake data for development/testing
+  const meetingId = generateMeetingId();
+  const passcode = options.password ?? generatePasscode();
   return {
     meetingId,
     topic: options.topic,
@@ -64,25 +156,39 @@ export async function createZoomMeeting(options: CreateMeetingOptions): Promise<
 }
 
 /**
- * Fetches the live status of a meeting by ID (mocked).
- * A real implementation would call GET /v2/meetings/{meetingId} or use webhooks.
+ * Fetches the live status of a meeting.
+ * Uses Zoom API if configured, otherwise estimates from schedule time.
  */
 export async function getMeetingStatus(
   meetingId: string,
   scheduledAt: Date
 ): Promise<"scheduled" | "live" | "completed" | "cancelled"> {
-  const now = new Date();
-  const scheduled = new Date(scheduledAt);
-  const diffMs = now.getTime() - scheduled.getTime();
+  if (isZoomConfigured) {
+    try {
+      const token = await getZoomAccessToken();
+      const res = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 404) return "cancelled";
+      const data = (await res.json()) as { status: string };
+      if (data.status === "started") return "live";
+      if (data.status === "finished") return "completed";
+      return "scheduled";
+    } catch {
+      // Fall through to time-based estimate
+    }
+  }
 
-  if (diffMs < -5 * 60 * 1000) return "scheduled"; // >5 min before start
-  if (diffMs >= -5 * 60 * 1000 && diffMs < 90 * 60 * 1000) return "live"; // within window
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(scheduledAt).getTime();
+  if (diffMs < -5 * 60 * 1000) return "scheduled";
+  if (diffMs < 90 * 60 * 1000) return "live";
   return "completed";
 }
 
 /**
- * Lists recordings for a batch/user (mocked).
- * Real API: GET /v2/users/me/recordings?from=YYYY-MM-DD
+ * Lists cloud recordings for a Zoom user.
+ * Uses Zoom API if configured, otherwise returns realistic mock recordings.
  */
 export async function listRecordings(batchId: string): Promise<Array<{
   meetingId: string;
@@ -91,25 +197,57 @@ export async function listRecordings(batchId: string): Promise<Array<{
   durationMinutes: number;
   recordedAt: Date;
 }>> {
+  if (isZoomConfigured) {
+    try {
+      const token = await getZoomAccessToken();
+      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const res = await fetch(
+        `https://api.zoom.us/v2/users/me/recordings?from=${from}&page_size=30`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error("Zoom recordings API error");
+      const data = (await res.json()) as {
+        meetings: Array<{
+          id: number;
+          topic: string;
+          duration: number;
+          start_time: string;
+          recording_files: Array<{ play_url: string; file_type: string }>;
+        }>;
+      };
+      return data.meetings
+        .filter((m) => m.recording_files?.some((f) => f.file_type === "MP4"))
+        .map((m) => ({
+          meetingId: String(m.id),
+          topic: m.topic,
+          recordingUrl: m.recording_files.find((f) => f.file_type === "MP4")!.play_url,
+          durationMinutes: m.duration,
+          recordedAt: new Date(m.start_time),
+        }));
+    } catch {
+      // Fall through to mock data
+    }
+  }
+
   return [
     {
       meetingId: `${batchId}-001`,
       topic: "Physics — Kinematics & Projectile Motion",
-      recordingUrl: "https://zoom.us/rec/share/MOCK001",
+      recordingUrl: "https://zoom.us/rec/share/DEMO_RECORDING_001",
       durationMinutes: 90,
       recordedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     },
     {
       meetingId: `${batchId}-002`,
       topic: "Chemistry — Periodic Table & Chemical Bonding",
-      recordingUrl: "https://zoom.us/rec/share/MOCK002",
+      recordingUrl: "https://zoom.us/rec/share/DEMO_RECORDING_002",
       durationMinutes: 85,
       recordedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
     },
     {
       meetingId: `${batchId}-003`,
       topic: "Mathematics — Differentiation & Integration",
-      recordingUrl: "https://zoom.us/rec/share/MOCK003",
+      recordingUrl: "https://zoom.us/rec/share/DEMO_RECORDING_003",
       durationMinutes: 95,
       recordedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     },

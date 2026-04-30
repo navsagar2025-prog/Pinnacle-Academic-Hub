@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
-import { notices } from "@workspace/db/schema";
+import { notices, users } from "@workspace/db/schema";
 import { desc, eq, and, isNull, or, gte, sql } from "drizzle-orm";
+
+async function getDbUser(clerkUserId: string) {
+  const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+  return user ?? null;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -52,17 +58,39 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { title, content: body2, category } = body;
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
 
-    if (!title || !body2) {
-      return NextResponse.json({ success: false, error: "title and content are required" }, { status: 400 });
+  const dbUser = await getDbUser(userId);
+  if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Only teachers and admins can post notices" },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const reqBody = await request.json();
+    const { title, body: noticeBody, category } = reqBody;
+
+    if (!title || !noticeBody) {
+      return NextResponse.json(
+        { success: false, error: "title and body are required" },
+        { status: 400 }
+      );
     }
 
     const [created] = await db
       .insert(notices)
-      .values({ title, body: body2, category: category ?? "General", isPublic: true })
+      .values({
+        title,
+        body: noticeBody,
+        category: category ?? "General",
+        isPublic: true,
+        postedBy: dbUser.id,
+      })
       .returning();
 
     return NextResponse.json({ success: true, data: created }, { status: 201 });

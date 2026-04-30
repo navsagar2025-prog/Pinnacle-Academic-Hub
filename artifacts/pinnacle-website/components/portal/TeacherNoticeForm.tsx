@@ -16,14 +16,21 @@ export default function TeacherNoticeForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      await fetch("/pinnacle-website/api/v1/notices", {
+      const res = await fetch("/pinnacle-website/api/v1/notices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, body, category }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert((err as { error?: string }).error ?? "Failed to post notice. Please try again.");
+        return;
+      }
       setSubmitted(true);
       setTitle(""); setBody(""); setCategory("Academic");
-      setTimeout(() => setSubmitted(false), 4000);
+      setTimeout(() => setSubmitted(false), 5000);
+    } catch {
+      alert("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
