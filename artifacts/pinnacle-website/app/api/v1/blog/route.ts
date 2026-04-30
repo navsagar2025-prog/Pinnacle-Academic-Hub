@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slug, title, excerpt, content, category, authorName, readMinutes, status } = body;
+    const { slug, title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status } = body;
     if (!slug || !title || !authorName) return err("slug, title and authorName are required", 400);
 
     const [row] = await db.insert(blogPosts).values({
@@ -58,7 +58,9 @@ export async function POST(request: Request) {
       excerpt,
       content,
       category: category ?? "General",
+      tags: Array.isArray(tags) ? tags : [],
       authorName,
+      featuredImageUrl,
       readMinutes: readMinutes ? Number(readMinutes) : 5,
       status: status ?? "draft",
       publishedAt: status === "published" ? new Date() : undefined,

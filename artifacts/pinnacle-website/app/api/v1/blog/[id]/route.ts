@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const body = await request.json();
-    const { title, excerpt, content, category, authorName, readMinutes, status } = body;
+    const { title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status } = body;
 
     const wasPublished = status === "published";
     const [existing] = await db.select({ status: blogPosts.status, publishedAt: blogPosts.publishedAt }).from(blogPosts).where(eq(blogPosts.id, id));
@@ -23,7 +23,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       ...(excerpt !== undefined && { excerpt }),
       ...(content !== undefined && { content }),
       ...(category !== undefined && { category }),
+      ...(tags !== undefined && { tags: Array.isArray(tags) ? tags : [] }),
       ...(authorName !== undefined && { authorName }),
+      ...(featuredImageUrl !== undefined && { featuredImageUrl }),
       ...(readMinutes !== undefined && { readMinutes: Number(readMinutes) }),
       ...(status !== undefined && { status }),
       ...(wasPublished && !existing?.publishedAt && { publishedAt: new Date() }),

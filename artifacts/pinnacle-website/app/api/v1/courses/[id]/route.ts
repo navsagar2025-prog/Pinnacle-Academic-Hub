@@ -13,11 +13,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const body = await request.json();
-    const { title, description, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights, isActive } = body;
+    const { title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights, isActive } = body;
 
     const [row] = await db.update(courses).set({
       ...(title !== undefined && { title }),
       ...(description !== undefined && { description }),
+      ...(category !== undefined && { category }),
+      ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
       ...(durationLabel !== undefined && { durationLabel }),
       ...(annualFee !== undefined && { annualFee: Number(annualFee) }),
       ...(admissionFee !== undefined && { admissionFee: Number(admissionFee) }),

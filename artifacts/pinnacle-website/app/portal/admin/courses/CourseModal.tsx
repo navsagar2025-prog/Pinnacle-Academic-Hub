@@ -74,6 +74,8 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
     slug: course?.slug ?? "",
     title: course?.title ?? "",
     description: course?.description ?? "",
+    category: course?.category ?? "General",
+    startDate: course?.startDate ? new Date(course.startDate).toISOString().split("T")[0] : "",
     durationLabel: course?.durationLabel ?? "",
     annualFee: course?.annualFee?.toString() ?? "",
     admissionFee: course?.admissionFee?.toString() ?? "2000",
@@ -117,6 +119,8 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
           {[
             { label: "Slug *", key: "slug", placeholder: "jee-main", disabled: !!course },
             { label: "Title *", key: "title", placeholder: "JEE Main & Advanced" },
+            { label: "Category", key: "category", placeholder: "JEE / NEET / Foundation / Board" },
+            { label: "Start Date", key: "startDate", placeholder: "", type: "date" },
             { label: "Duration", key: "durationLabel", placeholder: "1–2 years" },
             { label: "Annual Fee (₹) *", key: "annualFee", placeholder: "48000", type: "number" },
             { label: "Admission Fee (₹)", key: "admissionFee", placeholder: "2000", type: "number" },

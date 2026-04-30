@@ -36,7 +36,7 @@ export default async function AdminCoursesPage() {
             <table className="w-full">
               <thead className="bg-[var(--color-slate-light)] border-b border-slate-100">
                 <tr>
-                  {["Course", "Duration", "Annual Fee", "Active Batches", "Eligibility", "Status", "Actions"].map((h) => (
+                  {["Course", "Category", "Start Date", "Duration", "Annual Fee", "Active Batches", "Status", "Actions"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -48,12 +48,15 @@ export default async function AdminCoursesPage() {
                       <div className="font-semibold text-sm text-[var(--color-navy)]">{c.title}</div>
                       <div className="text-xs text-slate-400 font-mono">{c.slug}</div>
                     </td>
+                    <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{c.category ?? "General"}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                      {c.startDate ? new Date(c.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{c.durationLabel ?? "—"}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-[var(--color-teal)] whitespace-nowrap">
                       ₹{c.annualFee.toLocaleString("en-IN")}
                     </td>
                     <td className="px-4 py-3 text-center text-sm text-slate-600">{batchMap[c.id] ?? 0}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[180px]">{c.eligibility ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`badge text-xs ${c.isActive ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" : "bg-slate-100 text-slate-400"}`}>
                         {c.isActive ? "Active" : <><Archive size={10} className="inline mr-1" />Archived</>}

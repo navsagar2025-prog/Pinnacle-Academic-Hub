@@ -30,13 +30,15 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slug, title, description, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights } = body;
+    const { slug, title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights } = body;
     if (!slug || !title || !annualFee) return err("slug, title and annualFee are required", 400);
 
     const [row] = await db.insert(courses).values({
       slug,
       title,
       description,
+      category: category ?? "General",
+      startDate: startDate ? new Date(startDate) : undefined,
       durationLabel,
       annualFee: Number(annualFee),
       admissionFee: admissionFee ? Number(admissionFee) : 2000,

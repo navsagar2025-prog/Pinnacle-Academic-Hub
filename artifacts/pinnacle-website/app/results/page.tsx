@@ -1,12 +1,12 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
-import { TOPPERS, STATS } from "@/lib/data";
-import { Star, Trophy } from "lucide-react";
+import { TOPPERS } from "@/lib/data";
+import { Star, Trophy, Award } from "lucide-react";
 import type { Metadata } from "next";
 import { db } from "@workspace/db";
 import { results } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { desc, asc } from "drizzle-orm";
 
 export const metadata: Metadata = {
   title: "Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes",
@@ -28,23 +28,28 @@ const YEAR_STATS = [
 ];
 
 export default async function ResultsPage() {
-  const dbToppers = await db
+  const allDbResults = await db
     .select()
     .from(results)
-    .where(eq(results.isTopper, true))
-    .orderBy(desc(results.academicYear), desc(results.createdAt));
+    .orderBy(desc(results.academicYear), asc(results.studentName));
+
+  const dbToppers = allDbResults.filter((r) => r.isTopper);
+  const dbOthers = allDbResults.filter((r) => !r.isTopper);
 
   const displayToppers = dbToppers.length > 0
     ? dbToppers.map((t) => ({
         name: t.studentName,
         exam: t.examName,
+        subject: t.subject,
+        marks: t.marks,
         rank: t.rank,
         college: t.college ?? "",
         batch: t.batch ?? "",
         quote: t.quote ?? "",
         initials: t.initials,
+        year: t.academicYear,
       }))
-    : TOPPERS;
+    : TOPPERS.map((t) => ({ ...t, subject: null, marks: null, year: "2024" }));
 
   return (
     <>
@@ -96,12 +101,12 @@ export default async function ResultsPage() {
         <section className="py-16 bg-[var(--color-slate-light)]">
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-10">
-              <span className="badge-gold mb-3 inline-block">2024 Batch</span>
-              <h2 className="section-heading">Our 2024 Toppers</h2>
+              <span className="badge-gold mb-3 inline-block">Pinnacle Toppers</span>
+              <h2 className="section-heading">Our Star Achievers</h2>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayToppers.map((t) => (
-                <div key={t.name} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
+                <div key={`${t.name}-${t.exam}`} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
                   <div className="flex items-center gap-1 mb-3">
                     {[...Array(5)].map((_, i) => <Star key={i} size={13} className="text-[var(--color-gold)]" fill="currentColor" />)}
                   </div>
@@ -113,18 +118,69 @@ export default async function ResultsPage() {
                       <h3 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">{t.name}</h3>
                       <div className="text-[var(--color-teal)] font-bold text-xl">{t.rank}</div>
                       <div className="text-slate-500 text-xs">{t.exam}</div>
+                      {t.subject && <div className="text-xs text-slate-400 mt-0.5">{t.subject}</div>}
+                      {t.marks && <div className="text-xs font-semibold text-[var(--color-teal)] mt-0.5">{t.marks}</div>}
                     </div>
                   </div>
-                  <div className="bg-[var(--color-navy)] text-white rounded-xl px-3 py-2 text-sm font-medium mb-3">
-                    {t.college}
-                  </div>
-                  <p className="text-slate-600 text-sm italic">"{t.quote}"</p>
-                  <div className="text-xs text-slate-400 mt-2">{t.batch}</div>
+                  {t.college && (
+                    <div className="bg-[var(--color-navy)] text-white rounded-xl px-3 py-2 text-sm font-medium mb-3">
+                      {t.college}
+                    </div>
+                  )}
+                  {t.quote && <p className="text-slate-600 text-sm italic">&ldquo;{t.quote}&rdquo;</p>}
+                  <div className="text-xs text-slate-400 mt-2">{t.batch}{t.year ? ` · ${t.year}` : ""}</div>
                 </div>
               ))}
             </div>
           </div>
         </section>
+
+        {/* All other results */}
+        {dbOthers.length > 0 && (
+          <section className="py-16 bg-white">
+            <div className="max-w-7xl mx-auto px-4">
+              <div className="text-center mb-10">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-teal)] bg-[var(--color-teal)]/10 px-3 py-1 rounded-full mb-3">
+                  <Award size={14} /> All Results
+                </span>
+                <h2 className="section-heading">More Proud Achievers</h2>
+              </div>
+              <div className="card p-0 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[var(--color-slate-light)] border-b">
+                      <tr>
+                        {["Student", "Exam", "Subject", "Marks / Score", "Rank", "College / Destination", "Batch"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {dbOthers.map((r) => (
+                        <tr key={r.id} className="hover:bg-[var(--color-slate-light)]/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-teal)] to-[var(--color-navy)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                {r.initials}
+                              </div>
+                              <span className="font-semibold text-sm text-[var(--color-navy)]">{r.studentName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{r.examName}</td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{r.subject ?? "—"}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-[var(--color-teal)]">{r.marks ?? "—"}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-[var(--color-navy)]">{r.rank}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{r.college ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{r.batch ?? r.academicYear}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="py-16 bg-gradient-to-r from-[var(--color-teal)] to-[var(--color-navy)]">
           <div className="max-w-3xl mx-auto px-4 text-center">
