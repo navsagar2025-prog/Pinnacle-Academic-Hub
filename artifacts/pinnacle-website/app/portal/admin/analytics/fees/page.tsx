@@ -18,7 +18,8 @@ export default async function FeeCollectionPage() {
       SELECT
         coalesce(sum(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)::int AS collected,
         coalesce(sum(CASE WHEN status IN ('due','overdue') THEN amount ELSE 0 END), 0)::int AS outstanding,
-        count(CASE WHEN status IN ('due','overdue') THEN 1 END)::int AS overdue_count,
+        count(CASE WHEN status = 'overdue' THEN 1 END)::int AS overdue_count,
+        count(CASE WHEN status = 'due' THEN 1 END)::int AS due_count,
         count(*)::int AS total_records
       FROM fee_records
     `),
@@ -55,13 +56,13 @@ export default async function FeeCollectionPage() {
       JOIN students s ON fr.student_id = s.id
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN batches b ON s.batch_id = b.id
-      WHERE fr.status IN ('due', 'overdue')
-      ORDER BY fr.due_date ASC
+      WHERE fr.status = 'overdue'
+      ORDER BY fr.amount DESC
       LIMIT 20
     `),
   ]);
 
-  const summary = (summaryRows.rows as { collected: number; outstanding: number; overdue_count: number; total_records: number }[])[0] ?? { collected: 0, outstanding: 0, overdue_count: 0, total_records: 0 };
+  const summary = (summaryRows.rows as { collected: number; outstanding: number; overdue_count: number; due_count: number; total_records: number }[])[0] ?? { collected: 0, outstanding: 0, overdue_count: 0, due_count: 0, total_records: 0 };
   const totalBilled = summary.collected + summary.outstanding;
   const collectionRate = totalBilled > 0 ? Math.round((summary.collected / totalBilled) * 100) : 0;
 
@@ -79,10 +80,10 @@ export default async function FeeCollectionPage() {
   const overdueStudents = overdueRows.rows as { student_name: string | null; batch_name: string | null; amount: number; period: string; due_date: string }[];
 
   const statCards = [
-    { label: "Total Collected", value: `₹${(summary.collected / 1000).toFixed(1)}K`, icon: CheckCircle, color: "teal" },
-    { label: "Outstanding", value: `₹${(summary.outstanding / 1000).toFixed(1)}K`, icon: AlertCircle, color: "gold" },
-    { label: "Overdue Records", value: summary.overdue_count, icon: CreditCard, color: "maroon" },
-    { label: "Collection Rate", value: `${collectionRate}%`, icon: TrendingUp, color: "navy" },
+    { label: "Total Collected", value: `₹${(summary.collected / 1000).toFixed(1)}K`, sub: "Paid fee records", icon: CheckCircle, color: "teal" },
+    { label: "Outstanding (Due + Overdue)", value: `₹${(summary.outstanding / 1000).toFixed(1)}K`, sub: `${summary.due_count} due, ${summary.overdue_count} overdue`, icon: AlertCircle, color: "gold" },
+    { label: "Overdue Records", value: summary.overdue_count, sub: "Missed payment deadline", icon: CreditCard, color: "maroon" },
+    { label: "Collection Rate", value: `${collectionRate}%`, sub: "Paid ÷ (Paid + Outstanding)", icon: TrendingUp, color: "navy" },
   ];
 
   const colorBorder: Record<string, string> = {
@@ -122,6 +123,9 @@ export default async function FeeCollectionPage() {
                   {s.value}
                 </div>
                 <div className="text-slate-500 text-xs">{s.label}</div>
+                {"sub" in s && s.sub && (
+                  <div className="text-slate-400 text-[10px] mt-0.5">{s.sub}</div>
+                )}
               </div>
             </div>
           );
@@ -168,11 +172,14 @@ export default async function FeeCollectionPage() {
 
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
-            Overdue & Pending Fee Records
-          </h2>
+          <div>
+            <h2 className="font-semibold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
+              Overdue Fee Records
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Status: overdue only · sorted by amount (highest first)</p>
+          </div>
           <span className="badge text-xs bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]">
-            {summary.overdue_count} records
+            {summary.overdue_count} overdue
           </span>
         </div>
         {overdueStudents.length === 0 ? (

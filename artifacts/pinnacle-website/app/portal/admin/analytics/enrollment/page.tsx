@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { enquiries, students } from "@workspace/db/schema";
+import { enquiries, students, batches, courses } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { TrendingUp, Users, UserCheck, BarChart2 } from "lucide-react";
 import BarChartClient from "@/components/charts/BarChartClient";
@@ -17,12 +17,13 @@ export default async function EnrollmentFunnelPage() {
   const [
     allEnquiries,
     weeklyRows,
-    courseRows,
-    [{ studentCount }],
+    courseInterestRows,
     [{ followedUp }],
     [{ totalEnq }],
+    conversionRows,
   ] = await Promise.all([
     db.select().from(enquiries).orderBy(desc(enquiries.createdAt)).limit(50),
+
     db.execute(sql`
       SELECT
         to_char(date_trunc('week', created_at), 'Mon DD') AS week,
@@ -32,6 +33,7 @@ export default async function EnrollmentFunnelPage() {
       GROUP BY date_trunc('week', created_at)
       ORDER BY date_trunc('week', created_at)
     `),
+
     db.execute(sql`
       SELECT course_interest, count(*)::int AS total
       FROM enquiries
@@ -39,9 +41,23 @@ export default async function EnrollmentFunnelPage() {
       GROUP BY course_interest
       ORDER BY total DESC
     `),
-    db.select({ studentCount: sql<number>`count(*)::int` }).from(students).where(eq(students.isActive, true)),
+
     db.select({ followedUp: sql<number>`count(*)::int` }).from(enquiries).where(eq(enquiries.isFollowedUp, true)),
     db.select({ totalEnq: sql<number>`count(*)::int` }).from(enquiries),
+
+    db.execute(sql`
+      SELECT
+        e.course_interest,
+        count(DISTINCT e.id)::int AS enquiry_count,
+        count(DISTINCT s.id)::int AS enrolled_count
+      FROM enquiries e
+      LEFT JOIN courses c ON lower(trim(c.title)) = lower(trim(e.course_interest))
+      LEFT JOIN batches b ON b.course_id = c.id
+      LEFT JOIN students s ON s.batch_id = b.id AND s.is_active = true
+      WHERE e.course_interest IS NOT NULL
+      GROUP BY e.course_interest
+      ORDER BY enquiry_count DESC
+    `),
   ]);
 
   const weeklyData = (weeklyRows.rows as { week: string; total: number }[]).map((r) => ({
@@ -49,20 +65,26 @@ export default async function EnrollmentFunnelPage() {
     Enquiries: r.total,
   }));
 
-  const courseData = (courseRows.rows as { course_interest: string; total: number }[]).map((r, i) => ({
+  const courseInterestData = (courseInterestRows.rows as { course_interest: string; total: number }[]).map((r, i) => ({
     name: r.course_interest,
     value: r.total,
     color: COURSE_COLORS[i % COURSE_COLORS.length],
   }));
 
+  type ConversionRow = { course_interest: string; enquiry_count: number; enrolled_count: number };
+  const conversionData = conversionRows.rows as ConversionRow[];
+
+  const totalMatchedEnquiries = conversionData.reduce((s, r) => s + r.enquiry_count, 0);
+  const totalMatchedEnrolled = conversionData.reduce((s, r) => s + r.enrolled_count, 0);
+  const matchedConversionPct = totalMatchedEnquiries > 0 ? Math.round((totalMatchedEnrolled / totalMatchedEnquiries) * 100) : 0;
   const followedUpPct = totalEnq > 0 ? Math.round((followedUp / totalEnq) * 100) : 0;
-  const conversionPct = totalEnq > 0 ? Math.round((studentCount / totalEnq) * 100) : 0;
 
   const statCards = [
     { label: "Total Enquiries", value: totalEnq, icon: BarChart2, color: "navy" },
     { label: "Followed Up", value: `${followedUpPct}%`, icon: UserCheck, color: "teal" },
-    { label: "Active Students", value: studentCount, icon: Users, color: "maroon" },
-    { label: "Conversion Rate", value: `${conversionPct}%`, icon: TrendingUp, color: "gold" },
+    { label: "Matched Enrollments", value: totalMatchedEnrolled, icon: Users, color: "maroon" },
+    { label: "Conversion Rate", value: `${matchedConversionPct}%`, icon: TrendingUp, color: "gold",
+      tooltip: "Enquiries with matching course interest → enrolled students in that course" },
   ];
 
   const colorBorder: Record<string, string> = {
@@ -85,7 +107,7 @@ export default async function EnrollmentFunnelPage() {
           Enrollment Funnel
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          Enquiry volume, course interests, and conversion to enrolled students
+          Enquiry volume, course interests, and conversion to enrolled students by course
         </p>
       </div>
 
@@ -102,6 +124,9 @@ export default async function EnrollmentFunnelPage() {
                   {s.value}
                 </div>
                 <div className="text-slate-500 text-xs">{s.label}</div>
+                {"tooltip" in s && s.tooltip && (
+                  <div className="text-slate-400 text-[10px] mt-0.5 leading-tight">{s.tooltip}</div>
+                )}
               </div>
             </div>
           );
@@ -129,12 +154,51 @@ export default async function EnrollmentFunnelPage() {
           <h2 className="font-semibold text-[var(--color-navy)] mb-1 font-[family-name:var(--font-playfair)]">
             Course Interest Breakdown
           </h2>
-          {courseData.length === 0 ? (
+          {courseInterestData.length === 0 ? (
             <p className="text-slate-400 text-sm py-8 text-center">No course data yet.</p>
           ) : (
-            <DonutChartClient data={courseData} height={220} />
+            <DonutChartClient data={courseInterestData} height={220} />
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <h2 className="font-semibold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">
+          Per-Course Conversion — Enquiries to Enrollments
+        </h2>
+        {conversionData.length === 0 ? (
+          <p className="text-slate-400 text-sm">No data available.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Course Interest</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Enquiries</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Enrolled</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {conversionData.map((r) => {
+                  const rate = r.enquiry_count > 0 ? Math.round((r.enrolled_count / r.enquiry_count) * 100) : 0;
+                  return (
+                    <tr key={r.course_interest} className="hover:bg-[var(--color-slate-light)]/50 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-[var(--color-navy)]">{r.course_interest}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-500">{r.enquiry_count}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-500">{r.enrolled_count}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <span className={`font-semibold text-sm ${rate >= 50 ? "text-[var(--color-teal)]" : rate >= 25 ? "text-[var(--color-gold)]" : "text-[var(--color-maroon)]"}`}>
+                          {rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">
