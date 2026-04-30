@@ -1,0 +1,595 @@
+Pinnacle Academic Classes — Revised Full Platform Build Prompt
+
+Project Goal
+Build a static demo/showcase SPA for Pinnacle Academic Classes, operated by KCK Corporate Services Pvt. Ltd. The platform should visually simulate a complete coaching institute website with role-based portals for Student, Parent, Teacher, and Admin.
+
+This is a frontend-only demo project:
+- No real backend
+- No real authentication
+- No database
+- No external API calls
+- No server-side logic
+- No persistent write actions
+
+All pages, portals, dashboards, forms, charts, and admin controls must be built using static mock data and client-side rendering only.
+
+Non-Goals / Constraints
+- Do not build a real login or session system
+- Do not connect to a real API or backend
+- Do not use real payment processing
+- Do not implement real uploads, posts, edits, deletes, or enrollments
+- Do not use SSR or SSG; this must remain a static SPA
+- Do not introduce any dependency that requires a runtime server
+
+Tech Stack
+- Framework: React 18 + Vite 7
+- Language: TypeScript 5 (strict mode)
+- Routing: Wouter
+- Styling: Tailwind CSS v4 + tw-animate-css
+- UI Components: shadcn/ui (button, card, dialog, input, label, select, separator, sheet, skeleton, sonner, textarea, toast, toggle, tooltip)
+- Icons: Lucide React
+- Forms: React Hook Form + Zod
+- State/Data: TanStack Query
+- Notifications: Sonner
+- Fonts:
+  - Headings: Playfair Display
+  - Body/UI: Plus Jakarta Sans
+- Package Manager: pnpm
+- Monorepo: pnpm workspaces
+- Build Target: Static SPA deployable on cPanel, Netlify, or Vercel
+
+Project Type Definition
+This project is a demo web application with:
+1. Public marketing/informational pages
+2. Role-based dashboard portals
+3. Admin control panel
+4. Shared mock data layer
+5. Static deployment output only
+
+Brand System
+- Primary (Navy): #0A1F5C
+- Secondary (Teal): #0D7377
+- Destructive (Maroon): #8B1A1A
+- Accent (Gold): #C9A84C
+- Background: #F8F5EE
+- Card: #FFFFFF
+
+Typography
+- Heading font: Playfair Display
+- Body/UI font: Plus Jakarta Sans
+
+Shape System
+- Cards: rounded-xl
+- Pills/Badges: rounded-full
+
+Scope Priority
+Implement in this order:
+1. Shared layouts and app shell
+2. Public website pages
+3. Role selector and role-based routing
+4. Student, Parent, and Teacher portals
+5. Admin portal
+6. Mock data integration
+7. Demo-mode disabled actions
+8. Build/deployment compatibility
+
+Core Rules
+- Use a shared mock data layer for all dynamic content
+- Reuse shared constants for institute details
+- Do not hardcode institute info in multiple files
+- All routes must work in SPA mode
+- All forms must validate client-side only
+- All write actions must be visibly disabled or demo-only
+- All portal actions must never mutate real data
+
+Canonical Shared Data
+Create shared constants and mock data files for:
+- Institute info
+- Courses
+- Faculty
+- Students
+- Batches
+- Notices
+- Results
+- Enquiries
+- Fee records
+- Dashboard statistics
+
+Mock Data Model
+Define these core entities:
+
+InstituteInfo
+- name
+- legalName
+- address
+- phone
+- email
+- website
+- foundedYear
+- experienceYears
+- studentsPerYear
+- successRate
+- maxBatchSize
+
+Course
+- id
+- name
+- category
+- duration
+- fee
+- maxCapacity
+- description
+
+FacultyMember
+- id
+- name
+- subject
+- experienceYears
+- rating
+- image
+- bio
+
+Student
+- id
+- name
+- rollNumber
+- courseId
+- batchId
+- feeStatus
+- attendancePercent
+- guardianName
+
+Batch
+- id
+- name
+- courseId
+- teacherId
+- maxCapacity
+- currentEnrollment
+- startTime
+- endTime
+- days
+
+Notice
+- id
+- title
+- content
+- issueDate
+- issuedBy
+- isPinned
+
+Enquiry
+- id
+- name
+- phone
+- email
+- courseInterest
+- status
+- followUpDate
+- notes
+
+FeeRecord
+- id
+- studentId
+- amount
+- dueDate
+- paidDate
+- status
+
+ResultItem
+- id
+- studentId
+- exam
+- marks
+- rank
+- stream
+- year
+
+Role
+- student
+- parent
+- teacher
+- admin
+
+Project Structure
+artifacts/pinnacle-demo/
+├── index.html
+├── vite.config.ts
+├── .htaccess
+├── src/
+│   ├── main.tsx
+│   ├── App.tsx
+│   ├── index.css
+│   ├── lib/
+│   │   ├── utils.ts
+│   │   ├── constants/
+│   │   │   └── institute.ts
+│   │   └── mock-data/
+│   │       ├── courses.ts
+│   │       ├── faculty.ts
+│   │       ├── students.ts
+│   │       ├── batches.ts
+│   │       ├── notices.ts
+│   │       ├── enquiries.ts
+│   │       ├── fees.ts
+│   │       └── results.ts
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Navbar.tsx
+│   │   │   ├── Footer.tsx
+│   │   │   ├── PublicLayout.tsx
+│   │   │   └── PortalLayout.tsx
+│   │   └── ui/
+│   └── pages/
+│       ├── not-found.tsx
+│       ├── Login.tsx
+│       ├── public/
+│       └── portal/
+
+Routing
+Public Routes
+/                          → Home
+/about                     → About
+/courses                   → Courses
+/faculty                   → Faculty
+/admissions                → Admissions
+/contact                   → Contact
+/results                   → Results
+/notices                   → Notices
+/faq                       → FAQ
+/fee-payment               → Fee Payment
+/blog                      → Blog
+/privacy-policy            → Privacy Policy
+/terms                     → Terms & Conditions
+/refund-policy             → Refund Policy
+/login                     → Role Selector
+
+Portal Routes
+/portal/student
+/portal/student/classes
+/portal/student/recordings
+/portal/student/materials
+/portal/student/papers
+/portal/student/timetable
+/portal/student/fees
+
+/portal/parent
+/portal/parent/fees
+/portal/parent/timetable
+
+/portal/teacher
+/portal/teacher/schedule
+/portal/teacher/materials
+/portal/teacher/notices
+/portal/teacher/batches
+
+/portal/admin
+/portal/admin/students
+/portal/admin/teachers
+/portal/admin/batches
+/portal/admin/fees
+/portal/admin/notices
+/portal/admin/results
+/portal/admin/enquiries
+/portal/admin/settings
+
+Layout Rules
+Public Layout
+- Sticky navbar with active link highlighting
+- Mobile hamburger menu
+- Mobile sticky CTA bar with Call / WhatsApp / Enquire
+- Floating WhatsApp button on all public pages
+- Footer with 4 columns:
+  - Brand
+  - Quick Links
+  - Support
+  - Contact
+- Footer must include Google Maps embed and social placeholders
+
+Portal Layout
+- Fixed left sidebar on desktop
+- Slide-out drawer sidebar on mobile
+- Top header with role label and DEMO MODE badge
+- Distinct sidebar header color by role:
+  - Student: navy
+  - Parent: teal
+  - Teacher: maroon
+  - Admin: dark navy #1a3a5c
+- Distinct role icons:
+  - Student: GraduationCap
+  - Parent: Users
+  - Teacher: BookOpen
+  - Admin: ShieldCheck
+
+Public Pages Requirements
+Home
+- 8 sections minimum
+- Hero
+- Why choose us
+- Courses overview
+- Faculty highlights
+- Results/toppers preview
+- Testimonials
+- Admissions CTA
+- Contact/location block
+
+About
+- Institute story
+- Mission/vision
+- Experience highlights
+- Why Pinnacle section
+
+Courses
+- Pill filter buttons:
+  - All
+  - JEE
+  - NEET
+  - Boards
+  - Foundation
+- Each pill should show a count badge
+
+Faculty
+- Faculty cards with rating, subject, experience, short bio
+
+Admissions
+- Enquiry form using React Hook Form + Zod
+- Success toast on valid submit
+- Demo-mode confirmation only
+
+Contact
+- Contact form using React Hook Form + Zod
+- Google Maps embed
+- Shared institute contact details
+
+Results
+- Toppers showcase
+- Results cards and/or result table
+
+Notices
+- Paginated notice board
+- Pinned notices visually highlighted
+
+FAQ
+- Accordion-style FAQs
+
+Fee Payment
+- Demo fee summary
+- Payment CTA visible but disabled/demo-only
+
+Blog
+- Featured post
+- Article grid
+
+Privacy Policy
+Terms
+Refund Policy
+- Clean readable legal-text layout
+
+Portal Requirements
+
+Demo Mode Behavior
+- Store selected role in localStorage as pinnacle_role
+- Clicking a role card should navigate directly to that role portal
+- No password or real auth
+- All portals must show DEMO MODE badge
+- All action buttons must be disabled or demo-safe
+- No real mutation must occur
+
+Disabled Action Rules
+All action buttons such as:
+- Upload
+- Send
+- Delete
+- Pin
+- Post
+- Enroll
+- Start Class
+- Pay
+- Save
+must:
+- be visually disabled
+- include title="Demo mode"
+- optionally show Sonner toast: “This is demo mode; no real action is performed”
+- never throw errors
+- never call external APIs
+
+Student Portal
+Pages:
+- Dashboard
+- Live Classes
+- Recordings
+- Materials
+- Papers
+- Timetable
+- Fees
+
+Parent Portal
+Pages:
+- Dashboard
+- Fees
+- Timetable
+
+Teacher Portal
+Pages:
+- Dashboard
+- Schedule
+- Materials
+- Notices
+- Batches
+
+Teacher Dashboard
+- Today’s classes
+- Start Class button visible but disabled
+
+Admin Portal
+Pages:
+- Dashboard
+- Students
+- Teachers
+- Batches
+- Fees
+- Notices
+- Results
+- Enquiries
+- Settings
+
+Admin Dashboard Requirements
+- 6 KPI cards:
+  - Total Students
+  - Active Teachers
+  - Active Batches
+  - Fee Collected
+  - Pending Fees
+  - Enquiries This Week
+- Enquiries widget
+- Pending tasks block
+- Revenue/fee chart using mock data only
+
+Admin Students Page
+- Search by name or roll number
+- Filter by course
+- Filter by fee status
+- Attendance progress bars
+- Color-coded fee status badges
+
+Admin Teachers Page
+- Faculty cards
+- Ratings
+- Subject tags
+
+Admin Batches Page
+- Capacity bars
+- Enrollment status
+- Batch overview cards/table
+
+Admin Fees Page
+- Collection summary cards
+- Bar chart: target vs collected
+- Searchable fee table
+
+Admin Notices Page
+- Pin/post/delete controls visible but demo-only
+
+Admin Results Page
+- Toppers showcase
+- Exam records table
+
+Admin Enquiries Page
+- CRM statuses:
+  - New
+  - Contacted
+  - Follow-up
+  - Enrolled
+- Summary cards by status
+- Call/WhatsApp/Enroll actions visible but demo-only
+
+Admin Settings Page
+- Institute info form
+- Fee structure table
+- Notification toggles
+- Backup/data summary card
+- All controls demo-only
+
+Form Validation Rules
+Admissions Form
+- name: required, min 2 chars
+- phone: required, valid Indian phone format
+- email: required, valid email
+- courseInterest: required
+- message: optional
+- on success: show Sonner toast “Enquiry submitted (demo mode)”
+
+Contact Form
+- name: required
+- email: required
+- message: required
+- on success: show Sonner toast “Message sent (demo mode)”
+
+Accessibility Requirements
+- Semantic HTML landmarks
+- One H1 per page
+- Keyboard accessible navigation
+- Visible focus states
+- Proper labels for all form controls
+- Adequate color contrast
+- Tooltips and disabled states must remain understandable
+- Mobile tap targets should be usable
+
+Responsive Rules
+- Public pages must work on mobile, tablet, and desktop
+- Mobile CTA bar only on small screens
+- Desktop sidebar fixed; mobile sidebar drawer
+- Tables should not break on small screens
+- Long admin views should remain readable on mobile
+
+Shared Institute Data
+Use these values across the site from a single shared constants file:
+
+Name: Pinnacle Academic Classes
+Legal: KCK Corporate Services Pvt. Ltd.
+Address: Shop No. 1–5, Shop Mart, Plot GH-03, Sector 16C, Gaur City 2, Greater Noida, UP 201009
+Phone: +91-98765-43210
+Email: info@pinnacleacademic.in
+Website: https://www.pinnacleacademic.in
+Founded: 2012
+Experience: 14 years
+Students: 500+ per year
+Success Rate: 95%
+Batch Size: max 35 students
+
+Courses:
+- IIT-JEE (Mains + Advanced)
+- NEET
+- Class 12 Boards (PCM / PCB / Commerce)
+- Class 11 Foundation
+- Class 10 Foundation
+- Class 9 Foundation
+- Class 8 Foundation
+- Class 6-7 Foundation
+
+Key Faculty:
+- Dr. Ramesh Kumar — Physics — 14 yrs — rating 4.9
+- Ms. Priya Sharma — Biology — 9 yrs — rating 4.8
+- Mr. Ajay Tiwari — Mathematics — 11 yrs — rating 4.7
+- Ms. Nidhi Verma — Chemistry — 7 yrs — rating 4.8
+
+Vite Config Rules
+- PORT env var controls dev server port
+- Default port: 5173
+- BASE_PATH env var controls Vite base
+- Default BASE_PATH: "/"
+- Use import.meta.env.BASE_URL in App.tsx for router base
+- Strip trailing slash when needed
+- allowedHosts: true
+- Alias @ → src/
+- Alias @assets → attached_assets/
+
+Deployment Rules
+Development:
+pnpm --filter @workspace/pinnacle-demo run dev
+
+Production:
+BASE_PATH="/" PORT=3000 pnpm --filter @workspace/pinnacle-demo run build
+
+Expected output:
+artifacts/pinnacle-demo/dist/public/
+
+Apache .htaccess
+Options -MultiViews
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [QSA,L]
+
+Acceptance Criteria
+- All listed routes must resolve correctly
+- Public site must be responsive and visually polished
+- All pages must use shared layout components
+- Institute info must come from shared constants
+- Portals must reflect role-based colors and navigation
+- All forms must validate client-side with RHF + Zod
+- All actions that imply writing data must be disabled/demo-only
+- No real auth, backend, payment, upload, or data mutation must exist
+- Build output must be deployable as a static SPA on Apache/cPanel
+- No broken routes, crashes, or console errors during normal navigation
