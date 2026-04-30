@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import React, { type ComponentProps } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useRole } from "@/context/RoleContext";
@@ -36,6 +37,30 @@ const settingsItems: { label: string; icon: FeatherName }[] = [
   { label: "Portal Access Control", icon: "lock" },
   { label: "Backup & Export Data", icon: "archive" },
 ];
+
+async function sendTestNotification() {
+  if (Platform.OS === "web") {
+    Alert.alert("Notifications", "Push notifications are not supported on web.", [{ text: "OK" }]);
+    return;
+  }
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== "granted") {
+    const { status: newStatus } = await Notifications.requestPermissionsAsync();
+    if (newStatus !== "granted") {
+      Alert.alert("Permission Required", "Enable notifications in device Settings to test this feature.", [{ text: "OK" }]);
+      return;
+    }
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Pinnacle Admin Alert",
+      body: "This is a test push notification from Pinnacle Admin portal.",
+      data: { type: "test" },
+    },
+    trigger: { seconds: 2, type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL },
+  });
+  Alert.alert("Notification Sent", "A test notification will appear in ~2 seconds.", [{ text: "OK" }]);
+}
 
 export default function AdminMore() {
   const colors = useColors();
@@ -157,6 +182,28 @@ export default function AdminMore() {
         </View>
 
         <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Batch Management" />
+          <TouchableOpacity
+            onPress={() => router.push("/(admin)/batches")}
+            activeOpacity={0.7}
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.secondary + "10",
+                borderColor: colors.secondary + "40",
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary + "18", borderRadius: 8 }]}>
+              <Feather name="users" size={18} color={colors.secondary} />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Manage Batches</Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ marginTop: 4 }}>
           <SectionHeader title="Scan Document" />
           <TouchableOpacity
             onPress={() => router.push("/(admin)/scan")}
@@ -180,9 +227,29 @@ export default function AdminMore() {
 
         <View style={{ marginTop: 4 }}>
           <SectionHeader title="Settings" />
+          <TouchableOpacity
+            onPress={sendTestNotification}
+            activeOpacity={0.7}
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.primary + "10",
+                borderColor: colors.primary + "30",
+                borderRadius: colors.radius,
+                marginBottom: 8,
+              },
+            ]}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary + "18", borderRadius: 8 }]}>
+              <Feather name="bell" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Test Push Notification</Text>
+            <Feather name="send" size={14} color={colors.primary} />
+          </TouchableOpacity>
           {settingsItems.map((s, i) => (
             <TouchableOpacity
               key={i}
+              disabled
               onPress={demo}
               activeOpacity={0.7}
               style={[
@@ -191,6 +258,7 @@ export default function AdminMore() {
                   backgroundColor: colors.card,
                   borderColor: colors.border,
                   borderRadius: colors.radius,
+                  opacity: 0.6,
                 },
               ]}
             >

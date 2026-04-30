@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ClassRow from "@/components/ClassRow";
 import NoticeRow from "@/components/NoticeRow";
 import RoleHeader from "@/components/RoleHeader";
@@ -8,6 +9,30 @@ import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import StatCard from "@/components/StatCard";
 import { useColors } from "@/hooks/useColors";
+
+async function sendTestNotification() {
+  if (Platform.OS === "web") {
+    Alert.alert("Notifications", "Push notifications are not supported on web.", [{ text: "OK" }]);
+    return;
+  }
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== "granted") {
+    const { status: newStatus } = await Notifications.requestPermissionsAsync();
+    if (newStatus !== "granted") {
+      Alert.alert("Permission Required", "Enable notifications in device Settings.", [{ text: "OK" }]);
+      return;
+    }
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Pinnacle Teacher Alert",
+      body: "This is a test push notification from Pinnacle Teacher portal.",
+      data: { type: "test" },
+    },
+    trigger: { seconds: 2, type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL },
+  });
+  Alert.alert("Notification Sent", "A test notification will appear in ~2 seconds.", [{ text: "OK" }]);
+}
 
 const todayClasses = [
   { subject: "Physics", topic: "Thermodynamics", time: "5:00 PM", batch: "JEE 2026 — Eve" },
@@ -93,6 +118,30 @@ export default function TeacherDashboard() {
             <NoticeRow key={i} {...n} />
           ))}
         </View>
+
+        <View style={{ marginTop: 8 }}>
+          <SectionHeader title="Settings" />
+          <TouchableOpacity
+            onPress={sendTestNotification}
+            activeOpacity={0.7}
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.primary + "10",
+                borderColor: colors.primary + "30",
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary + "18", borderRadius: 8 }]}>
+              <Feather name="bell" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.foreground, flex: 1 }]}>
+              Test Push Notification
+            </Text>
+            <Feather name="send" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </ScreenContainer>
     </>
   );
@@ -129,5 +178,23 @@ const styles = StyleSheet.create({
   urgentText: {
     fontSize: 10,
     fontWeight: "700",
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  settingIcon: {
+    width: 36,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

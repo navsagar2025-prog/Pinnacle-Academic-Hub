@@ -104,6 +104,8 @@ function ClassicTabLayout() {
             isIOS ? <SymbolView name="ellipsis" tintColor={color} size={24} /> : <Feather name="more-horizontal" size={22} color={color} />,
         }}
       />
+      <Tabs.Screen name="scan" options={{ href: null }} />
+      <Tabs.Screen name="batches" options={{ href: null }} />
     </Tabs>
   );
 }

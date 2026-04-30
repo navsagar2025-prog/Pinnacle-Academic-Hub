@@ -1,6 +1,6 @@
+import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import ClassRow from "@/components/ClassRow";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useColors } from "@/hooks/useColors";
@@ -79,13 +79,109 @@ export default function TeacherSchedule() {
           </Text>
         </View>
       ) : (
-        slots.map((s, i) => <ClassRow key={i} {...s} />)
+        slots.map((s, i) => (
+          <View
+            key={i}
+            style={[
+              styles.scheduleCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View style={styles.scheduleTop}>
+              <View
+                style={[
+                  styles.scheduleIcon,
+                  { backgroundColor: colors.primary + "18", borderRadius: colors.radius - 4 },
+                ]}
+              >
+                <Feather name="video" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.scheduleInfo}>
+                <Text
+                  style={[
+                    styles.scheduleSubject,
+                    { color: colors.foreground, fontFamily: "PlusJakartaSans_700Bold" },
+                  ]}
+                >
+                  {s.subject} — {s.topic}
+                </Text>
+                <Text style={[styles.scheduleMeta, { color: colors.mutedForeground }]}>
+                  {s.time} · {s.batch}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              disabled
+              onPress={() =>
+                Alert.alert("Demo Mode", "Live class streaming is disabled in demo.", [{ text: "OK" }])
+              }
+              activeOpacity={0.8}
+              style={[
+                styles.startClassBtn,
+                {
+                  backgroundColor: colors.muted,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius - 4,
+                  opacity: 0.5,
+                },
+              ]}
+            >
+              <Feather name="video" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.startClassText, { color: colors.mutedForeground }]}>
+                Start Class (Demo Disabled)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))
       )}
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  scheduleCard: {
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+  },
+  scheduleTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  scheduleIcon: {
+    width: 38,
+    height: 38,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scheduleInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  scheduleSubject: {
+    fontSize: 13,
+  },
+  scheduleMeta: {
+    fontSize: 12,
+  },
+  startClassBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  startClassText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
   dayBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
