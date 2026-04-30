@@ -1,10 +1,13 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import { useRouter } from "expo-router";
+import React, { type ComponentProps } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useRole } from "@/context/RoleContext";
 import { useColors } from "@/hooks/useColors";
+
+type FeatherName = ComponentProps<typeof Feather>["name"];
 
 const teachers = [
   { name: "Dr. Ramesh Kumar", subject: "Physics", batches: "JEE 2026, NEET 2026, Cl-12 PCM" },
@@ -26,7 +29,7 @@ const enquiries = [
   { name: "Vaibhav Jain", course: "Foundation", phone: "65432-XXXXX", date: "Yesterday", status: "Enrolled" },
 ];
 
-const settingsItems = [
+const settingsItems: { label: string; icon: FeatherName }[] = [
   { label: "Institute Profile", icon: "settings" },
   { label: "Batch Management", icon: "grid" },
   { label: "OCR Engine Settings", icon: "cpu" },
@@ -37,6 +40,7 @@ const settingsItems = [
 export default function AdminMore() {
   const colors = useColors();
   const { setRole } = useRole();
+  const router = useRouter();
   const demo = () => Alert.alert("Demo Mode", "This action is disabled in demo.", [{ text: "OK" }]);
 
   const statusColor = (s: string) => {
@@ -153,6 +157,28 @@ export default function AdminMore() {
         </View>
 
         <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Scan Document" />
+          <TouchableOpacity
+            onPress={() => router.push("/(admin)/scan")}
+            activeOpacity={0.7}
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.maroon + "12",
+                borderColor: colors.maroon + "40",
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.maroon + "20", borderRadius: 8 }]}>
+              <Feather name="camera" size={18} color={colors.maroon} />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Open Scanner</Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ marginTop: 4 }}>
           <SectionHeader title="Settings" />
           {settingsItems.map((s, i) => (
             <TouchableOpacity
@@ -174,7 +200,7 @@ export default function AdminMore() {
                   { backgroundColor: colors.muted, borderRadius: 8 },
                 ]}
               >
-                <Feather name={s.icon as any} size={18} color={colors.foreground} />
+                <Feather name={s.icon} size={18} color={colors.foreground} />
               </View>
               <Text style={[styles.settingLabel, { color: colors.foreground }]}>{s.label}</Text>
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />

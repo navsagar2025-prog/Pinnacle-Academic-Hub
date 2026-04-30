@@ -77,15 +77,22 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - 4 roles: Student (5 tabs), Parent (3 tabs), Teacher (5 tabs), Admin (5 tabs)
 - Role stored in AsyncStorage (`pinnacle_role`); role selector on root screen
 - All write-action buttons trigger Alert.alert("Demo Mode") — read-only demo
-- Scan Document screen: camera/gallery image picker → simulated OCR → export demo
+- Scan Document screen: camera/gallery image picker → real OCR API call (`POST /api/scan`) → export via `POST /api/export/pdf` and `POST /api/export/docx` with file sharing
+- `eas.json` present with development / preview / production profiles (Android APK / iOS simulator / store distribution)
+- TypeScript: 0 errors; all Feather icon names typed via `ComponentProps<typeof Feather>["name"]`; no `as any` casts
+- Dependencies: `expo-file-system` (v55, legacy import), `expo-sharing`
 - Key screens by role:
   - **Student**: Dashboard, Live Classes, Materials, Timetable, More (Recordings + Papers + Fees)
   - **Parent**: Dashboard, Fees (payment history + next due), Timetable
-  - **Teacher**: Dashboard, Schedule, Batches, Materials Upload, Scan Document
-  - **Admin**: Dashboard, Students (searchable list), Finance (overview/due/recent), Notices, More (Teachers + Results + Enquiries + Settings)
+  - **Teacher**: Dashboard, Schedule, Batches, Materials Upload, Scan Document (real OCR API)
+  - **Admin**: Dashboard, Students (searchable list), Finance (overview/due/recent), Notices, More (Teachers + Results + Enquiries + Scan + Settings)
 - Key files:
   - `app/_layout.tsx` — Root layout with RoleContext, providers
-  - `app/index.tsx` — Role selector landing screen (navy gradient UI)
+  - `app/index.tsx` — Role selector landing screen (navy gradient UI); Feather icons typed properly
+  - `app/(teacher)/scan.tsx` — Real OCR scan + PDF/DOCX export with native file sharing
+  - `app/(admin)/scan.tsx` — Admin scan screen (same OCR flow, accessible from More tab)
+  - `app/(admin)/more.tsx` — Admin More tab with Scan Document link + Settings
   - `context/RoleContext.tsx` — Role state with AsyncStorage persistence
   - `constants/colors.ts` — Brand color tokens (Navy/Teal/Maroon/Gold)
+  - `eas.json` — EAS Build profiles: development / preview / production
   - `components/` — Reusable: ClassRow, NoticeRow, StatCard, DemoButton, RoleHeader, ScreenContainer

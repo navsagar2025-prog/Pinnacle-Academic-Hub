@@ -24,7 +24,7 @@ function NativeTabLayout() {
         <Label>Materials</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="timetable">
-        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+        <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
         <Label>Schedule</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="more">

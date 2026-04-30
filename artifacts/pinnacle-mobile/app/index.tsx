@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Redirect } from "expo-router";
-import React from "react";
+import React, { type ComponentProps } from "react";
 import {
   Platform,
   ScrollView,
@@ -14,11 +14,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useRole, type Role } from "@/context/RoleContext";
 
+type FeatherName = ComponentProps<typeof Feather>["name"];
+
 const ROLES: {
   id: Role;
   label: string;
   sub: string;
-  icon: string;
+  icon: FeatherName;
   color: string;
 }[] = [
   {
@@ -26,7 +28,7 @@ const ROLES: {
     label: "Student",
     sub: "View classes, materials & schedule",
     icon: "book-open",
-    color: "#0A1F5C",
+    color: "#4A90D9",
   },
   {
     id: "parent",
@@ -47,7 +49,7 @@ const ROLES: {
     label: "Administrator",
     sub: "Full access to all management tools",
     icon: "shield",
-    color: "#8B1A1A",
+    color: "#E05C5C",
   },
 ];
 
@@ -57,10 +59,10 @@ export default function RoleSelectorScreen() {
   const insets = useSafeAreaInsets();
 
   if (role) {
-    if (role === "student") return <Redirect href="/(student)/" />;
-    if (role === "parent") return <Redirect href="/(parent)/" />;
-    if (role === "teacher") return <Redirect href="/(teacher)/" />;
-    if (role === "admin") return <Redirect href="/(admin)/" />;
+    if (role === "student") return <Redirect href="/(student)" />;
+    if (role === "parent") return <Redirect href="/(parent)" />;
+    if (role === "teacher") return <Redirect href="/(teacher)" />;
+    if (role === "admin") return <Redirect href="/(admin)" />;
   }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -111,12 +113,12 @@ export default function RoleSelectorScreen() {
                 style={[
                   styles.cardIcon,
                   {
-                    backgroundColor: r.color + "30",
+                    backgroundColor: r.color + "35",
                     borderRadius: colors.radius - 4,
                   },
                 ]}
               >
-                <Feather name={r.icon as any} size={24} color={r.color} />
+                <Feather name={r.icon} size={24} color={r.color} />
               </View>
               <View style={styles.cardText}>
                 <Text style={styles.cardLabel}>{r.label}</Text>
