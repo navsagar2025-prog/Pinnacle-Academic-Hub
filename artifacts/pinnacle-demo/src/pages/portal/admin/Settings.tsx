@@ -50,12 +50,12 @@ const feeStructure = [
 
 type OcrProvider = "pix2text" | "simpletex" | "latexocr" | "mathpix" | "google-vision";
 
-const providers: { id: OcrProvider; label: string; cost: string; mathAccuracy: string; requiresKey: string }[] = [
-  { id: "pix2text",      label: "Pix2Text",      cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)" },
-  { id: "simpletex",     label: "SimpleTex",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "API Token" },
-  { id: "latexocr",      label: "LaTeX-OCR",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)" },
-  { id: "mathpix",       label: "MathPix",       cost: "Paid",    mathAccuracy: "★★★★★", requiresKey: "App ID + App Key" },
-  { id: "google-vision", label: "Google Vision", cost: "Paid",    mathAccuracy: "★★☆☆☆", requiresKey: "GCP API Key" },
+const providers: { id: OcrProvider; label: string; cost: string; mathAccuracy: string; requiresKey: string; defaultEndpoint: string }[] = [
+  { id: "pix2text",      label: "Pix2Text",      cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)", defaultEndpoint: "http://localhost:8503/ocr" },
+  { id: "simpletex",     label: "SimpleTex",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "API Token",                   defaultEndpoint: "https://server.simpletex.cn/api/latex_ocr" },
+  { id: "latexocr",      label: "LaTeX-OCR",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)", defaultEndpoint: "http://localhost:8080/predict" },
+  { id: "mathpix",       label: "MathPix",       cost: "Paid",    mathAccuracy: "★★★★★", requiresKey: "App ID + App Key",            defaultEndpoint: "https://api.mathpix.com/v3/text" },
+  { id: "google-vision", label: "Google Vision", cost: "Paid",    mathAccuracy: "★★☆☆☆", requiresKey: "GCP API Key",                 defaultEndpoint: "https://vision.googleapis.com/v1/images:annotate" },
 ];
 
 function ScanEngineSection() {
@@ -108,17 +108,19 @@ function ScanEngineSection() {
 
   const handleSave = async () => {
     setSaving(true);
+    const providerDefault = providers.find((p) => p.id === activeProvider)!.defaultEndpoint;
+    const resolvedEndpoint = endpointUrl.trim() || providerDefault;
     try {
       const providerPayload: Record<string, Record<string, string>> = {};
       if (activeProvider === "mathpix") {
         providerPayload.mathpix = {
-          endpointUrl: endpointUrl || "https://api.mathpix.com/v3/text",
+          endpointUrl: resolvedEndpoint,
           appId,
           appKey: apiKey,
         };
       } else {
         providerPayload[activeProvider] = {
-          endpointUrl: endpointUrl || "",
+          endpointUrl: resolvedEndpoint,
           apiKey,
         };
       }
@@ -179,13 +181,7 @@ function ScanEngineSection() {
           <Label className="text-xs font-semibold text-muted-foreground uppercase">Endpoint URL</Label>
           <Input
             type="url"
-            placeholder={
-              activeProvider === "mathpix"
-                ? "https://api.mathpix.com/v3/text"
-                : activeProvider === "google-vision"
-                ? "https://vision.googleapis.com/v1/images:annotate"
-                : `https://your-${activeProvider}-space.hf.space/ocr`
-            }
+            placeholder={selected.defaultEndpoint}
             value={endpointUrl}
             onChange={(e) => setEndpointUrl(e.target.value)}
           />
