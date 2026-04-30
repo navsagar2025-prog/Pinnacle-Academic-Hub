@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import { courses, batches } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { BookOpen, Archive } from "lucide-react";
-import { AddCourseButton, EditCourseButton } from "./CourseModal";
+import { AddCourseButton, EditCourseButton, ArchiveCourseButton } from "./CourseModal";
 
 export const metadata = { title: "Courses — Admin Panel" };
 
@@ -60,7 +60,10 @@ export default async function AdminCoursesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <EditCourseButton course={c} />
+                      <div className="flex flex-col gap-1.5">
+                        <EditCourseButton course={c} />
+                        <ArchiveCourseButton course={c} />
+                      </div>
                     </td>
                   </tr>
                 ))}

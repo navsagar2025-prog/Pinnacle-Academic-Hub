@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, Pencil } from "lucide-react";
+import { X, Plus, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import type { Course } from "@workspace/db/schema";
 
 type Props = { course?: Course };
@@ -29,6 +29,40 @@ export function EditCourseButton({ course }: Props) {
       </button>
       {open && <CourseModal course={course} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+export function ArchiveCourseButton({ course }: { course: Course }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    const action = course.isActive ? "archive" : "restore";
+    if (!confirm(`${action === "archive" ? "Archive" : "Restore"} course "${course.title}"?`)) return;
+    setLoading(true);
+    await fetch(`${BASE}/api/v1/courses/${course.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !course.isActive }),
+    });
+    setLoading(false);
+    router.refresh();
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading}
+      className={`text-xs font-semibold hover:underline flex items-center gap-1 ${
+        course.isActive ? "text-[var(--color-maroon)]" : "text-[var(--color-teal)]"
+      }`}
+    >
+      {course.isActive ? (
+        <><Archive size={12} />{loading ? "…" : "Archive"}</>
+      ) : (
+        <><ArchiveRestore size={12} />{loading ? "…" : "Restore"}</>
+      )}
+    </button>
   );
 }
 

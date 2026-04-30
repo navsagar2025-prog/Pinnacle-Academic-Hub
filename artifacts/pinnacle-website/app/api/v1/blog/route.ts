@@ -10,13 +10,22 @@ export async function GET(request: Request) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
   const page = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
   const offset = (page - 1) * limit;
-  const publishedOnly = searchParams.get("published") !== "false";
+  const wantAll = searchParams.get("published") === "false";
+
+  let showAll = false;
+  if (wantAll) {
+    const actor = await getDbUser();
+    if (!actor || (actor.role !== "admin" && actor.role !== "teacher")) {
+      return err("Forbidden — only admin/teacher can view unpublished posts", 403);
+    }
+    showAll = true;
+  }
 
   try {
     const rows = await db
       .select()
       .from(blogPosts)
-      .where(publishedOnly ? eq(blogPosts.status, "published") : undefined)
+      .where(showAll ? undefined : eq(blogPosts.status, "published"))
       .orderBy(desc(blogPosts.createdAt))
       .limit(limit)
       .offset(offset);
@@ -24,7 +33,7 @@ export async function GET(request: Request) {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(blogPosts)
-      .where(publishedOnly ? eq(blogPosts.status, "published") : undefined);
+      .where(showAll ? undefined : eq(blogPosts.status, "published"));
 
     return paginatedOk(rows, count, page, limit);
   } catch (e) {
