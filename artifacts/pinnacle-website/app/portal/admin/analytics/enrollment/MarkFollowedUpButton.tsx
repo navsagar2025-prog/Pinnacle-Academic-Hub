@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { apiUrl } from "@/lib/utils";
 
 export default function MarkFollowedUpButton({ id, current }: { id: string; current: boolean }) {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function MarkFollowedUpButton({ id, current }: { id: string; curr
         setOptimistic(true);
         startTransition(async () => {
           try {
-            const res = await fetch(`/pinnacle-website/api/v1/enquiries/${id}`, {
+            const res = await fetch(apiUrl(`/api/v1/enquiries/${id}`), {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ isFollowedUp: true }),

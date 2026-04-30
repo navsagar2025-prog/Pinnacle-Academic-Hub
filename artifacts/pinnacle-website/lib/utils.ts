@@ -28,3 +28,11 @@ export function formatShortDate(date: Date | string): string {
     year: "numeric",
   }).format(new Date(date));
 }
+
+export const BASE_PATH =
+  (process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website").replace(/\/$/, "");
+
+export function apiUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${BASE_PATH}${p}`;
+}
