@@ -1,0 +1,22 @@
+kind = "web"
+previewPath = "/pinnacle-website/"
+title = "Pinnacle Academic Classes — Full Platform"
+version = "1.0.0"
+id = "artifacts/pinnacle-website"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/pinnacle-website/" ]
+localPort = 24697
+
+[services.development]
+run = "pnpm --filter @workspace/pinnacle-website run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pinnacle-website", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/pinnacle-website", "run", "start" ]
+
+[services.env]
+PORT = "24697"
+BASE_PATH = "/pinnacle-website"

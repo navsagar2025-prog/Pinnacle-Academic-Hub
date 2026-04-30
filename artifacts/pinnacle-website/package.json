@@ -1,0 +1,31 @@
+{
+  "name": "@workspace/pinnacle-website",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port ${PORT:-24695} --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --port ${PORT:-24695} --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.20.0",
+    "@workspace/db": "workspace:*",
+    "clsx": "catalog:",
+    "drizzle-orm": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "^15.3.3",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwind-merge": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "^5.9.2"
+  }
+}

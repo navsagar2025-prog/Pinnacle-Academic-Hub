@@ -70,7 +70,25 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - `src/index.css` — brand tokens and Tailwind theme
 - `vite.config.ts` — PORT + BASE_PATH env vars
 
-### 5. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
+### 5. Pinnacle Full Platform (`artifacts/pinnacle-website`)
+- **Next.js 15** (App Router) + Tailwind CSS v4 + TypeScript full-stack platform for Pinnacle Academic Classes
+- Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C; Fonts: Playfair Display + Plus Jakarta Sans
+- Workflow: `artifacts/pinnacle-website: web` on port 24697 at `/pinnacle-website`
+- **Auth**: Clerk (`@clerk/nextjs`) — keyless dev mode; middleware protects all `/portal/*` routes
+- **Database**: PostgreSQL + Drizzle ORM (shared `lib/db` schema); seeded with courses, batches, notices, enquiries
+- **16 public pages**: Home, About, Courses, Faculty, Results, Admissions, Notices, Contact, FAQ, Privacy Policy, Terms, Refund Policy, Sign-in, Sign-up (+ more)
+- **Role portals**: Student (dashboard, timetable, materials, papers, fees, recordings), Parent (dashboard, fees, timetable, notices), Teacher (dashboard, schedule, materials, notices), Admin (dashboard, students, teachers, batches)
+- **API routes** (`/api/v1/`): health, courses, notices, materials (auth-protected)
+- Seed command: `pnpm --filter @workspace/db run seed`
+- Key files:
+  - `artifacts/pinnacle-website/app/layout.tsx` — ClerkProvider + Playfair/Jakarta fonts
+  - `artifacts/pinnacle-website/app/globals.css` — Tailwind v4 @theme with brand colors (pure CSS, no @apply chaining)
+  - `artifacts/pinnacle-website/middleware.ts` — Clerk route protection for /portal/*
+  - `artifacts/pinnacle-website/lib/data.ts` — All demo/static data (courses, faculty, toppers, testimonials)
+  - `artifacts/pinnacle-website/next.config.ts` — basePath=/pinnacle-website, assetPrefix set
+  - `lib/db/src/schema/index.ts` — Full Drizzle schema (13 tables: users, courses, batches, students, parents, teachers, studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries)
+
+### 6. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
 - Expo React Native app (iOS + Android + Web) for Pinnacle Academic Classes
 - Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C (same as web)
 - Workflow: `artifacts/pinnacle-mobile: expo` on port 19049

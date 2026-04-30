@@ -1,0 +1,11 @@
+{
+  "/api/v1/health/route": "app/api/v1/health/route.js",
+  "/api/v1/courses/route": "app/api/v1/courses/route.js",
+  "/api/v1/notices/route": "app/api/v1/notices/route.js",
+  "/page": "app/page.js",
+  "/courses/page": "app/courses/page.js",
+  "/faculty/page": "app/faculty/page.js",
+  "/notices/page": "app/notices/page.js",
+  "/results/page": "app/results/page.js",
+  "/admissions/page": "app/admissions/page.js"
+}
