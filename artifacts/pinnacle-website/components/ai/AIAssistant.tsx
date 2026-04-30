@@ -111,7 +111,6 @@ interface Props {
   batches: BatchOption[];
   overdueStudents: OverdueStudentOption[];
   recentNotices: RecentNotice[];
-  userRole: "admin" | "teacher";
 }
 
 function ModelSelector({
@@ -236,7 +235,7 @@ function OutputArea({
   );
 }
 
-export default function AIAssistant({ enquiries, batches, overdueStudents, recentNotices, userRole }: Props) {
+export default function AIAssistant({ enquiries, batches, overdueStudents, recentNotices }: Props) {
   const [selectedProvider, setSelectedProvider] = useState("openai");
   const [selectedModel, setSelectedModel] = useState("gpt-4o");
   const [activeTool, setActiveTool] = useState<AiTool>("notice_writer");

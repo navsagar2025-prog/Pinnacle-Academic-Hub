@@ -105,7 +105,7 @@ export function buildPrompt(
           : 0;
       return {
         systemPrompt: `You are an academic performance analyst for ${INSTITUTE}. Write clear, insightful 2-paragraph performance briefs for batch coordinators and management. Be factual, constructive, and actionable.`,
-        userPrompt: `Analyse the following batch data and write a 2-paragraph performance brief:\n\nBatch: ${ctx.batchName} (${ctx.courseTitle})\nEnrolment: ${ctx.studentCount}/${ctx.maxStudents} students (${occupancy}% capacity)\nStudy Materials Uploaded: ${ctx.materialCount}\nFee Collection Rate: ${feeRate}% (${ctx.paidFeeRecords} of ${ctx.totalFeeRecords} records paid)\n\nParagraph 1: Overall batch health and highlights.\nParagraph 2: Areas of concern and recommended actions for coordinators.`,
+        userPrompt: `Analyse the following batch data and write a 2-paragraph performance brief:\n\nBatch: ${ctx.batchName} (${ctx.courseTitle})\nEnrolment: ${ctx.studentCount}/${ctx.maxStudents} students (${occupancy}% capacity)\nStudy Materials Uploaded: ${ctx.materialCount}\nFee Collection Rate: ${feeRate}% (${ctx.paidFeeRecords} of ${ctx.totalFeeRecords} records paid)\nNote: Live attendance data not yet tracked in the system — focus analysis on enrolment occupancy, content delivery, and fee discipline.\n\nParagraph 1: Overall batch health and highlights based on the available data.\nParagraph 2: Areas of concern and recommended actions for coordinators to improve engagement and fee collection.`,
       };
     }
 

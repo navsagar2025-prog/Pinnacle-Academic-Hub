@@ -187,7 +187,6 @@ export default async function AdminAIPage() {
       batches={batchOptions}
       overdueStudents={overdueOptions}
       recentNotices={recentNotices}
-      userRole="admin"
     />
   );
 }
