@@ -266,7 +266,8 @@ export function auditPage(entry: PageSeoEntry): SeoAuditEntry {
   if (!entry.hasStructuredData) issues.push("No structured data (schema.org)");
 
   let status: SeoStatus;
-  const blocking = issues.filter(
+
+  const failIssues = issues.filter(
     (i) =>
       i.includes("Title missing") ||
       i.includes("description missing") ||
@@ -275,8 +276,15 @@ export function auditPage(entry: PageSeoEntry): SeoAuditEntry {
       i.includes("og:url")
   );
 
-  if (blocking.length > 0) status = "fail";
-  else if (issues.length > 0) status = "warn";
+  const warnIssues = issues.filter(
+    (i) =>
+      i.includes("og:image") ||
+      i.includes("Description too long") ||
+      i.includes("Title too long")
+  );
+
+  if (failIssues.length > 0) status = "fail";
+  else if (warnIssues.length > 0) status = "warn";
   else status = "pass";
 
   return { ...entry, status, issues };

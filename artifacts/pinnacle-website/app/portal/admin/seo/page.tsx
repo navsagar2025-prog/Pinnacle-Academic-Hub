@@ -2,6 +2,7 @@ import { runAudit, SITE_URL } from "@/lib/seo/page-registry";
 import { CheckCircle, AlertTriangle, XCircle, ExternalLink, Globe, FileText, Search } from "lucide-react";
 import Link from "next/link";
 import type { SeoStatus } from "@/lib/seo/page-registry";
+import { apiUrl } from "@/lib/utils";
 
 export const metadata = { title: "SEO Health Dashboard — Admin" };
 
@@ -102,7 +103,7 @@ export default function SeoAuditPage() {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/pinnacle-website/sitemap.xml"
+            href={apiUrl("/sitemap.xml")}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-teal)]/30 text-[var(--color-teal)] hover:bg-[var(--color-teal)]/5 transition-colors"
@@ -110,7 +111,7 @@ export default function SeoAuditPage() {
             <Globe size={13} /> sitemap.xml
           </a>
           <a
-            href="/pinnacle-website/robots.txt"
+            href={apiUrl("/robots.txt")}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
@@ -302,8 +303,8 @@ export default function SeoAuditPage() {
           </h2>
           <div className="space-y-2">
             {[
-              { label: "sitemap.xml", href: "/pinnacle-website/sitemap.xml", desc: `${total} pages · auto-generated` },
-              { label: "robots.txt", href: "/pinnacle-website/robots.txt", desc: "Allows public, disallows /portal/ /api/" },
+              { label: "sitemap.xml", href: apiUrl("/sitemap.xml"), desc: `${total} pages · auto-generated` },
+              { label: "robots.txt", href: apiUrl("/robots.txt"), desc: "Allows public, disallows /portal/ /api/" },
             ].map((f) => (
               <a
                 key={f.label}
