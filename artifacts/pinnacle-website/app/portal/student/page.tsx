@@ -38,9 +38,13 @@ export default async function StudentDashboard() {
           scheduledAt: liveClasses.scheduledAt,
           zoomJoinUrl: liveClasses.zoomJoinUrl,
           status: liveClasses.status,
+          durationMinutes: liveClasses.durationMinutes,
         })
         .from(liveClasses)
-        .where(and(eq(liveClasses.batchId, enrollment.batchId), gt(liveClasses.scheduledAt, new Date())))
+        .where(and(
+          eq(liveClasses.batchId, enrollment.batchId),
+          gt(liveClasses.scheduledAt, new Date(Date.now() - 2 * 60 * 60 * 1000))
+        ))
         .orderBy(asc(liveClasses.scheduledAt))
         .limit(3)
     : [];
@@ -139,11 +143,28 @@ export default async function StudentDashboard() {
                       <span className="text-xs text-slate-400 flex items-center gap-1"><Calendar size={10} />{new Date(cls.scheduledAt).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                   </div>
-                  {cls.zoomJoinUrl ? (
-                    <a href={cls.zoomJoinUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-xs font-semibold px-4 py-2 bg-[var(--color-teal)] text-white rounded-lg hover:bg-[var(--color-teal-light)] transition-colors">Join</a>
-                  ) : (
-                    <span className="flex-shrink-0 text-xs text-slate-300">Link TBA</span>
-                  )}
+                  {(() => {
+                    const now = new Date();
+                    const start = new Date(cls.scheduledAt);
+                    const durationMs = ((cls as { durationMinutes?: number }).durationMinutes ?? 90) * 60 * 1000;
+                    const liveWindow = 15 * 60 * 1000;
+                    const isLive = now >= new Date(start.getTime() - liveWindow) && now <= new Date(start.getTime() + durationMs);
+                    if (cls.zoomJoinUrl) {
+                      return (
+                        <div className="flex-shrink-0 flex items-center gap-2">
+                          {isLive && (
+                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full animate-pulse">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />LIVE
+                            </span>
+                          )}
+                          <a href={cls.zoomJoinUrl} target="_blank" rel="noopener noreferrer" className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${isLive ? "bg-green-600 text-white hover:bg-green-700" : "bg-[var(--color-teal)] text-white hover:bg-[var(--color-teal-light)]"}`}>
+                            {isLive ? "Join Now" : "Join"}
+                          </a>
+                        </div>
+                      );
+                    }
+                    return <span className="flex-shrink-0 text-xs text-slate-300">Link TBA</span>;
+                  })()}
                 </div>
               ))}
             </div>

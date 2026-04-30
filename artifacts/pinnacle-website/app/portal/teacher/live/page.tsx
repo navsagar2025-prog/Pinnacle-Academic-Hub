@@ -4,6 +4,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { Video, Clock, Users, ExternalLink } from "lucide-react";
 import ScheduleClassForm from "./ScheduleClassForm";
+import TeacherEditLinkForm from "./TeacherEditLinkForm";
 
 export const metadata = { title: "Live Classes — Teacher Portal" };
 
@@ -111,16 +112,34 @@ export default async function TeacherLivePage() {
                     </span>
                     {cls.durationMinutes && <span>{cls.durationMinutes} min</span>}
                   </div>
-                  {cls.zoomHostUrl && (
-                    <a
-                      href={cls.zoomHostUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-[var(--color-teal)] hover:underline"
-                    >
-                      <ExternalLink size={11} /> Start on Zoom
-                    </a>
-                  )}
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    {cls.zoomJoinUrl && (
+                      <a
+                        href={cls.zoomJoinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-teal)] hover:underline"
+                      >
+                        <ExternalLink size={11} /> Open Meeting Link
+                      </a>
+                    )}
+                    {cls.zoomHostUrl && cls.zoomHostUrl !== cls.zoomJoinUrl && (
+                      <a
+                        href={cls.zoomHostUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:underline"
+                      >
+                        <ExternalLink size={11} /> Host Link
+                      </a>
+                    )}
+                  </div>
+                  <TeacherEditLinkForm
+                    classId={cls.id}
+                    topic={cls.topic}
+                    currentMeetingUrl={cls.zoomJoinUrl}
+                    currentRecordingUrl={cls.recordingUrl}
+                  />
                 </div>
               </div>
             ))}
@@ -159,6 +178,12 @@ export default async function TeacherLivePage() {
                   ) : (
                     <span className="text-xs text-slate-300">No recording</span>
                   )}
+                  <TeacherEditLinkForm
+                    classId={cls.id}
+                    topic={cls.topic}
+                    currentMeetingUrl={cls.zoomJoinUrl}
+                    currentRecordingUrl={cls.recordingUrl}
+                  />
                 </div>
               </div>
             ))}

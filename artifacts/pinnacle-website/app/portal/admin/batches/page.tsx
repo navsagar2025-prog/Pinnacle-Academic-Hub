@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { batches, courses } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { Users, Clock, Plus } from "lucide-react";
+import { Users, Clock, Plus, Video } from "lucide-react";
+import Link from "next/link";
 
 export const metadata = { title: "Batches — Admin Panel" };
 
@@ -60,7 +61,12 @@ export default async function AdminBatchesPage() {
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2">
                 <button className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[var(--color-navy)]/5 text-[var(--color-navy)] hover:bg-[var(--color-navy)] hover:text-white transition-colors">Manage</button>
-                <button className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[var(--color-teal)]/5 text-[var(--color-teal)] hover:bg-[var(--color-teal)] hover:text-white transition-colors">Timetable</button>
+                <Link
+                  href="/portal/admin/live-classes"
+                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[var(--color-teal)]/5 text-[var(--color-teal)] hover:bg-[var(--color-teal)] hover:text-white transition-colors flex items-center justify-center gap-1"
+                >
+                  <Video size={11} /> Live Classes
+                </Link>
               </div>
             </div>
           ))}

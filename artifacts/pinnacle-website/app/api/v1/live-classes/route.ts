@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { topic, subject, batchId, scheduledAt, durationMinutes } = body;
+    const { topic, subject, batchId, scheduledAt, durationMinutes, customMeetingUrl } = body;
     if (!topic || !batchId || !scheduledAt) {
       return err("topic, batchId, and scheduledAt are required", 400);
     }
@@ -105,11 +105,33 @@ export async function POST(request: Request) {
       resolvedTeacherId = body.teacherId ?? null;
     }
 
-    const meeting = await createZoomMeeting({
-      topic,
-      scheduledAt: new Date(scheduledAt),
-      durationMinutes: durationMinutes ?? 90,
-    });
+    let meetingData: {
+      meetingId: string | null;
+      joinUrl: string | null;
+      hostUrl: string | null;
+      passcode: string | null;
+    };
+
+    if (customMeetingUrl) {
+      meetingData = {
+        meetingId: null,
+        joinUrl: customMeetingUrl,
+        hostUrl: customMeetingUrl,
+        passcode: null,
+      };
+    } else {
+      const meeting = await createZoomMeeting({
+        topic,
+        scheduledAt: new Date(scheduledAt),
+        durationMinutes: durationMinutes ?? 90,
+      });
+      meetingData = {
+        meetingId: meeting.meetingId,
+        joinUrl: meeting.joinUrl,
+        hostUrl: meeting.hostUrl,
+        passcode: meeting.passcode,
+      };
+    }
 
     const [row] = await db
       .insert(liveClasses)
@@ -118,17 +140,17 @@ export async function POST(request: Request) {
         subject,
         batchId,
         teacherId: resolvedTeacherId,
-        zoomMeetingId: meeting.meetingId,
-        zoomJoinUrl: meeting.joinUrl,
-        zoomHostUrl: meeting.hostUrl,
-        zoomPasscode: meeting.passcode,
+        zoomMeetingId: meetingData.meetingId,
+        zoomJoinUrl: meetingData.joinUrl,
+        zoomHostUrl: meetingData.hostUrl,
+        zoomPasscode: meetingData.passcode,
         scheduledAt: new Date(scheduledAt),
         durationMinutes: durationMinutes ?? 90,
         status: "scheduled",
       })
       .returning();
 
-    return created({ ...row, zoomHostUrl: meeting.hostUrl });
+    return created({ ...row, zoomHostUrl: meetingData.hostUrl });
   } catch (e) {
     console.error("POST /api/v1/live-classes error:", e);
     return err("Failed to create live class");

@@ -11,6 +11,7 @@ import {
   FileBarChart,
   Search,
   Bot,
+  Video,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { label: "Students", href: "/portal/admin/students", Icon: Users },
   { label: "Teachers", href: "/portal/admin/teachers", Icon: GraduationCap },
   { label: "Batches", href: "/portal/admin/batches", Icon: BookOpen },
+  { label: "Live Classes", href: "/portal/admin/live-classes", Icon: Video },
   { label: "Enquiries", href: "/portal/admin/enquiries", Icon: MessageSquare },
   { label: "Analytics", href: "#", Icon: FileBarChart, divider: true },
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", Icon: TrendingUp },

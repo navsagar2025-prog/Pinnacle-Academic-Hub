@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { teachers, schedules, batches, students, courses } from "@workspace/db/schema";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { Clock, MapPin, Users, AlertCircle } from "lucide-react";
+import Link from "next/link";
 
 export const metadata = { title: "My Schedule — Teacher Portal" };
 
@@ -94,9 +95,12 @@ export default async function TeacherSchedulePage() {
                       {s.room && <span className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={11} />{s.room}</span>}
                     </div>
                   </div>
-                  <button className="text-xs font-semibold px-4 py-2 bg-[var(--color-maroon)] text-white rounded-lg hover:bg-[var(--color-maroon-light)] transition-colors flex-shrink-0">
-                    Start Live
-                  </button>
+                  <Link
+                    href="/portal/teacher/live"
+                    className="text-xs font-semibold px-4 py-2 bg-[var(--color-maroon)] text-white rounded-lg hover:bg-[var(--color-maroon-light)] transition-colors flex-shrink-0"
+                  >
+                    Schedule Live
+                  </Link>
                 </div>
               ))}
             </div>
