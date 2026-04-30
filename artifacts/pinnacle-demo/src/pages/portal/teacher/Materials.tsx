@@ -1,3 +1,4 @@
+import { teacherNavItems } from "./Dashboard";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,13 +10,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
-const navItems = [
-  { label: "Dashboard", href: "/portal/teacher", icon: LayoutDashboard },
-  { label: "Schedule Class", href: "/portal/teacher/schedule", icon: CalendarPlus },
-  { label: "Upload Material", href: "/portal/teacher/materials", icon: Upload },
-  { label: "Post Notice", href: "/portal/teacher/notices", icon: BellRing },
-  { label: "Batches", href: "/portal/teacher/batches", icon: Users },
-];
 
 const schema = z.object({
   subject: z.string().min(1, "Select a subject"),
@@ -47,7 +41,7 @@ export default function TeacherMaterials() {
   }
 
   return (
-    <PortalLayout role="teacher" navItems={navItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
+    <PortalLayout role="teacher" navItems={teacherNavItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
       <div className="mb-6">
         <h1 className="text-2xl font-serif font-bold text-primary">Upload Study Material</h1>
         <p className="text-muted-foreground text-sm mt-1">Upload notes, formula sheets, and practice materials for your batches.</p>

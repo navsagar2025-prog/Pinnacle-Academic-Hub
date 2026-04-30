@@ -1,13 +1,14 @@
 import { PortalLayout } from "@/components/layout/PortalLayout";
-import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users, Video } from "lucide-react";
+import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users, Video, ScanLine } from "lucide-react";
 import { Link } from "wouter";
 
-const navItems = [
-  { label: "Dashboard", href: "/portal/teacher", icon: LayoutDashboard },
-  { label: "Schedule Class", href: "/portal/teacher/schedule", icon: CalendarPlus },
+export const teacherNavItems = [
+  { label: "Dashboard",       href: "/portal/teacher",           icon: LayoutDashboard },
+  { label: "Schedule Class",  href: "/portal/teacher/schedule",  icon: CalendarPlus },
   { label: "Upload Material", href: "/portal/teacher/materials", icon: Upload },
-  { label: "Post Notice", href: "/portal/teacher/notices", icon: BellRing },
-  { label: "Batches", href: "/portal/teacher/batches", icon: Users },
+  { label: "Post Notice",     href: "/portal/teacher/notices",   icon: BellRing },
+  { label: "Batches",         href: "/portal/teacher/batches",   icon: Users },
+  { label: "Scan Document",   href: "/portal/scan",              icon: ScanLine },
 ];
 
 const todaysClasses = [
@@ -22,7 +23,7 @@ const recentActivity = [
 
 export default function TeacherDashboard() {
   return (
-    <PortalLayout role="teacher" navItems={navItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
+    <PortalLayout role="teacher" navItems={teacherNavItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
       <div className="mb-6">
         <h1 className="text-2xl font-serif font-bold text-primary">Welcome, Dr. Kumar</h1>
         <p className="text-muted-foreground text-sm mt-1">Physics Faculty — JEE 2026 & Class 12 PCM Batches</p>
@@ -67,7 +68,7 @@ export default function TeacherDashboard() {
           <div className="mt-6">
             <h2 className="font-bold text-foreground mb-4">Quick Actions</h2>
             <div className="grid grid-cols-2 gap-3">
-              {navItems.slice(1).map((item) => {
+              {teacherNavItems.slice(1).map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link key={item.href} href={item.href}>

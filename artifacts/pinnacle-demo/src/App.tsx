@@ -47,6 +47,7 @@ import AdminNotices from "@/pages/portal/admin/Notices";
 import AdminResults from "@/pages/portal/admin/Results";
 import AdminEnquiries from "@/pages/portal/admin/Enquiries";
 import AdminSettings from "@/pages/portal/admin/Settings";
+import ScanDocument from "@/pages/portal/ScanDocument";
 
 const queryClient = new QueryClient();
 
@@ -90,6 +91,9 @@ function Router() {
       <Route path="/portal/teacher/materials" component={TeacherMaterials} />
       <Route path="/portal/teacher/notices" component={TeacherNotices} />
       <Route path="/portal/teacher/batches" component={TeacherBatches} />
+
+      {/* Shared portal — scan feature for teacher + admin */}
+      <Route path="/portal/scan" component={ScanDocument} />
 
       {/* Admin / Staff portal */}
       <Route path="/portal/admin" component={AdminDashboard} />

@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { adminNavItems } from "./Dashboard";
-import { Building2, Phone, Mail, MapPin, Globe, IndianRupee, Shield, Bell, Palette, Database } from "lucide-react";
+import { Building2, Phone, IndianRupee, Bell, Database, ScanLine, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { checkApiHealth, saveOcrSettings } from "@/lib/scan-api";
 
-function Section({ title, icon: Icon, children }: { title: string; icon: React.FC<any>; children: React.ReactNode }) {
+function Section({ title, icon: Icon, children }: { title: string; icon: React.FC<{ className?: string }>; children: React.ReactNode }) {
   return (
     <div className="bg-card border border-border rounded-xl p-5 mb-5">
       <div className="flex items-center gap-2 mb-5 pb-3 border-b border-border">
@@ -44,6 +47,187 @@ const feeStructure = [
   { course: "Class 11 Foundation",        annual: "₹60,000",  half: "₹31,000", registration: "₹1,500" },
   { course: "Class 10 / 9 / 8",          annual: "₹25,000",  half: "₹13,000", registration: "₹1,000" },
 ];
+
+type OcrProvider = "pix2text" | "simpletex" | "latexocr" | "mathpix" | "google-vision";
+
+const providers: { id: OcrProvider; label: string; cost: string; mathAccuracy: string; requiresKey: string }[] = [
+  { id: "pix2text",      label: "Pix2Text",      cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)" },
+  { id: "simpletex",     label: "SimpleTex",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "API Token" },
+  { id: "latexocr",      label: "LaTeX-OCR",     cost: "Free",    mathAccuracy: "★★★★☆", requiresKey: "Endpoint URL (optional key)" },
+  { id: "mathpix",       label: "MathPix",       cost: "Paid",    mathAccuracy: "★★★★★", requiresKey: "App ID + App Key" },
+  { id: "google-vision", label: "Google Vision", cost: "Paid",    mathAccuracy: "★★☆☆☆", requiresKey: "GCP API Key" },
+];
+
+function ScanEngineSection() {
+  const [activeProvider, setActiveProvider] = useState<OcrProvider>("pix2text");
+  const [endpointUrl, setEndpointUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [appId, setAppId] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const h = await checkApiHealth();
+      setTestResult({ ok: true, message: `API server online · Active engine: ${h.activeProvider} · Uptime: ${Math.round(h.uptime)}s` });
+    } catch {
+      setTestResult({ ok: false, message: "API server not reachable. Check that the server is running." });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const providerPayload: Record<string, Record<string, string>> = {};
+      if (activeProvider === "mathpix") {
+        providerPayload.mathpix = {
+          endpointUrl: endpointUrl || "https://api.mathpix.com/v3/text",
+          appId,
+          appKey: apiKey,
+        };
+      } else {
+        providerPayload[activeProvider] = {
+          endpointUrl: endpointUrl || "",
+          apiKey,
+        };
+      }
+      await saveOcrSettings({ activeProvider, providers: providerPayload });
+      toast.success(`OCR engine switched to ${providers.find((p) => p.id === activeProvider)?.label}`);
+    } catch {
+      toast.error("Failed to save OCR settings — is the API server running?");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selected = providers.find((p) => p.id === activeProvider)!;
+
+  return (
+    <Section title="Scan Engine — OCR Provider" icon={ScanLine}>
+      <p className="text-sm text-muted-foreground mb-5">
+        Choose the OCR engine used for document scanning. Switch providers anytime — no restart required. Pix2Text is recommended as the free default.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        {providers.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setActiveProvider(p.id)}
+            className={`text-left p-4 rounded-xl border-2 transition-all ${
+              activeProvider === p.id
+                ? "border-primary bg-primary/5 shadow-sm"
+                : "border-border hover:border-primary/40 bg-card"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-sm text-foreground">{p.label}</span>
+              {activeProvider === p.id && (
+                <CheckCircle2 className="w-4 h-4 text-primary" />
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <div className="flex gap-2">
+                <span className={`font-medium ${p.cost === "Free" ? "text-green-600" : "text-amber-600"}`}>{p.cost}</span>
+                <span>· Math: {p.mathAccuracy}</span>
+              </div>
+              <div className="text-[11px]">{p.requiresKey}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase">Endpoint URL</Label>
+          <Input
+            type="url"
+            placeholder={
+              activeProvider === "mathpix"
+                ? "https://api.mathpix.com/v3/text"
+                : activeProvider === "google-vision"
+                ? "https://vision.googleapis.com/v1/images:annotate"
+                : `https://your-${activeProvider}-space.hf.space/ocr`
+            }
+            value={endpointUrl}
+            onChange={(e) => setEndpointUrl(e.target.value)}
+          />
+        </div>
+
+        {activeProvider === "mathpix" ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">App ID</Label>
+              <Input
+                type="text"
+                placeholder="your_mathpix_app_id"
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">App Key</Label>
+              <Input
+                type="password"
+                placeholder="your_mathpix_app_key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase">
+              API Key {selected.cost === "Free" && activeProvider !== "simpletex" ? "(optional)" : "(required)"}
+            </Label>
+            <Input
+              type="password"
+              placeholder={activeProvider === "simpletex" ? "SimpleTex token" : "Bearer token or API key"}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </div>
+        )}
+      </div>
+
+      {testResult && (
+        <div className={`flex items-start gap-2 p-3 rounded-lg border mb-4 ${
+          testResult.ok
+            ? "bg-green-50 border-green-200 text-green-800"
+            : "bg-destructive/10 border-destructive/20 text-destructive"
+        }`}>
+          {testResult.ok
+            ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+            : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+          <span className="text-sm">{testResult.message}</span>
+        </div>
+      )}
+
+      <div className="flex gap-3 flex-wrap">
+        <button
+          onClick={handleTest}
+          disabled={testing}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-muted hover:bg-muted/80 text-sm font-medium text-foreground transition-colors disabled:opacity-60"
+        >
+          {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+          Test Connection
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          Save Engine Settings
+        </button>
+      </div>
+    </Section>
+  );
+}
 
 export default function AdminSettings() {
   return (
@@ -103,6 +287,8 @@ export default function AdminSettings() {
         </div>
         <DemoSaveBtn label="Update Fee Structure" />
       </Section>
+
+      <ScanEngineSection />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Section title="Notifications" icon={Bell}>

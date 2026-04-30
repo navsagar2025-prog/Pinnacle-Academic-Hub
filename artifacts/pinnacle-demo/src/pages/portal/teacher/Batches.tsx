@@ -1,13 +1,7 @@
+import { teacherNavItems } from "./Dashboard";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users } from "lucide-react";
 
-const navItems = [
-  { label: "Dashboard", href: "/portal/teacher", icon: LayoutDashboard },
-  { label: "Schedule Class", href: "/portal/teacher/schedule", icon: CalendarPlus },
-  { label: "Upload Material", href: "/portal/teacher/materials", icon: Upload },
-  { label: "Post Notice", href: "/portal/teacher/notices", icon: BellRing },
-  { label: "Batches", href: "/portal/teacher/batches", icon: Users },
-];
 
 const batches = [
   {
@@ -46,7 +40,7 @@ const recentStudents = [
 
 export default function TeacherBatches() {
   return (
-    <PortalLayout role="teacher" navItems={navItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
+    <PortalLayout role="teacher" navItems={teacherNavItems} userName="Dr. Ramesh Kumar" userSub="Physics Faculty">
       <div className="mb-6">
         <h1 className="text-2xl font-serif font-bold text-primary">My Batches</h1>
         <p className="text-muted-foreground text-sm mt-1">Overview of your assigned batches and student performance.</p>

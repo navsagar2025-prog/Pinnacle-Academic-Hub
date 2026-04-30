@@ -2,7 +2,7 @@ import { PortalLayout } from "@/components/layout/PortalLayout";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, IndianRupee,
   BellRing, Trophy, ClipboardList, Settings, TrendingUp, AlertCircle,
-  CheckCircle2, Clock
+  CheckCircle2, Clock, ScanLine
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -15,6 +15,7 @@ export const adminNavItems = [
   { label: "Notices",      href: "/portal/admin/notices",     icon: BellRing },
   { label: "Results",      href: "/portal/admin/results",     icon: Trophy },
   { label: "Enquiries",    href: "/portal/admin/enquiries",   icon: ClipboardList },
+  { label: "Scan Document",href: "/portal/scan",              icon: ScanLine },
   { label: "Settings",     href: "/portal/admin/settings",    icon: Settings },
 ];
 
