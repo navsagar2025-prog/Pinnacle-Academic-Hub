@@ -82,9 +82,10 @@ export default async function EnrollmentFunnelPage() {
   const statCards = [
     { label: "Total Enquiries", value: totalEnq, icon: BarChart2, color: "navy" },
     { label: "Followed Up", value: `${followedUpPct}%`, icon: UserCheck, color: "teal" },
-    { label: "Matched Enrollments", value: totalMatchedEnrolled, icon: Users, color: "maroon" },
-    { label: "Conversion Rate", value: `${matchedConversionPct}%`, icon: TrendingUp, color: "gold",
-      tooltip: "Enquiries with matching course interest → enrolled students in that course" },
+    { label: "Active Students", value: totalMatchedEnrolled, icon: Users, color: "maroon",
+      tooltip: "Active students enrolled in courses with a matching enquiry interest" },
+    { label: "Avg. Conversion Rate", value: `${matchedConversionPct}%`, icon: TrendingUp, color: "gold",
+      tooltip: "Enquiries matched by course interest → enrolled active students in that course" },
   ];
 
   const colorBorder: Record<string, string> = {

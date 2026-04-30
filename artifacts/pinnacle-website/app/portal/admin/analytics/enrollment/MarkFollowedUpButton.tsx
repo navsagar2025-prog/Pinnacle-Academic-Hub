@@ -2,17 +2,26 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { CheckCircle, Loader2, AlertCircle } from "lucide-react";
 
 export default function MarkFollowedUpButton({ id, current }: { id: string; current: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState(current);
+  const [error, setError] = useState<string | null>(null);
 
-  if (optimistic) {
+  if (optimistic && !error) {
     return (
       <span className="flex items-center gap-1 text-xs font-semibold text-[var(--color-teal)]">
         <CheckCircle size={12} /> Done
+      </span>
+    );
+  }
+
+  if (error) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold text-[var(--color-maroon)]" title={error}>
+        <AlertCircle size={12} /> Failed — retry
       </span>
     );
   }
@@ -21,14 +30,26 @@ export default function MarkFollowedUpButton({ id, current }: { id: string; curr
     <button
       disabled={pending}
       onClick={() => {
+        setError(null);
         setOptimistic(true);
         startTransition(async () => {
-          await fetch(`/pinnacle-website/api/v1/enquiries/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isFollowedUp: true }),
-          });
-          router.refresh();
+          try {
+            const res = await fetch(`/pinnacle-website/api/v1/enquiries/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ isFollowedUp: true }),
+            });
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              setOptimistic(false);
+              setError((body as { error?: string }).error ?? `Server error ${res.status}`);
+              return;
+            }
+            router.refresh();
+          } catch {
+            setOptimistic(false);
+            setError("Network error — please try again");
+          }
         });
       }}
       className="text-xs px-3 py-1 rounded-lg bg-[var(--color-teal)]/10 text-[var(--color-teal)] font-semibold hover:bg-[var(--color-teal)]/20 transition-colors disabled:opacity-50 flex items-center gap-1"
