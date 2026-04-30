@@ -1,0 +1,561 @@
+Pinnacle Academic Classes — Production-Ready Website Prompt
+Domain: paconline.in
+Support Email: care@paconline.in
+
+Project Objective
+Build a production-ready, scalable, secure, and mobile-first web platform for Pinnacle Academic Classes on the domain paconline.in. The platform must serve as the institute’s primary digital presence for admissions, course discovery, lead generation, student/parent/teacher/admin portals, online learning access, fee management, notices, results, and content publishing.
+
+The website must be designed and developed in a way that supports a future Android app without requiring a major rewrite of business logic, data contracts, or design system. The web platform should act as the foundation for a later mobile app ecosystem.
+
+Product Vision
+Create a premium EdTech/coaching institute platform that combines:
+- Public-facing trust-building website
+- Secure student and parent self-service portal
+- Teacher operations portal
+- Admin control panel
+- Scalable backend APIs
+- Mobile-ready architecture for future Android app integration
+
+Business Goals
+- Increase admissions enquiries and conversions
+- Digitize student, parent, teacher, and admin workflows
+- Provide structured access to classes, materials, tests, results, and fees
+- Build a professional, premium, high-trust brand presence
+- Create a reusable backend and design system that can power a future Android app
+
+Primary Users
+- Prospective students
+- Parents
+- Existing students
+- Teachers/faculty
+- Admin staff / institute management
+- Counselors / admissions team (optional future role)
+
+Platform Requirements
+This is a real production platform, not a demo.
+The build must include:
+- Real authentication
+- Real backend APIs
+- Database persistence
+- Role-based access control
+- File/media handling
+- Form submission and CRM capture
+- Fee/payment workflow integration readiness
+- Secure production deployment
+- Admin-controlled content management
+- Auditability and maintainability
+
+Future Android App Readiness
+Design the platform so that Android app development can reuse:
+- The same backend APIs
+- The same authentication system
+- The same roles and permissions
+- The same data models
+- The same business rules
+- The same design tokens and component logic where applicable
+
+Do not tightly couple critical flows to web-only assumptions.
+All core business functionality must be API-first.
+
+Recommended Architecture
+Frontend:
+- Next.js latest stable version with TypeScript
+- App Router
+- Server components where useful, client components where necessary
+- Tailwind CSS
+- shadcn/ui
+- React Hook Form + Zod
+- TanStack Query for client-side data fetching/caching where appropriate
+
+Backend:
+Choose one robust production-ready backend approach:
+Option A:
+- Next.js API routes / server actions for simple integrated deployment
+Option B:
+- Separate backend using Node.js + NestJS or Express + TypeScript
+Preferred if long-term app scale is expected
+
+Database:
+- PostgreSQL preferred
+
+ORM:
+- Prisma preferred
+
+Authentication:
+- Production-grade auth with JWT/session strategy
+- Role-based access control
+- Email/password login
+- OTP login optional
+- Password reset flow
+- Secure session handling
+
+Storage:
+- S3-compatible object storage for notes, PDFs, images, recordings metadata, and other uploads
+
+Payments:
+- Razorpay integration ready for Indian fee collection
+- Webhooks support
+- Payment history records
+- Pending/paid/partial status model
+
+Notifications:
+- Email notifications for enquiry acknowledgement, admissions updates, payment confirmations, password reset
+- SMS/WhatsApp integration should be architecturally possible later
+
+Infra / Deployment:
+- Production deployable on VPS, cloud VM, Docker, or managed platform
+- Reverse proxy ready
+- SSL support
+- Environment variable driven configuration
+- Logging, monitoring, backups, and error tracking ready
+
+Core Non-Functional Requirements
+- Mobile-first responsive design
+- SEO-ready public pages
+- Fast loading and optimized Core Web Vitals
+- Accessibility-conscious UI
+- Production-grade security practices
+- Scalable codebase and modular folder structure
+- Audit logs for sensitive admin actions
+- Input validation on both client and server
+- Clean API contracts for future Android app reuse
+
+Branding / Identity
+Brand Name:
+Pinnacle Academic Classes
+
+Domain:
+https://paconline.in
+
+Support Email:
+care@paconline.in
+
+Design Direction
+Build a premium academic brand aesthetic:
+- Trustworthy
+- Serious but modern
+- Parent-friendly
+- Student-friendly
+- Mobile-first
+- Clean dashboards
+- Premium coaching institute feel, not generic school ERP feel
+
+Suggested Color Palette
+- Primary: Navy (#0A1F5C)
+- Secondary: Teal (#0D7377)
+- Accent: Gold (#C9A84C)
+- Support/Error: Maroon (#8B1A1A)
+- Background: Warm off-white (#F8F5EE)
+- Surface/Card: White (#FFFFFF)
+
+Typography
+- Headings: Playfair Display
+- Body/UI: Plus Jakarta Sans
+
+Public Website Information Architecture
+Public Pages
+- Home
+- About
+- Courses
+- Faculty
+- Admissions
+- Results
+- Notices
+- Blog
+- FAQ
+- Contact
+- Privacy Policy
+- Terms & Conditions
+- Refund Policy
+- Login / Sign In
+
+Public Website Features
+Navbar
+- Sticky header
+- Active state
+- Mobile hamburger
+- CTA buttons for Admissions / Contact / Login
+
+Home Page
+- Hero section with clear admissions CTA
+- Why choose Pinnacle
+- Course categories
+- Faculty highlights
+- Toppers/results preview
+- Testimonials
+- Admission process
+- FAQs preview
+- Contact/location section
+
+About
+- Institute story
+- Mission and vision
+- Teaching methodology
+- Infrastructure / classroom quality
+- Achievements and trust markers
+
+Courses
+- Course categories:
+  - IIT-JEE
+  - NEET
+  - Boards
+  - Foundation
+- Course detail cards
+- Eligibility, duration, fee summary, start dates, seat info
+- Lead capture CTA per course
+
+Faculty
+- Faculty listing
+- Subject expertise
+- Experience
+- Photos
+- Short bios
+- Ratings/testimonial style trust markers if available
+
+Admissions
+- Real enquiry/application form
+- Lead capture into admin CRM
+- Form validation
+- Auto acknowledgement email
+- Lead source tracking
+- Course interest capture
+
+Results
+- Toppers
+- Rankers
+- Past performance
+- Search/filter by exam/year if useful
+
+Notices
+- Public notice board
+- Time-sensitive announcements
+- Featured/pinned notices
+
+Blog
+- SEO-friendly article publishing
+- Categories/tags
+- Admin-manageable CMS workflow
+- Clean detail pages and listing pages
+
+Contact
+- Contact form
+- Google Maps embed
+- Address, phone, email
+- CTA for calling / WhatsApp / enquiry
+
+Footer
+- Quick links
+- Support links
+- Contact info
+- Social links
+- Map/location
+- Copyright
+
+Authentication & Roles
+Roles
+- Student
+- Parent
+- Teacher
+- Admin
+- Super Admin (recommended)
+- Counselor / Admissions Executive (optional future-ready role)
+
+Auth Features
+- Secure sign up / login flow where applicable
+- Student/Parent account creation rules
+- Forgot password
+- Reset password
+- Session expiry handling
+- Role-based redirects after login
+- Protected routes
+- Optional device/session management in future
+
+Student Portal
+Core Features
+- Dashboard
+- My Courses
+- Live Classes
+- Recorded Classes
+- Study Materials
+- Assignments
+- Practice Papers / Tests
+- Timetable
+- Attendance
+- Results / Performance
+- Fee Status
+- Notifications
+- Profile & settings
+
+Student Dashboard
+- Upcoming classes
+- Recent materials
+- Pending fees
+- Latest notices
+- Progress summary
+- Quick links
+
+Parent Portal
+Core Features
+- Dashboard
+- Child attendance
+- Timetable
+- Fee tracker
+- Performance/results
+- Notices
+- Teacher communication placeholder/future-ready block
+
+Teacher Portal
+Core Features
+- Dashboard
+- My Schedule
+- Batch Management
+- Upload Materials
+- Assignments / Tests
+- Notices
+- Attendance marking
+- Student performance overview
+- Profile/settings
+
+Teacher Operations
+- Upload PDF/material links
+- Add assignments/tests
+- View assigned batches
+- Record attendance
+- Post internal notices
+- Manage class resources
+
+Admin Portal
+Core Features
+- Dashboard
+- Student management
+- Parent management
+- Teacher management
+- Batch management
+- Course management
+- Fees/payment management
+- Notices management
+- Results management
+- Enquiries CRM
+- Blog/CMS management
+- Admissions/application management
+- Settings
+- Reports & analytics
+- User roles & permissions
+- System audit logs
+
+Admin Dashboard
+- Total students
+- Active teachers
+- Active batches
+- New enquiries
+- Conversion funnel
+- Fee collected
+- Pending fees
+- Revenue trend
+- Recent notices
+- Recent admissions
+- Task/reminder widgets
+
+Enquiry CRM
+Statuses:
+- New
+- Attempted
+- Contacted
+- Follow-up
+- Converted
+- Closed
+
+Enquiry Features
+- Lead capture from website forms
+- Search and filters
+- Notes history
+- Assigned counselor
+- Course interest
+- Source tracking
+- Status timeline
+- Follow-up reminders
+
+Fee & Payment Module
+- Fee plans by course/batch
+- Student-wise fee ledger
+- Due dates
+- Partial payment support
+- Pending/paid/overdue states
+- Download receipt
+- Razorpay/payment gateway ready
+- Admin reconciliation dashboard
+- Payment history export
+
+Academics Module
+- Course master
+- Batch creation
+- Subject mapping
+- Faculty mapping
+- Timetable scheduling
+- Study material uploads
+- Assignment/test uploads
+- Result publishing
+- Attendance tracking
+
+Content Management
+Admin-manageable content for:
+- Homepage sections
+- Announcements
+- Faculty profiles
+- Course details
+- Testimonials
+- Blog posts
+- FAQs
+- Policies
+- Contact details
+
+File/Media Management
+- Upload and manage:
+  - Faculty photos
+  - Course banners
+  - PDFs
+  - Notes
+  - Assignments
+  - Practice papers
+  - Blog images
+- Media URLs should be CDN/storage ready
+- File validation and access control required
+
+SEO Requirements
+- SEO-friendly URLs
+- Metadata per page
+- Open Graph tags
+- Sitemap
+- Robots.txt
+- Schema markup where relevant
+- Blog optimized for organic discovery
+- Fast page performance
+Responsive best practices and single-URL responsive architecture are generally preferred over separate mobile sites, especially when future app planning is involved [web:36][web:42][web:45].
+
+Security Requirements
+- Role-based authorization
+- Secure password hashing
+- CSRF/XSS/SQL injection protection
+- Rate limiting on auth and forms
+- Input sanitization
+- Protected file access where required
+- Audit logs for admin-sensitive actions
+- Secure environment secret handling
+- Validation on server side for every write operation
+Production readiness also typically includes deployment hardening, error handling, logging, and operational safeguards before launch [web:32][web:44].
+
+Performance Requirements
+- Optimized images
+- Lazy loading where appropriate
+- Code splitting
+- Caching strategy
+- Compression
+- Fast LCP and smooth mobile UX
+- Clean responsive layout for small screens first
+Mobile-first responsive design is recommended because the same content model can then support both web and future app experiences more consistently [web:36][web:42].
+
+Accessibility Requirements
+- Semantic HTML
+- Keyboard-friendly navigation
+- Visible focus states
+- Form labels and validation messaging
+- Good contrast ratios
+- Accessible tables and interactive elements
+
+Suggested Production Folder Structure
+- apps/web
+- apps/api (if separated)
+- packages/ui
+- packages/config
+- packages/types
+- packages/utils
+
+Shared Types / API-First Requirement
+Create shared domain types for:
+- User
+- Role
+- Course
+- Faculty
+- Batch
+- StudentProfile
+- ParentProfile
+- TeacherProfile
+- Notice
+- Result
+- Enquiry
+- Payment
+- Attendance
+- Material
+- Assignment
+- BlogPost
+
+The web frontend and future Android app must consume the same business entities and API contracts.
+
+Future Android App Readiness Rules
+Keep these mandatory for future app expansion:
+- API-first backend architecture
+- Token/session auth strategy suitable for mobile
+- Clear REST or GraphQL contracts
+- Shared validation logic where possible
+- No UI logic mixed into domain logic
+- Notification/event model designed for future push notifications
+- Course/content/media APIs reusable by mobile client
+- Fee/payment records accessible through APIs
+- Role-based dashboard data exposed through APIs
+
+Suggested Future Android Scope
+The Android app should later support:
+- Student learning access
+- Parent tracking
+- Teacher actions
+- Notices and alerts
+- Attendance
+- Fees
+- Performance
+- Push notifications
+- Downloadable materials
+Therefore, the website backend should be designed now as a long-term product backend rather than a website-only backend [web:34][web:40].
+
+Admin Settings / Institute Config
+Admin should be able to manage:
+- Institute name
+- Domain-linked branding config
+- Contact email: care@paconline.in
+- Contact numbers
+- Address
+- Social links
+- Course categories
+- Fee structures
+- Academic session settings
+- Notification templates
+- Payment gateway keys via secure config flow
+- Policy page content
+
+Mandatory Deliverables
+- Production-ready frontend
+- Production-ready backend
+- Database schema
+- Role-based auth
+- Admin panel
+- Public website
+- Student/Parent/Teacher/Admin dashboards
+- SEO setup
+- Secure deployment docs
+- Environment variable template
+- API documentation
+- Basic test coverage for critical flows
+- Future Android readiness in architecture and contracts
+
+Acceptance Criteria
+- Public users can browse content and submit enquiries successfully
+- Admin can manage enquiries, courses, notices, blog, results, and users
+- Students can securely access their classes, materials, timetable, fees, and results
+- Parents can view their child’s academic and fee information
+- Teachers can manage batches, attendance, materials, and notices
+- Payments module is integration-ready and supports proper status tracking
+- The platform is responsive, secure, production-deployable, and scalable
+- The architecture is reusable for a future Android app without major backend redesign
+
+Important Implementation Note
+Do not build this as a superficial brochure site with fake portals.
+Build it as a real product platform with production-ready architecture, real data models, real role-based access, and reusable APIs for future mobile apps.

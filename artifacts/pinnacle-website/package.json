@@ -9,8 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@clerk/nextjs": "^6.20.0",
+    "@google/genai": "^1.44.0",
     "@workspace/db": "workspace:*",
+    "openai": "^6.27.0",
     "clsx": "catalog:",
     "drizzle-orm": "catalog:",
     "lucide-react": "catalog:",
