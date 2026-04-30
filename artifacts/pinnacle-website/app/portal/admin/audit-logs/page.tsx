@@ -9,7 +9,10 @@ const ACTION_COLORS: Record<string, string> = {
   "course.create": "bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
   "course.update": "bg-blue-100 text-blue-700",
   "course.archive": "bg-slate-100 text-slate-600",
+  "fee.create": "bg-[var(--color-gold)]/15 text-[var(--color-navy)]",
   "fee.update": "bg-[var(--color-gold)]/15 text-[var(--color-navy)]",
+  "fee.payment": "bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
+  "fee.waive": "bg-slate-100 text-slate-600",
   "result.create": "bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
   "result.update": "bg-blue-100 text-blue-700",
   "result.delete": "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]",
@@ -18,6 +21,7 @@ const ACTION_COLORS: Record<string, string> = {
   "blog.delete": "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]",
   "enquiry.update": "bg-[var(--color-gold)]/15 text-[var(--color-navy)]",
   "settings.update": "bg-purple-100 text-purple-700",
+  "admission.update": "bg-blue-100 text-blue-700",
 };
 
 export default async function AdminAuditLogsPage() {

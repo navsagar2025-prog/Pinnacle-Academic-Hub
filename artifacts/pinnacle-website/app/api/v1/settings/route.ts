@@ -6,6 +6,10 @@ import { getDbUser } from "@/lib/server/portal-auth";
 import { logAudit } from "@/lib/server/audit";
 
 export async function GET() {
+  const actor = await getDbUser();
+  if (!actor) return err("Unauthorized", 401);
+  if (actor.role !== "admin") return err("Forbidden", 403);
+
   try {
     const rows = await db.select().from(siteSettings).orderBy(siteSettings.key);
     return ok(rows);

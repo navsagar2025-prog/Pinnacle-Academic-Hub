@@ -21,6 +21,7 @@ export async function GET(request: Request) {
         id: feeRecords.id,
         period: feeRecords.period,
         amount: feeRecords.amount,
+        paidAmount: feeRecords.paidAmount,
         dueDate: feeRecords.dueDate,
         paidDate: feeRecords.paidDate,
         status: feeRecords.status,
