@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema/index";
+import { eq, sql } from "drizzle-orm";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 const db = drizzle(pool, { schema });
@@ -87,7 +88,6 @@ async function seed() {
   await db.insert(schema.courses).values(courseData).onConflictDoNothing();
   console.log("✅ Courses seeded");
 
-  // Batches
   const insertedCourses = await db.select().from(schema.courses);
   const jee = insertedCourses.find((c) => c.slug === "jee-main-advanced")!;
   const neet = insertedCourses.find((c) => c.slug === "neet-ug")!;
@@ -101,6 +101,155 @@ async function seed() {
   ];
   await db.insert(schema.batches).values(batchData).onConflictDoNothing();
   console.log("✅ Batches seeded");
+
+  const insertedBatches = await db.select().from(schema.batches);
+  const jeeMorning = insertedBatches.find((b) => b.name === "JEE Morning Batch A")!;
+  const jeeEvening = insertedBatches.find((b) => b.name === "JEE Evening Batch B")!;
+  const neetMorning = insertedBatches.find((b) => b.name === "NEET Morning Batch")!;
+
+  // Teachers (seeded with null userId so they work as reference data without real Clerk accounts)
+  const existingTeachers = await db.select().from(schema.teachers);
+  if (existingTeachers.length === 0) {
+    const teacherData = [
+      {
+        userId: null,
+        designation: "Senior Faculty — Physics",
+        qualification: "M.Sc. Physics, IIT Kanpur",
+        subjects: ["Physics"],
+        experienceYears: 12,
+        bio: "IIT Kanpur alumnus with 12 years of JEE coaching experience. Expert in Mechanics, Electrodynamics and Modern Physics.",
+        initials: "RK",
+        isActive: true,
+      },
+      {
+        userId: null,
+        designation: "Senior Faculty — Chemistry",
+        qualification: "M.Sc. Chemistry, Delhi University",
+        subjects: ["Chemistry"],
+        experienceYears: 9,
+        bio: "Specialist in Organic and Physical Chemistry with a track record of 95%+ students clearing JEE Mains.",
+        initials: "PS",
+        isActive: true,
+      },
+      {
+        userId: null,
+        designation: "Senior Faculty — Mathematics",
+        qualification: "M.Sc. Mathematics, NIT Allahabad",
+        subjects: ["Mathematics"],
+        experienceYears: 11,
+        bio: "Expert in Calculus, Algebra and Coordinate Geometry. Known for breaking down complex problems into intuitive steps.",
+        initials: "AT",
+        isActive: true,
+      },
+      {
+        userId: null,
+        designation: "Faculty — Biology",
+        qualification: "M.Sc. Botany, Lucknow University",
+        subjects: ["Biology"],
+        experienceYears: 7,
+        bio: "NEET specialist with deep expertise in Plant Physiology, Genetics and Human Anatomy. 93% NEET selection rate.",
+        initials: "SP",
+        isActive: true,
+      },
+    ];
+    await db.insert(schema.teachers).values(teacherData);
+    console.log("✅ Teachers seeded");
+  } else {
+    console.log("⏭️  Teachers already seeded, skipping");
+  }
+
+  const allTeachers = await db.select().from(schema.teachers);
+  const tPhysics = allTeachers.find((t) => t.initials === "RK")!;
+  const tChem = allTeachers.find((t) => t.initials === "PS")!;
+  const tMath = allTeachers.find((t) => t.initials === "AT")!;
+
+  // Schedules
+  const existingSchedules = await db.select({ c: sql<number>`count(*)::int` }).from(schema.schedules);
+  if ((existingSchedules[0]?.c ?? 0) === 0 && jeeMorning && jeeEvening && tPhysics && tChem && tMath) {
+    const scheduleData = [
+      // JEE Evening Batch B — Physics (Mon, Wed, Fri)
+      { batchId: jeeEvening.id, teacherId: tPhysics.id, subject: "Physics", topic: "Wave Optics", dayOfWeek: 1, startTime: "16:00", endTime: "18:00", room: "Room 102", isRecurring: true },
+      { batchId: jeeEvening.id, teacherId: tPhysics.id, subject: "Physics", topic: "Thermodynamics", dayOfWeek: 3, startTime: "16:00", endTime: "18:00", room: "Room 102", isRecurring: true },
+      { batchId: jeeEvening.id, teacherId: tPhysics.id, subject: "Physics", topic: "Electrodynamics", dayOfWeek: 5, startTime: "16:00", endTime: "18:00", room: "Room 102", isRecurring: true },
+      // JEE Evening Batch B — Chemistry (Tue, Thu)
+      { batchId: jeeEvening.id, teacherId: tChem.id, subject: "Chemistry", topic: "Organic Chemistry", dayOfWeek: 2, startTime: "16:00", endTime: "18:00", room: "Room 102", isRecurring: true },
+      { batchId: jeeEvening.id, teacherId: tChem.id, subject: "Chemistry", topic: "Physical Chemistry", dayOfWeek: 4, startTime: "16:00", endTime: "18:00", room: "Room 102", isRecurring: true },
+      // JEE Evening Batch B — Mathematics (Mon, Fri)
+      { batchId: jeeEvening.id, teacherId: tMath.id, subject: "Mathematics", topic: "Integral Calculus", dayOfWeek: 1, startTime: "18:15", endTime: "19:15", room: "Room 102", isRecurring: true },
+      { batchId: jeeEvening.id, teacherId: tMath.id, subject: "Mathematics", topic: "Differential Equations", dayOfWeek: 4, startTime: "18:15", endTime: "19:15", room: "Room 102", isRecurring: true },
+      // JEE Morning Batch A — Physics (Mon, Wed, Fri)
+      { batchId: jeeMorning.id, teacherId: tPhysics.id, subject: "Physics", topic: "Mechanics", dayOfWeek: 1, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+      { batchId: jeeMorning.id, teacherId: tPhysics.id, subject: "Physics", topic: "Modern Physics", dayOfWeek: 3, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+      { batchId: jeeMorning.id, teacherId: tPhysics.id, subject: "Physics", topic: "Optics", dayOfWeek: 5, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+      // JEE Morning Batch A — Chemistry (Tue, Thu)
+      { batchId: jeeMorning.id, teacherId: tChem.id, subject: "Chemistry", topic: "Inorganic Chemistry", dayOfWeek: 2, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+      { batchId: jeeMorning.id, teacherId: tChem.id, subject: "Chemistry", topic: "Coordination Compounds", dayOfWeek: 4, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+      // JEE Morning Batch A — Mathematics (Tue, Sat)
+      { batchId: jeeMorning.id, teacherId: tMath.id, subject: "Mathematics", topic: "Coordinate Geometry", dayOfWeek: 2, startTime: "08:15", endTime: "09:00", room: "Room 101", isRecurring: true },
+      { batchId: jeeMorning.id, teacherId: tMath.id, subject: "Mathematics", topic: "Complex Numbers", dayOfWeek: 6, startTime: "06:30", endTime: "08:00", room: "Room 101", isRecurring: true },
+    ];
+    await db.insert(schema.schedules).values(scheduleData);
+    console.log("✅ Schedules seeded");
+  } else {
+    console.log("⏭️  Schedules already seeded, skipping");
+  }
+
+  // Study Materials
+  const existingMaterials = await db.select({ c: sql<number>`count(*)::int` }).from(schema.studyMaterials);
+  if ((existingMaterials[0]?.c ?? 0) === 0 && jeeEvening) {
+    const materialData = [
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Wave Optics — Complete Notes", subject: "Physics", type: "notes" as const, fileSize: "2.4 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Organic Chemistry — Haloalkanes", subject: "Chemistry", type: "notes" as const, fileSize: "1.8 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Integral Calculus — Formula Sheet", subject: "Mathematics", type: "formula" as const, fileSize: "0.8 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Thermodynamics — NCERT Exercises", subject: "Physics", type: "exercise" as const, fileSize: "3.1 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Coordination Compounds — Notes", subject: "Chemistry", type: "notes" as const, fileSize: "2.2 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Differential Equations — Solved Examples", subject: "Mathematics", type: "exercise" as const, fileSize: "1.9 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Electrostatics — Chapter Summary", subject: "Physics", type: "summary" as const, fileSize: "1.2 MB", isVisible: true },
+      { batchId: jeeEvening.id, uploadedBy: null, title: "Physical Chemistry — Thermodynamics Notes", subject: "Chemistry", type: "notes" as const, fileSize: "2.7 MB", isVisible: true },
+      { batchId: jeeMorning.id, uploadedBy: null, title: "Mechanics — Rotation Notes", subject: "Physics", type: "notes" as const, fileSize: "2.0 MB", isVisible: true },
+      { batchId: jeeMorning.id, uploadedBy: null, title: "Inorganic Chemistry — Periodic Table", subject: "Chemistry", type: "formula" as const, fileSize: "1.5 MB", isVisible: true },
+    ];
+    await db.insert(schema.studyMaterials).values(materialData);
+    console.log("✅ Study materials seeded");
+  } else {
+    console.log("⏭️  Study materials already seeded, skipping");
+  }
+
+  // Practice Papers
+  const existingPapers = await db.select({ c: sql<number>`count(*)::int` }).from(schema.practicePapers);
+  if ((existingPapers[0]?.c ?? 0) === 0 && jeeEvening) {
+    const paperData = [
+      { batchId: jeeEvening.id, title: "JEE Mains — Full Mock Test #8", paperType: "Full Mock", subject: "PCM", durationMinutes: 180, totalQuestions: 90, maxMarks: 300, isVisible: true },
+      { batchId: jeeEvening.id, title: "JEE Advanced — Paper 1 Practice", paperType: "JEE Advanced", subject: "PCM", durationMinutes: 180, totalQuestions: 54, maxMarks: 183, isVisible: true },
+      { batchId: jeeEvening.id, title: "Physics — Wave Optics DPP", paperType: "DPP", subject: "Physics", durationMinutes: 45, totalQuestions: 20, maxMarks: 60, isVisible: true },
+      { batchId: jeeEvening.id, title: "Chemistry — Organic Chemistry Test", paperType: "Chapter Test", subject: "Chemistry", durationMinutes: 60, totalQuestions: 30, maxMarks: 90, isVisible: true },
+      { batchId: jeeEvening.id, title: "Mathematics — Calculus Test", paperType: "Chapter Test", subject: "Mathematics", durationMinutes: 90, totalQuestions: 30, maxMarks: 90, isVisible: true },
+      { batchId: jeeEvening.id, title: "JEE Mains — Full Mock Test #7", paperType: "Full Mock", subject: "PCM", durationMinutes: 180, totalQuestions: 90, maxMarks: 300, isVisible: true },
+      { batchId: jeeEvening.id, title: "Previous Year — JEE Mains 2024", paperType: "Previous Year", subject: "PCM", durationMinutes: 180, totalQuestions: 90, maxMarks: 300, isVisible: true },
+      { batchId: jeeEvening.id, title: "Previous Year — JEE Mains 2023", paperType: "Previous Year", subject: "PCM", durationMinutes: 180, totalQuestions: 90, maxMarks: 300, isVisible: true },
+    ];
+    await db.insert(schema.practicePapers).values(paperData);
+    console.log("✅ Practice papers seeded");
+  } else {
+    console.log("⏭️  Practice papers already seeded, skipping");
+  }
+
+  // Class Recordings
+  const existingRecordings = await db.select({ c: sql<number>`count(*)::int` }).from(schema.classRecordings);
+  if ((existingRecordings[0]?.c ?? 0) === 0 && jeeEvening) {
+    const recordingData = [
+      { batchId: jeeEvening.id, liveClassId: null, title: "Thermodynamics — Laws of Thermodynamics", subject: "Physics", teacherName: "Dr. Ramesh Kumar", recordingUrl: "#", durationMinutes: 105, isVisible: true },
+      { batchId: jeeEvening.id, liveClassId: null, title: "Coordination Compounds — Full Chapter", subject: "Chemistry", teacherName: "Ms. Priya Sharma", recordingUrl: "#", durationMinutes: 130, isVisible: true },
+      { batchId: jeeEvening.id, liveClassId: null, title: "Differential Equations — Introduction", subject: "Mathematics", teacherName: "Mr. Ajay Tiwari", recordingUrl: "#", durationMinutes: 115, isVisible: true },
+      { batchId: jeeEvening.id, liveClassId: null, title: "Wave Optics — Complete Chapter", subject: "Physics", teacherName: "Dr. Ramesh Kumar", recordingUrl: "#", durationMinutes: 125, isVisible: true },
+      { batchId: jeeEvening.id, liveClassId: null, title: "Organic Chemistry — Named Reactions", subject: "Chemistry", teacherName: "Ms. Priya Sharma", recordingUrl: "#", durationMinutes: 100, isVisible: true },
+      { batchId: jeeEvening.id, liveClassId: null, title: "Complex Numbers — Master Class", subject: "Mathematics", teacherName: "Mr. Ajay Tiwari", recordingUrl: "#", durationMinutes: 120, isVisible: true },
+    ];
+    await db.insert(schema.classRecordings).values(recordingData);
+    console.log("✅ Class recordings seeded");
+  } else {
+    console.log("⏭️  Class recordings already seeded, skipping");
+  }
 
   // Notices
   const noticeData = [
@@ -116,7 +265,6 @@ async function seed() {
   await db.insert(schema.notices).values(noticeData).onConflictDoNothing();
   console.log("✅ Notices seeded");
 
-  // Enquiries (sample)
   const enquiryData = [
     { name: "Arjun Mehta", email: "arjun.m@example.com", phone: "+91 98100 11001", courseInterest: "JEE Main & Advanced", message: "My son is in Class 10 and wants to prepare for JEE. Can we visit for a demo class?" },
     { name: "Priya Sharma", email: "priya.s@example.com", phone: "+91 99100 22002", courseInterest: "NEET UG", message: "Interested in NEET preparation for my daughter. Please share fee structure and batch timings." },

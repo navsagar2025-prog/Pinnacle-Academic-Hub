@@ -1,137 +1,116 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { requirePortalRole } from "@/lib/server/portal-auth";
+import { db } from "@workspace/db";
 import {
-  Video,
-  BookOpen,
-  Clock,
-  CreditCard,
-  Bell,
-  TrendingUp,
-  ChevronRight,
-  Play,
-  Calendar,
-} from "lucide-react";
+  students, liveClasses, classRecordings, studyMaterials,
+  practicePapers, feeRecords, batches, courses,
+} from "@workspace/db/schema";
+import { eq, and, gt, desc, asc, sql } from "drizzle-orm";
+import { Video, BookOpen, Clock, CreditCard, Bell, ChevronRight, Play, Calendar, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = { title: "Student Dashboard" };
 
-const UPCOMING_CLASSES = [
-  {
-    id: 1,
-    subject: "Physics",
-    topic: "Wave Optics — Diffraction",
-    time: "5:00 PM",
-    date: "Today",
-    teacher: "Dr. Ramesh Kumar",
-    batch: "JEE 2026 — Evening",
-    joinLink: "#",
-  },
-  {
-    id: 2,
-    subject: "Chemistry",
-    topic: "Organic — Haloalkanes",
-    time: "7:00 PM",
-    date: "Today",
-    teacher: "Ms. Priya Sharma",
-    batch: "JEE 2026 — Evening",
-    joinLink: "#",
-  },
-  {
-    id: 3,
-    subject: "Mathematics",
-    topic: "Integral Calculus",
-    time: "10:00 AM",
-    date: "Tomorrow",
-    teacher: "Mr. Ajay Tiwari",
-    batch: "JEE 2026 — Evening",
-    joinLink: "#",
-  },
-];
-
-const RECENT_RECORDINGS = [
-  {
-    id: 1,
-    subject: "Physics",
-    topic: "Thermodynamics — Laws",
-    date: "28 Apr",
-    duration: "1h 45m",
-    teacher: "Dr. Ramesh Kumar",
-  },
-  {
-    id: 2,
-    subject: "Chemistry",
-    topic: "Coordination Compounds",
-    date: "27 Apr",
-    duration: "2h 10m",
-    teacher: "Ms. Priya Sharma",
-  },
-  {
-    id: 3,
-    subject: "Mathematics",
-    topic: "Differential Equations",
-    date: "26 Apr",
-    duration: "1h 55m",
-    teacher: "Mr. Ajay Tiwari",
-  },
-];
-
-const STAT_CARDS = [
-  { label: "Classes This Week", value: "6", icon: <Video size={18} />, color: "navy" },
-  { label: "Materials Available", value: "48", icon: <BookOpen size={18} />, color: "teal" },
-  { label: "Practice Papers", value: "24", icon: <Clock size={18} />, color: "maroon" },
-  { label: "Fee Status", value: "Paid", icon: <CreditCard size={18} />, color: "gold" },
-];
-
 export default async function StudentDashboard() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const dbUser = await requirePortalRole("student");
 
-  const user = await currentUser();
+  const [enrollment] = await db
+    .select({ studentId: students.id, batchId: students.batchId, rollNumber: students.rollNumber })
+    .from(students)
+    .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
+    .limit(1);
+
+  const batchInfo = enrollment?.batchId
+    ? await db
+        .select({ batchName: batches.name, timingLabel: batches.timingLabel, courseName: courses.title })
+        .from(batches)
+        .leftJoin(courses, eq(batches.courseId, courses.id))
+        .where(eq(batches.id, enrollment.batchId))
+        .limit(1)
+        .then((r) => r[0] ?? null)
+    : null;
+
+  const upcomingClasses = enrollment?.batchId
+    ? await db
+        .select({
+          id: liveClasses.id,
+          subject: liveClasses.subject,
+          topic: liveClasses.topic,
+          scheduledAt: liveClasses.scheduledAt,
+          zoomJoinUrl: liveClasses.zoomJoinUrl,
+          status: liveClasses.status,
+        })
+        .from(liveClasses)
+        .where(and(eq(liveClasses.batchId, enrollment.batchId), gt(liveClasses.scheduledAt, new Date())))
+        .orderBy(asc(liveClasses.scheduledAt))
+        .limit(3)
+    : [];
+
+  const recentRecordings = enrollment?.batchId
+    ? await db
+        .select({ id: classRecordings.id, subject: classRecordings.subject, title: classRecordings.title, teacherName: classRecordings.teacherName, durationMinutes: classRecordings.durationMinutes, createdAt: classRecordings.createdAt })
+        .from(classRecordings)
+        .where(and(eq(classRecordings.batchId, enrollment.batchId), eq(classRecordings.isVisible, true)))
+        .orderBy(desc(classRecordings.createdAt))
+        .limit(3)
+    : [];
+
+  const [matCount] = enrollment?.batchId
+    ? await db.select({ c: sql<number>`count(*)::int` }).from(studyMaterials).where(and(eq(studyMaterials.batchId, enrollment.batchId), eq(studyMaterials.isVisible, true)))
+    : [{ c: 0 }];
+
+  const [paperCount] = enrollment?.batchId
+    ? await db.select({ c: sql<number>`count(*)::int` }).from(practicePapers).where(and(eq(practicePapers.batchId, enrollment.batchId), eq(practicePapers.isVisible, true)))
+    : [{ c: 0 }];
+
+  const pendingFees = enrollment?.studentId
+    ? await db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(feeRecords)
+        .where(and(eq(feeRecords.studentId, enrollment.studentId), sql`status IN ('due','overdue')`))
+        .then((r) => r[0]?.c ?? 0)
+    : 0;
+
+  const SUBJECT_COLORS: Record<string, string> = {
+    Physics: "bg-[var(--color-navy)]/10 text-[var(--color-navy)]",
+    Chemistry: "bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
+    Mathematics: "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]",
+    Biology: "bg-green-100 text-green-700",
+  };
+
+  const statCards = [
+    { label: "Upcoming Classes", value: upcomingClasses.length.toString(), icon: <Video size={18} />, color: "navy" },
+    { label: "Study Materials", value: matCount?.c?.toString() ?? "0", icon: <BookOpen size={18} />, color: "teal" },
+    { label: "Practice Papers", value: paperCount?.c?.toString() ?? "0", icon: <Clock size={18} />, color: "maroon" },
+    { label: "Fee Status", value: pendingFees > 0 ? `${pendingFees} Due` : "Clear", icon: <CreditCard size={18} />, color: "gold" },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">
-          Welcome back, {user?.firstName ?? "Student"} 👋
+          Welcome back, {dbUser.name.split(" ")[0]}
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          JEE 2026 — Evening Batch · Here's what's on for today
+          {batchInfo ? `${batchInfo.courseName} · ${batchInfo.batchName}` : "Not yet enrolled in a batch"}
         </p>
       </div>
 
-      {/* Stats */}
+      {!enrollment && (
+        <div className="card bg-amber-50 border border-amber-100 flex items-start gap-3">
+          <AlertCircle size={17} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold text-amber-800 text-sm">Enrollment Pending</div>
+            <p className="text-amber-700 text-sm mt-0.5">Your batch enrollment is being processed. Contact the office or check back shortly.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STAT_CARDS.map((s) => (
-          <div
-            key={s.label}
-            className={`card flex flex-col gap-3 ${
-              s.color === "navy"
-                ? "border-l-4 border-l-[var(--color-navy)]"
-                : s.color === "teal"
-                ? "border-l-4 border-l-[var(--color-teal)]"
-                : s.color === "maroon"
-                ? "border-l-4 border-l-[var(--color-maroon)]"
-                : "border-l-4 border-l-[var(--color-gold)]"
-            }`}
-          >
-            <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                s.color === "navy"
-                  ? "bg-[var(--color-navy)]/10 text-[var(--color-navy)]"
-                  : s.color === "teal"
-                  ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]"
-                  : s.color === "maroon"
-                  ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]"
-                  : "bg-[var(--color-gold)]/10 text-[var(--color-maroon)]"
-              }`}
-            >
-              {s.icon}
-            </div>
+        {statCards.map((s) => (
+          <div key={s.label} className={`card flex flex-col gap-3 border-l-4 ${s.color === "navy" ? "border-l-[var(--color-navy)]" : s.color === "teal" ? "border-l-[var(--color-teal)]" : s.color === "maroon" ? "border-l-[var(--color-maroon)]" : "border-l-[var(--color-gold)]"}`}>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${s.color === "navy" ? "bg-[var(--color-navy)]/10 text-[var(--color-navy)]" : s.color === "teal" ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" : s.color === "maroon" ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]" : "bg-[var(--color-gold)]/10 text-[var(--color-maroon)]"}`}>{s.icon}</div>
             <div>
-              <div className="text-2xl font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
-                {s.value}
-              </div>
+              <div className="text-2xl font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">{s.value}</div>
               <div className="text-slate-500 text-xs">{s.label}</div>
             </div>
           </div>
@@ -139,126 +118,75 @@ export default async function StudentDashboard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Upcoming classes */}
-        <div className="lg:col-span-2">
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
-                Upcoming Live Classes
-              </h2>
-              <Link href="/portal/student/timetable" className="text-[var(--color-teal)] text-sm flex items-center gap-1 hover:underline">
-                View All <ChevronRight size={14} />
-              </Link>
-            </div>
+        <div className="lg:col-span-2 card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">Upcoming Live Classes</h2>
+            <Link href="/portal/student/timetable" className="text-[var(--color-teal)] text-sm flex items-center gap-1 hover:underline">View All <ChevronRight size={14} /></Link>
+          </div>
+          {upcomingClasses.length === 0 ? (
+            <p className="text-slate-400 text-sm">No upcoming live classes scheduled.</p>
+          ) : (
             <div className="space-y-3">
-              {UPCOMING_CLASSES.map((cls) => (
-                <div
-                  key={cls.id}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[var(--color-slate-light)] rounded-xl"
-                >
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 bg-[var(--color-navy)]/10 rounded-xl flex items-center justify-center">
-                      <Video size={16} className="text-[var(--color-navy)]" />
-                    </div>
+              {upcomingClasses.map((cls) => (
+                <div key={cls.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[var(--color-slate-light)] rounded-xl">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${cls.subject === "Physics" ? "bg-[var(--color-navy)]" : cls.subject === "Chemistry" ? "bg-[var(--color-teal)]" : "bg-[var(--color-maroon)]"}`}>
+                    {(cls.subject ?? "?").charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-[var(--color-navy)]">
-                      {cls.subject} — {cls.topic}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {cls.teacher} · {cls.date} at {cls.time}
+                    <div className="font-semibold text-sm text-[var(--color-navy)] truncate">{cls.topic}</div>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className={`badge text-xs ${SUBJECT_COLORS[cls.subject ?? ""] ?? "bg-slate-100 text-slate-600"}`}>{cls.subject}</span>
+                      <span className="text-xs text-slate-400 flex items-center gap-1"><Calendar size={10} />{new Date(cls.scheduledAt).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                   </div>
-                  <a
-                    href={cls.joinLink}
-                    className={`flex-shrink-0 text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${
-                      cls.date === "Today"
-                        ? "bg-[var(--color-teal)] text-white hover:bg-[var(--color-teal-light)]"
-                        : "bg-slate-200 text-slate-500 cursor-not-allowed"
-                    }`}
-                  >
-                    {cls.date === "Today" ? "Join Class" : "Scheduled"}
-                  </a>
+                  {cls.zoomJoinUrl ? (
+                    <a href={cls.zoomJoinUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-xs font-semibold px-4 py-2 bg-[var(--color-teal)] text-white rounded-lg hover:bg-[var(--color-teal-light)] transition-colors">Join</a>
+                  ) : (
+                    <span className="flex-shrink-0 text-xs text-slate-300">Link TBA</span>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Right sidebar */}
-        <div className="space-y-4">
-          {/* Recent recordings */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-[var(--color-navy)] text-sm font-[family-name:var(--font-playfair)]">
-                Recent Recordings
-              </h2>
-              <Link href="/portal/student/recordings" className="text-[var(--color-teal)] text-xs hover:underline">
-                View All
-              </Link>
-            </div>
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">Recent Recordings</h2>
+            <Link href="/portal/student/recordings" className="text-[var(--color-teal)] text-sm flex items-center gap-1 hover:underline">View All <ChevronRight size={14} /></Link>
+          </div>
+          {recentRecordings.length === 0 ? (
+            <p className="text-slate-400 text-sm">No recordings available yet.</p>
+          ) : (
             <div className="space-y-3">
-              {RECENT_RECORDINGS.map((r) => (
-                <div key={r.id} className="flex items-start gap-3 group">
-                  <div className="w-9 h-9 bg-[var(--color-maroon)]/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--color-maroon)] transition-colors">
-                    <Play size={13} className="text-[var(--color-maroon)] group-hover:text-white" />
+              {recentRecordings.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 p-2 hover:bg-[var(--color-slate-light)] rounded-xl transition-colors cursor-pointer">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${r.subject === "Physics" ? "bg-[var(--color-navy)]" : r.subject === "Chemistry" ? "bg-[var(--color-teal)]" : "bg-[var(--color-maroon)]"}`}>
+                    <Play size={14} className="text-white ml-0.5" fill="white" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[var(--color-navy)] truncate">
-                      {r.subject} — {r.topic}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {r.date} · {r.duration}
-                    </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-[var(--color-navy)] truncate">{r.title}</div>
+                    <div className="text-xs text-slate-400">{r.durationMinutes ? `${Math.floor(r.durationMinutes / 60)}h ${r.durationMinutes % 60}m` : "—"}</div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Notice */}
-          <div className="card bg-[var(--color-gold)]/5 border-[var(--color-gold)]/30">
-            <div className="flex items-center gap-2 mb-2">
-              <Bell size={14} className="text-[var(--color-gold)]" />
-              <span className="text-xs font-semibold text-[var(--color-navy)]">Latest Notice</span>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              JEE Advanced Mock Test on <strong>5 May 2026</strong>. Report by 9:00 AM. Admit cards available at front desk.
-            </p>
-          </div>
-
-          {/* Progress */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={14} className="text-[var(--color-teal)]" />
-              <span className="text-xs font-semibold text-[var(--color-navy)]">Test Performance</span>
-            </div>
-            {[
-              { subject: "Physics", score: 72 },
-              { subject: "Chemistry", score: 68 },
-              { subject: "Mathematics", score: 81 },
-            ].map((s) => (
-              <div key={s.subject} className="mb-3 last:mb-0">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-600">{s.subject}</span>
-                  <span className="font-semibold text-[var(--color-navy)]">{s.score}%</span>
-                </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      s.score >= 80
-                        ? "bg-[var(--color-teal)]"
-                        : s.score >= 65
-                        ? "bg-[var(--color-gold)]"
-                        : "bg-[var(--color-maroon)]"
-                    }`}
-                    style={{ width: `${s.score}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Timetable", href: "/portal/student/timetable", icon: <Calendar size={18} />, color: "navy" },
+          { label: "Materials", href: "/portal/student/materials", icon: <BookOpen size={18} />, color: "teal" },
+          { label: "Papers", href: "/portal/student/papers", icon: <Bell size={18} />, color: "maroon" },
+          { label: "Fee Status", href: "/portal/student/fees", icon: <CreditCard size={18} />, color: "gold" },
+        ].map((l) => (
+          <Link key={l.label} href={l.href} className="card flex items-center gap-3 hover:shadow-elevated transition-all group">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${l.color === "navy" ? "bg-[var(--color-navy)]/10 text-[var(--color-navy)] group-hover:bg-[var(--color-navy)] group-hover:text-white" : l.color === "teal" ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)] group-hover:bg-[var(--color-teal)] group-hover:text-white" : l.color === "maroon" ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] group-hover:bg-[var(--color-maroon)] group-hover:text-white" : "bg-[var(--color-gold)]/10 text-[var(--color-navy)] group-hover:bg-[var(--color-gold)] group-hover:text-white"}`}>{l.icon}</div>
+            <span className="text-sm font-semibold text-[var(--color-navy)]">{l.label}</span>
+          </Link>
+        ))}
       </div>
     </div>
   );

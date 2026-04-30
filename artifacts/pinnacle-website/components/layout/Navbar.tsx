@@ -17,14 +17,23 @@ const NAV_LINKS = [
       { label: "NEET UG", href: "/courses#neet" },
       { label: "Class 11 & 12", href: "/courses#class12" },
       { label: "Class 9 & 10", href: "/courses#class10" },
-      { label: "Foundation (Gr. 6–8)", href: "/courses#foundation" },
+      { label: "Fee Structure", href: "/fee-structure" },
     ],
   },
   { label: "Faculty", href: "/faculty" },
-  { label: "Results", href: "/results" },
   { label: "Admissions", href: "/admissions" },
-  { label: "Notices", href: "/notices" },
-  { label: "About", href: "/about" },
+  {
+    label: "More",
+    href: "#",
+    children: [
+      { label: "Results & Toppers", href: "/results" },
+      { label: "Achievements", href: "/achievements" },
+      { label: "Gallery", href: "/gallery" },
+      { label: "Blog & Tips", href: "/blog" },
+      { label: "Notices", href: "/notices" },
+      { label: "About Us", href: "/about" },
+    ],
+  },
   { label: "Contact", href: "/contact" },
 ];
 

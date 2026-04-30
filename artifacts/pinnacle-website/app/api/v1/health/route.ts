@@ -9,5 +9,7 @@ export async function GET() {
       service: "Pinnacle Academic Classes API",
       timestamp: new Date().toISOString(),
     },
+    error: null,
+    meta: null,
   });
 }

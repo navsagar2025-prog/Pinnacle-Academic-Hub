@@ -56,10 +56,28 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/achievements/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/achievements">> = Specific
+  const handler = {} as typeof import("../../app/achievements/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/admissions/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/admissions">> = Specific
   const handler = {} as typeof import("../../app/admissions/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/blog/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/blog">> = Specific
+  const handler = {} as typeof import("../../app/blog/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
@@ -96,6 +114,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/faq">> = Specific
   const handler = {} as typeof import("../../app/faq/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/fee-structure/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/fee-structure">> = Specific
+  const handler = {} as typeof import("../../app/fee-structure/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/gallery/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/gallery">> = Specific
+  const handler = {} as typeof import("../../app/gallery/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

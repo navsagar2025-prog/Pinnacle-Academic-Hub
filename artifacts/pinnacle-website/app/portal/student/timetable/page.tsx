@@ -1,102 +1,114 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import { Clock, MapPin, User } from "lucide-react";
+import { requirePortalRole } from "@/lib/server/portal-auth";
+import { db } from "@workspace/db";
+import { students, schedules, teachers, batches } from "@workspace/db/schema";
+import { eq, and, asc } from "drizzle-orm";
+import { Clock, MapPin, User, AlertCircle } from "lucide-react";
 
-export const metadata = { title: "Timetable" };
+export const metadata = { title: "Timetable — Student Portal" };
 
-const TIMETABLE = {
-  Mon: [
-    { time: "5:00–7:00 PM", subject: "Physics", topic: "Wave Optics", teacher: "Dr. Ramesh Kumar", room: "Room 101" },
-    { time: "7:15–8:15 PM", subject: "Mathematics", topic: "Integral Calculus", teacher: "Mr. Ajay Tiwari", room: "Room 103" },
-  ],
-  Tue: [
-    { time: "5:00–7:00 PM", subject: "Chemistry", topic: "Organic Chemistry", teacher: "Ms. Priya Sharma", room: "Room 102" },
-    { time: "7:15–8:15 PM", subject: "Physics", topic: "Doubt Session", teacher: "Dr. Ramesh Kumar", room: "Room 101" },
-  ],
-  Wed: [
-    { time: "5:00–7:00 PM", subject: "Mathematics", topic: "Differential Equations", teacher: "Mr. Ajay Tiwari", room: "Room 103" },
-    { time: "7:15–8:15 PM", subject: "Chemistry", topic: "Physical Chemistry", teacher: "Ms. Priya Sharma", room: "Room 102" },
-  ],
-  Thu: [
-    { time: "5:00–7:00 PM", subject: "Physics", topic: "Electrodynamics", teacher: "Dr. Ramesh Kumar", room: "Room 101" },
-    { time: "7:15–8:15 PM", subject: "Mathematics", topic: "Coordinate Geometry", teacher: "Mr. Ajay Tiwari", room: "Room 103" },
-  ],
-  Fri: [
-    { time: "5:00–7:00 PM", subject: "Chemistry", topic: "Inorganic Chemistry", teacher: "Ms. Priya Sharma", room: "Room 102" },
-    { time: "7:15–8:15 PM", subject: "All", topic: "Open Doubt Session", teacher: "All Faculty", room: "Main Hall" },
-  ],
-  Sat: [
-    { time: "10:00 AM–1:00 PM", subject: "All", topic: "Full-Length Mock Test", teacher: "Exam Cell", room: "Exam Hall" },
-  ],
-};
-
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const SUBJECT_COLORS: Record<string, string> = {
   Physics: "bg-[var(--color-navy)]/10 text-[var(--color-navy)]",
   Chemistry: "bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
   Mathematics: "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]",
-  All: "bg-[var(--color-gold)]/10 text-[var(--color-navy)]",
+  Biology: "bg-green-100 text-green-700",
 };
 
+function fmt(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
 export default async function TimetablePage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const dbUser = await requirePortalRole("student");
+
+  const [enrollment] = await db
+    .select({ batchId: students.batchId })
+    .from(students)
+    .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
+    .limit(1);
+
+  const batchInfo = enrollment?.batchId
+    ? await db.select({ name: batches.name, timingLabel: batches.timingLabel, daysLabel: batches.daysLabel, room: batches.room }).from(batches).where(eq(batches.id, enrollment.batchId)).limit(1).then((r) => r[0] ?? null)
+    : null;
+
+  const slots = enrollment?.batchId
+    ? await db
+        .select({
+          id: schedules.id,
+          subject: schedules.subject,
+          topic: schedules.topic,
+          dayOfWeek: schedules.dayOfWeek,
+          startTime: schedules.startTime,
+          endTime: schedules.endTime,
+          room: schedules.room,
+          teacherDesig: teachers.designation,
+        })
+        .from(schedules)
+        .leftJoin(teachers, eq(schedules.teacherId, teachers.id))
+        .where(eq(schedules.batchId, enrollment.batchId))
+        .orderBy(asc(schedules.dayOfWeek), asc(schedules.startTime))
+    : [];
+
+  const grouped = DAYS.map((_, idx) => ({ day: idx, slots: slots.filter((s) => s.dayOfWeek === idx) })).filter((g) => g.slots.length > 0);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">
-          Weekly Timetable
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">JEE 2026 — Evening Batch</p>
+        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Weekly Timetable</h1>
+        <p className="text-slate-500 text-sm mt-1">
+          {batchInfo ? `${batchInfo.name} · ${batchInfo.timingLabel} · ${batchInfo.daysLabel}` : "Not enrolled in a batch"}
+        </p>
       </div>
 
+      {!enrollment && (
+        <div className="card bg-amber-50 border border-amber-100 flex items-start gap-3">
+          <AlertCircle size={17} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-amber-800 text-sm">Your batch enrollment is pending. Your timetable will appear here once you are assigned to a batch.</p>
+        </div>
+      )}
+
+      {enrollment && grouped.length === 0 && (
+        <div className="card text-center py-10">
+          <Clock size={32} className="text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-500">No schedule set up for your batch yet. Check back later.</p>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {DAYS.map((day) => {
-          const slots = TIMETABLE[day as keyof typeof TIMETABLE];
-          return (
-            <div key={day} className="card">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-[var(--color-navy)] rounded-xl flex items-center justify-center text-white font-bold text-sm font-[family-name:var(--font-playfair)]">
-                  {day}
-                </div>
-                <span className="font-semibold text-[var(--color-navy)]">{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][DAYS.indexOf(day)]}</span>
+        {grouped.map(({ day, slots: daySlots }) => (
+          <div key={day} className="card">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-[var(--color-navy)] rounded-xl flex items-center justify-center text-white font-bold text-sm font-[family-name:var(--font-playfair)]">
+                {DAYS[day]}
               </div>
-              <div className="space-y-2">
-                {slots.map((s, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[var(--color-slate-light)] rounded-xl"
-                  >
-                    <div className="flex items-center gap-2 text-xs text-slate-500 w-36 flex-shrink-0">
-                      <Clock size={12} />
-                      {s.time}
+              <span className="font-semibold text-[var(--color-navy)]">{DAY_NAMES[day]}</span>
+            </div>
+            <div className="space-y-2">
+              {daySlots.map((s) => (
+                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[var(--color-slate-light)] rounded-xl">
+                  <div className="flex items-center gap-2 text-xs text-slate-500 w-36 flex-shrink-0">
+                    <Clock size={12} />{fmt(s.startTime)} – {fmt(s.endTime)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`badge text-xs px-2 py-0.5 ${SUBJECT_COLORS[s.subject] ?? "bg-slate-100 text-slate-600"}`}>{s.subject}</span>
+                      {s.topic && <span className="font-semibold text-sm text-[var(--color-navy)]">{s.topic}</span>}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`badge text-xs px-2 py-0.5 ${SUBJECT_COLORS[s.subject] ?? "bg-slate-100 text-slate-600"}`}>
-                          {s.subject}
-                        </span>
-                        <span className="font-semibold text-sm text-[var(--color-navy)]">{s.topic}</span>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1">
-                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <User size={11} />
-                          {s.teacher}
-                        </span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <MapPin size={11} />
-                          {s.room}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-4 mt-1">
+                      {s.teacherDesig && <span className="text-xs text-slate-500 flex items-center gap-1"><User size={11} />{s.teacherDesig}</span>}
+                      {s.room && <span className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={11} />{s.room}</span>}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

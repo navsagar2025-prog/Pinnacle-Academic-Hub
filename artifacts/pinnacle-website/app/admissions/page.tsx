@@ -5,7 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { COURSES } from "@/lib/data";
-import { CheckCircle, Send, Phone, Mail, Download } from "lucide-react";
+import { CheckCircle, Send, Phone, Mail, Download, AlertCircle } from "lucide-react";
 
 const ADMISSION_STEPS = [
   { step: "1", title: "Enquire / Call", description: "Fill the form below or call us. Our counsellor will contact you within 24 hours." },
@@ -18,14 +18,36 @@ export default function AdmissionsPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", course: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setSubmitted(true);
-    setForm({ name: "", phone: "", email: "", course: "", message: "" });
+    setError(null);
+    try {
+      const res = await fetch("/pinnacle-website/api/v1/enquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          email: form.email || undefined,
+          courseInterest: form.course || undefined,
+          message: form.message || undefined,
+          source: "admissions_page",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Submission failed. Please try again.");
+      }
+      setSubmitted(true);
+      setForm({ name: "", phone: "", email: "", course: "", message: "" });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -44,18 +66,18 @@ export default function AdmissionsPage() {
           </div>
         </section>
 
-        {/* Steps */}
         <section className="py-16 bg-white">
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-10">
-              <h2 className="section-heading">How Admissions Work</h2>
+              <h2 className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-[var(--color-navy)]">Admission Process</h2>
+              <p className="text-slate-500 mt-2">Simple and transparent — 4 easy steps</p>
             </div>
             <div className="grid md:grid-cols-4 gap-6">
               {ADMISSION_STEPS.map((s) => (
                 <div key={s.step} className="text-center">
-                  <div className="w-12 h-12 bg-[var(--color-navy)] text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4 font-[family-name:var(--font-playfair)]">{s.step}</div>
+                  <div className="w-14 h-14 rounded-full bg-[var(--color-navy)] text-white font-bold text-xl flex items-center justify-center mx-auto mb-4 font-[family-name:var(--font-playfair)]">{s.step}</div>
                   <h3 className="font-bold text-[var(--color-navy)] mb-2">{s.title}</h3>
-                  <p className="text-slate-600 text-sm">{s.description}</p>
+                  <p className="text-slate-500 text-sm">{s.description}</p>
                 </div>
               ))}
             </div>
@@ -63,93 +85,76 @@ export default function AdmissionsPage() {
         </section>
 
         <section className="py-16 bg-[var(--color-slate-light)]">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-12">
-              {/* Form */}
-              <div>
-                <h2 className="section-heading mb-6">Book a Free Demo Class</h2>
+          <div className="max-w-4xl mx-auto px-4">
+            <div className="grid md:grid-cols-5 gap-8 items-start">
+              <div className="md:col-span-3">
+                <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-6">Request a Callback</h2>
+
                 {submitted ? (
                   <div className="card bg-[var(--color-teal)]/5 border-[var(--color-teal)]/20 text-center py-10">
-                    <CheckCircle size={48} className="text-[var(--color-teal)] mx-auto mb-4" />
-                    <h3 className="font-bold text-[var(--color-navy)] text-xl font-[family-name:var(--font-playfair)] mb-2">Enquiry Submitted!</h3>
-                    <p className="text-slate-600">Our counsellor will call you within 24 hours to schedule your free demo class.</p>
+                    <CheckCircle size={40} className="text-[var(--color-teal)] mx-auto mb-4" />
+                    <h3 className="font-[family-name:var(--font-playfair)] text-xl font-bold text-[var(--color-navy)] mb-2">Enquiry Submitted!</h3>
+                    <p className="text-slate-600">Our counsellor will call you within 24 hours. Meanwhile, feel free to WhatsApp us for faster response.</p>
+                    <button onClick={() => setSubmitted(false)} className="mt-6 btn-secondary py-2 px-5 text-sm">Submit Another Enquiry</button>
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="card space-y-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Student Name *</label>
-                        <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="Full name" />
+                    {error && (
+                      <div className="flex items-center gap-2 text-sm text-[var(--color-maroon)] bg-[var(--color-maroon)]/5 border border-[var(--color-maroon)]/20 rounded-lg px-3 py-2">
+                        <AlertCircle size={15} className="flex-shrink-0" /> {error}
                       </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Phone Number *</label>
-                        <input type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field" placeholder="+91 XXXXX XXXXX" />
-                      </div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Full Name *</label>
+                      <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Arjun Mehta" className="input-field w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Phone Number *</label>
+                      <input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="e.g. +91 98765 43210" className="input-field w-full" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Email Address</label>
-                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" placeholder="student@email.com" />
+                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="optional" className="input-field w-full" />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Course of Interest *</label>
-                      <select required value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} className="input-field">
+                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Programme of Interest</label>
+                      <select value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} className="input-field w-full">
                         <option value="">Select a programme</option>
                         {COURSES.map((c) => <option key={c.id} value={c.title}>{c.title}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Message / Query</label>
-                      <textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={3} className="input-field resize-none" placeholder="Any specific questions or requirements..." />
+                      <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Message / Questions</label>
+                      <textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={3} placeholder="Any specific questions or requirements?" className="input-field w-full resize-none" />
                     </div>
-                    <button type="submit" disabled={loading} className="btn-secondary w-full justify-center py-3.5">
-                      {loading ? "Submitting..." : <><Send size={16} />Submit Enquiry</>}
+                    <button type="submit" disabled={loading} className="btn-primary w-full py-3 flex items-center justify-center gap-2">
+                      {loading ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> : <Send size={16} />}
+                      {loading ? "Submitting..." : "Submit Enquiry"}
                     </button>
-                    <p className="text-xs text-slate-400 text-center">No payment required. Our counsellor will contact you within 24 hours.</p>
                   </form>
                 )}
               </div>
 
-              {/* Fee table + contact */}
-              <div className="space-y-6">
-                <div className="card" id="brochure">
-                  <h3 className="font-bold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">Fee Structure 2026–27</h3>
-                  <div className="divide-y divide-slate-100">
-                    {COURSES.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between py-3">
-                        <div>
-                          <div className="font-semibold text-sm text-[var(--color-navy)]">{c.title}</div>
-                          <div className="text-xs text-slate-400">{c.duration} · {c.batches.join(", ")} batch</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-[var(--color-navy)]">₹{c.fee.toLocaleString("en-IN")}</div>
-                          <div className="text-xs text-slate-400">per year</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-3">* Instalment options available. Admission fee ₹2,000 (one-time, adjustable).</p>
-                </div>
-
+              <div className="md:col-span-2 space-y-4">
                 <div className="card">
-                  <h3 className="font-bold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">Contact Admissions</h3>
-                  <div className="space-y-3">
-                    <a href="tel:+919876543210" className="flex items-center gap-3 text-slate-700 hover:text-[var(--color-teal)] transition-colors">
-                      <div className="w-9 h-9 bg-[var(--color-teal)]/10 rounded-lg flex items-center justify-center"><Phone size={15} className="text-[var(--color-teal)]" /></div>
-                      <span className="text-sm font-semibold">+91 98765 43210</span>
-                    </a>
-                    <a href="mailto:admissions@pinnacleacademic.in" className="flex items-center gap-3 text-slate-700 hover:text-[var(--color-teal)] transition-colors">
-                      <div className="w-9 h-9 bg-[var(--color-teal)]/10 rounded-lg flex items-center justify-center"><Mail size={15} className="text-[var(--color-teal)]" /></div>
-                      <span className="text-sm font-semibold">admissions@pinnacleacademic.in</span>
-                    </a>
+                  <h3 className="font-bold text-[var(--color-navy)] mb-3">Contact Admissions Office</h3>
+                  <div className="space-y-3 text-sm text-slate-600">
+                    <div className="flex items-center gap-2"><Phone size={14} className="text-[var(--color-teal)]" /> +91 9999 000 111</div>
+                    <div className="flex items-center gap-2"><Mail size={14} className="text-[var(--color-teal)]" /> admissions@pinnacleacademic.in</div>
                   </div>
-                  <div className="mt-4 p-3 bg-[var(--color-gold)]/5 rounded-xl">
-                    <div className="text-xs font-semibold text-[var(--color-navy)] mb-1">Walk-in Hours</div>
-                    <div className="text-sm text-slate-600">Mon–Sat: 9:00 AM – 7:00 PM</div>
-                  </div>
-                  <button className="btn-outline w-full justify-center mt-4 py-2.5 text-sm">
-                    <Download size={15} />Download Brochure (PDF)
-                  </button>
                 </div>
+                <div className="card">
+                  <h3 className="font-bold text-[var(--color-navy)] mb-3">Documents Required</h3>
+                  <ul className="space-y-2 text-sm text-slate-600">
+                    {["Class 10 Marksheet (photocopy)", "Aadhar Card / School ID", "2 passport-size photographs", "Transfer Certificate (if applicable)"].map((d) => (
+                      <li key={d} className="flex items-center gap-2"><CheckCircle size={13} className="text-[var(--color-teal)] flex-shrink-0" />{d}</li>
+                    ))}
+                  </ul>
+                </div>
+                <a href="#" className="card flex items-center gap-3 text-[var(--color-navy)] font-semibold hover:shadow-elevated transition-all group">
+                  <Download size={18} className="text-[var(--color-gold)] group-hover:scale-110 transition-transform" />
+                  Download Prospectus 2026–27
+                </a>
               </div>
             </div>
           </div>

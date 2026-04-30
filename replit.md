@@ -76,9 +76,11 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Workflow: `artifacts/pinnacle-website: web` on port 24697 at `/pinnacle-website`
 - **Auth**: Clerk (`@clerk/nextjs`) — keyless dev mode; middleware protects all `/portal/*` routes
 - **Database**: PostgreSQL + Drizzle ORM (shared `lib/db` schema); seeded with courses, batches, notices, enquiries
-- **16 public pages**: Home, About, Courses, Faculty, Results, Admissions, Notices, Contact, FAQ, Privacy Policy, Terms, Refund Policy, Sign-in, Sign-up (+ more)
-- **Role portals**: Student (dashboard, timetable, materials, papers, fees, recordings), Parent (dashboard, fees, timetable, notices), Teacher (dashboard, schedule, materials, notices), Admin (dashboard, students, teachers, batches)
-- **API routes** (`/api/v1/`): health, courses, notices, materials (auth-protected)
+- **16 public pages**: Home, About, Courses, Faculty, Admissions, Results, Notices, Contact, FAQ, Privacy Policy, Terms, Refund Policy, Blog, Gallery, Achievements, Fee Structure
+- **Role portals**: Student (dashboard, timetable, materials, papers, fees, recordings), Parent (dashboard, fees, timetable, notices), Teacher (dashboard, schedule, materials, notices), Admin (dashboard, students, teachers, batches) — all DB-backed via Drizzle
+- **API routes** (`/api/v1/`): health (with `error:null` envelope), courses, notices, enquiries, materials (auth-protected)
+- **Navbar**: "Courses" dropdown (JEE, NEET, 11-12, 9-10, Fee Structure); "More" dropdown (Results, Achievements, Gallery, Blog, Notices, About)
+- **All portal pages** use `requirePortalRole()` which auto-provisions DB user on first Clerk sign-in
 - Seed command: `pnpm --filter @workspace/db run seed`
 - Key files:
   - `artifacts/pinnacle-website/app/layout.tsx` — ClerkProvider + Playfair/Jakarta fonts
