@@ -40,13 +40,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { studentName, examName, rank, college, batch, academicYear, quote, initials, isTopper } = body;
+    const { studentName, examName, subject, marks, rank, college, batch, academicYear, quote, initials, isTopper } = body;
     if (!studentName || !examName || !rank || !academicYear || !initials) {
       return err("studentName, examName, rank, academicYear and initials are required", 400);
     }
 
     const [row] = await db.insert(results).values({
-      studentName, examName, rank, college, batch, academicYear, quote,
+      studentName, examName, subject, marks, rank, college, batch, academicYear, quote,
       initials: initials.toUpperCase().slice(0, 2),
       isTopper: isTopper ?? false,
     }).returning();

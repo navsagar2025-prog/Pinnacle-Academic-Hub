@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["student", "parent", "teacher", "admin"]);
-export const feeStatusEnum = pgEnum("fee_status", ["paid", "due", "overdue", "waived"]);
+export const feeStatusEnum = pgEnum("fee_status", ["paid", "partial", "due", "overdue", "waived"]);
 export const classStatusEnum = pgEnum("class_status", ["scheduled", "live", "completed", "cancelled"]);
 export const materialTypeEnum = pgEnum("material_type", ["notes", "formula", "exercise", "summary", "paper"]);
 export const noticeCategoryEnum = pgEnum("notice_category", ["Academic", "Test", "Fee", "Event", "Admissions", "General"]);
@@ -136,6 +136,7 @@ export const feeRecords = pgTable("fee_records", {
   studentId: uuid("student_id").references(() => students.id),
   period: text("period").notNull(),
   amount: integer("amount").notNull(),
+  paidAmount: integer("paid_amount").notNull().default(0),
   dueDate: timestamp("due_date").notNull(),
   paidDate: timestamp("paid_date"),
   status: feeStatusEnum("status").notNull().default("due"),
@@ -242,6 +243,8 @@ export const results = pgTable("results", {
   id: uuid("id").primaryKey().defaultRandom(),
   studentName: text("student_name").notNull(),
   examName: text("exam_name").notNull(),
+  subject: text("subject"),
+  marks: text("marks"),
   rank: text("rank").notNull(),
   college: text("college"),
   batch: text("batch"),

@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import { enquiries } from "@workspace/db/schema";
 import { desc, sql, eq } from "drizzle-orm";
 import { Users2, Phone, Mail } from "lucide-react";
-import { AdmissionStatusDropdown } from "./AdmissionStatus";
+import { AdmissionStatusDropdown, AdmissionNotesEditor } from "./AdmissionStatus";
 
 export const metadata = { title: "Admissions — Admin Panel" };
 
@@ -18,7 +18,7 @@ export default async function AdminAdmissionsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Admissions CRM</h1>
-        <p className="text-slate-500 text-sm mt-1">Track enquiries through the full admission pipeline</p>
+        <p className="text-slate-500 text-sm mt-1">Track enquiries through the full admission pipeline · Hover a notes cell to edit inline</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -46,7 +46,7 @@ export default async function AdminAdmissionsPage() {
             <table className="w-full">
               <thead className="bg-[var(--color-slate-light)] border-b border-slate-100">
                 <tr>
-                  {["Name", "Contact", "Course Interest", "Message", "Date", "Pipeline Status"].map((h) => (
+                  {["Name", "Contact", "Course Interest", "Message", "Notes", "Date", "Pipeline Status"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -69,9 +69,11 @@ export default async function AdminAdmissionsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{e.courseInterest ?? "General"}</td>
-                    <td className="px-4 py-3 max-w-[180px]">
+                    <td className="px-4 py-3 max-w-[160px]">
                       <p className="text-xs text-slate-500 line-clamp-2">{e.message ?? "—"}</p>
-                      {e.notes && <p className="text-xs text-[var(--color-teal)] line-clamp-1 mt-0.5 italic">Note: {e.notes}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <AdmissionNotesEditor enquiryId={e.id} currentNotes={e.notes} />
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                       {new Date(e.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}

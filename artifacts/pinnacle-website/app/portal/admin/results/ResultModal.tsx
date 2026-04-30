@@ -56,6 +56,8 @@ function ResultModal({ result, onClose }: { result?: Result; onClose: () => void
   const [form, setForm] = useState({
     studentName: result?.studentName ?? "",
     examName: result?.examName ?? "",
+    subject: result?.subject ?? "",
+    marks: result?.marks ?? "",
     rank: result?.rank ?? "",
     college: result?.college ?? "",
     batch: result?.batch ?? "",
@@ -81,41 +83,99 @@ function ResultModal({ result, onClose }: { result?: Result; onClose: () => void
     onClose();
   }
 
+  const textFields: { label: string; key: string; placeholder: string; maxLength?: number }[] = [
+    { label: "Student Name *", key: "studentName", placeholder: "Aditya Sharma" },
+    { label: "Exam Name *", key: "examName", placeholder: "JEE Advanced 2025" },
+    { label: "Subject", key: "subject", placeholder: "Physics / Maths / All Subjects" },
+    { label: "Marks / Score", key: "marks", placeholder: "310/360 · 99.4 Percentile" },
+    { label: "Rank *", key: "rank", placeholder: "AIR 342" },
+    { label: "College / Institution", key: "college", placeholder: "IIT Bombay — Computer Science" },
+    { label: "Batch", key: "batch", placeholder: "JEE 2025 — Evening" },
+    { label: "Academic Year *", key: "academicYear", placeholder: "2025" },
+    { label: "Initials *", key: "initials", placeholder: "AS", maxLength: 2 },
+    { label: "Student Quote", key: "quote", placeholder: "Pinnacle's guidance transformed my preparation." },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b">
+        <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
           <h2 className="font-[family-name:var(--font-playfair)] font-bold text-[var(--color-navy)] text-lg">{result ? "Edit Result" : "Add Result"}</h2>
           <button onClick={onClose}><X size={20} className="text-slate-400 hover:text-slate-600" /></button>
         </div>
         <form onSubmit={submit} className="p-5 space-y-4">
           {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          {[
-            { label: "Student Name *", key: "studentName", placeholder: "Aditya Sharma" },
-            { label: "Exam Name *", key: "examName", placeholder: "JEE Advanced 2025" },
-            { label: "Rank *", key: "rank", placeholder: "AIR 342 / 99.4 Percentile" },
-            { label: "College / Institution", key: "college", placeholder: "IIT Bombay — Computer Science" },
-            { label: "Batch", key: "batch", placeholder: "JEE 2025 — Evening" },
-            { label: "Academic Year *", key: "academicYear", placeholder: "2025" },
-            { label: "Initials *", key: "initials", placeholder: "AS", maxLength: 2 },
-            { label: "Student Quote", key: "quote", placeholder: "Pinnacle's guidance transformed my preparation." },
-          ].map(({ label, key, placeholder, maxLength }) => (
-            <div key={key}>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+
+          <div className="grid grid-cols-2 gap-4">
+            {textFields.slice(0, 4).map(({ label, key, placeholder, maxLength }) => (
+              <div key={key} className="col-span-2">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+                <input
+                  type="text"
+                  value={form[key as keyof typeof form] as string}
+                  onChange={(e) => set(key, e.target.value)}
+                  placeholder={placeholder}
+                  maxLength={maxLength}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+                />
+              </div>
+            ))}
+
+            {[textFields[4], textFields[5]].map(({ label, key, placeholder }) => (
+              <div key={key}>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+                <input
+                  type="text"
+                  value={form[key as keyof typeof form] as string}
+                  onChange={(e) => set(key, e.target.value)}
+                  placeholder={placeholder}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+                />
+              </div>
+            ))}
+
+            {[textFields[6], textFields[7]].map(({ label, key, placeholder }) => (
+              <div key={key}>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+                <input
+                  type="text"
+                  value={form[key as keyof typeof form] as string}
+                  onChange={(e) => set(key, e.target.value)}
+                  placeholder={placeholder}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+                />
+              </div>
+            ))}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">{textFields[8].label}</label>
               <input
                 type="text"
-                value={form[key as keyof typeof form] as string}
-                onChange={(e) => set(key, e.target.value)}
-                placeholder={placeholder}
-                maxLength={maxLength}
+                value={form.initials}
+                onChange={(e) => set("initials", e.target.value)}
+                placeholder={textFields[8].placeholder}
+                maxLength={2}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
               />
             </div>
-          ))}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">{textFields[9].label}</label>
+            <input
+              type="text"
+              value={form.quote}
+              onChange={(e) => set("quote", e.target.value)}
+              placeholder={textFields[9].placeholder}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+            />
+          </div>
+
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.isTopper} onChange={(e) => set("isTopper", e.target.checked)} className="rounded" />
             <span className="text-sm text-slate-600">Feature as Topper on public results page</span>
           </label>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 btn-outline py-2.5 text-sm">Cancel</button>
             <button type="submit" disabled={loading} className="flex-1 btn-primary py-2.5 text-sm">{loading ? "Saving…" : "Save Result"}</button>

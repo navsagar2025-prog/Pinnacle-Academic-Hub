@@ -10,6 +10,7 @@ import {
   GraduationCap,
   ExternalLink,
 } from "lucide-react";
+import { getContactSettings } from "@/lib/server/site-settings";
 
 const COURSES = [
   { label: "JEE Main & Advanced", href: "/courses#jee" },
@@ -35,7 +36,15 @@ const LEGAL = [
   { label: "Refund Policy", href: "/refund-policy" },
 ];
 
-export default function Footer() {
+export default async function Footer() {
+  const settings = await getContactSettings();
+
+  const social = [
+    { href: settings.facebook_url, Icon: Facebook, label: "Facebook" },
+    { href: settings.youtube_url, Icon: Youtube, label: "YouTube" },
+    { href: settings.instagram_url, Icon: Instagram, label: "Instagram" },
+  ];
+
   return (
     <footer className="bg-[var(--color-navy)] text-white">
       {/* Main footer */}
@@ -61,33 +70,18 @@ export default function Footer() {
               examinations. Shaping the future, one student at a time.
             </p>
             <div className="flex items-center gap-3">
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Facebook"
-                className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] transition-colors"
-              >
-                <Facebook size={15} />
-              </a>
-              <a
-                href="https://youtube.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="YouTube"
-                className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] transition-colors"
-              >
-                <Youtube size={15} />
-              </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] transition-colors"
-              >
-                <Instagram size={15} />
-              </a>
+              {social.map(({ href, Icon, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] transition-colors"
+                >
+                  <Icon size={15} />
+                </a>
+              ))}
             </div>
           </div>
 
@@ -138,19 +132,28 @@ export default function Footer() {
               <li className="flex gap-3">
                 <MapPin size={15} className="text-[var(--color-gold)] flex-shrink-0 mt-0.5" />
                 <span className="text-white/70 text-sm">
-                  Plot No. 45, Knowledge Park II, Greater Noida, Uttar Pradesh — 201306
+                  {settings.address_line1}
+                  {settings.address_city && (
+                    <>, {settings.address_city}</>
+                  )}
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={15} className="text-[var(--color-gold)] flex-shrink-0" />
-                <a href="tel:+919876543210" className="text-white/70 hover:text-white text-sm transition-colors">
-                  +91 98765 43210
+                <a
+                  href={`tel:${settings.contact_phone.replace(/\s/g, "")}`}
+                  className="text-white/70 hover:text-white text-sm transition-colors"
+                >
+                  {settings.contact_phone}
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={15} className="text-[var(--color-gold)] flex-shrink-0" />
-                <a href="mailto:info@pinnacleacademic.in" className="text-white/70 hover:text-white text-sm transition-colors">
-                  info@pinnacleacademic.in
+                <a
+                  href={`mailto:${settings.contact_email}`}
+                  className="text-white/70 hover:text-white text-sm transition-colors"
+                >
+                  {settings.contact_email}
                 </a>
               </li>
               <li className="flex items-start gap-3">
@@ -164,7 +167,7 @@ export default function Footer() {
             </ul>
 
             <a
-              href="https://maps.google.com/?q=Greater+Noida+UP"
+              href={settings.maps_url}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 mt-4 text-xs text-[var(--color-gold)] hover:text-[var(--color-gold-light)] transition-colors"
