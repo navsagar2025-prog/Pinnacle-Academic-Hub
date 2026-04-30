@@ -1,6 +1,5 @@
 import { db } from "@workspace/db";
-import { feeRecords, students, batches, users } from "@workspace/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { CreditCard, AlertCircle, TrendingUp, CheckCircle } from "lucide-react";
 import BarChartClient from "@/components/charts/BarChartClient";
 import LineChartClient from "@/components/charts/LineChartClient";

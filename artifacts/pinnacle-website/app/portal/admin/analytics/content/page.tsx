@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
-import { studyMaterials, classRecordings, notices, batches } from "@workspace/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
-import { BookOpen, Play, Bell, AlertTriangle } from "lucide-react";
+import { studyMaterials, classRecordings } from "@workspace/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
+import { BookOpen, Play, AlertTriangle } from "lucide-react";
 import BarChartClient from "@/components/charts/BarChartClient";
 import DonutChartClient from "@/components/charts/DonutChartClient";
 

@@ -20,9 +20,13 @@ export default function MarkFollowedUpButton({ id, current }: { id: string; curr
 
   if (error) {
     return (
-      <span className="flex items-center gap-1 text-xs font-semibold text-[var(--color-maroon)]" title={error}>
-        <AlertCircle size={12} /> Failed — retry
-      </span>
+      <button
+        onClick={() => setError(null)}
+        className="flex items-center gap-1 text-xs font-semibold text-[var(--color-maroon)] hover:underline"
+        title={error}
+      >
+        <AlertCircle size={12} /> Failed — click to retry
+      </button>
     );
   }
 

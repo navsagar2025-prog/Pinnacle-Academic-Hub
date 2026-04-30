@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { enquiries, students, batches, courses } from "@workspace/db/schema";
+import { enquiries } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { TrendingUp, Users, UserCheck, BarChart2 } from "lucide-react";
 import BarChartClient from "@/components/charts/BarChartClient";
