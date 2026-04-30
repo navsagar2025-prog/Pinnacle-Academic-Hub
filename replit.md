@@ -31,6 +31,18 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ### 1. API Server (`artifacts/api-server`)
 - Express 5 + Drizzle ORM + PostgreSQL backend
 - Workflow: `artifacts/api-server: API Server` on port 8080
+- **OCR Router**: Switchable OCR engine backend with 5 adapters (Pix2Text default, SimpleTex, LaTeX-OCR, MathPix, Google Vision)
+- Config persisted in `artifacts/api-server/data/ocr-config.json` (auto-created, JSON file store)
+- Key endpoints:
+  - `POST /api/scan` — OCR scan (multipart image upload, routes to active engine)
+  - `GET /api/settings/ocr` — get active provider + per-provider config (keys sanitized)
+  - `PUT /api/settings/ocr` — switch active provider + update credentials
+  - `POST /api/export/pdf` — generate branded PDF from OCR result (pdf-lib)
+  - `POST /api/export/docx` — generate DOCX from OCR result (docx.js)
+  - `GET /api/health` — status + activeProvider + uptime
+- OCR adapters: `src/ocr/pix2text.ts`, `simpletex.ts`, `latexocr.ts`, `mathpix.ts`, `google-vision.ts`
+- OCR factory: `src/ocr/factory.ts` — reads config, instantiates correct adapter
+- Config store: `src/lib/config-store.ts` — load/save JSON config with env var fallbacks
 
 ### 2. Mockup Sandbox (`artifacts/mockup-sandbox`)
 - Vite dev server for canvas component previews

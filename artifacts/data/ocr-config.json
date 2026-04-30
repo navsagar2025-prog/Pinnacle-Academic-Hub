@@ -1,0 +1,26 @@
+{
+  "activeProvider": "pix2text",
+  "providers": {
+    "pix2text": {
+      "endpointUrl": "https://your-pix2text-space.hf.space/ocr",
+      "apiKey": ""
+    },
+    "simpletex": {
+      "endpointUrl": "https://server.simpletex.cn/api/latex_ocr",
+      "apiKey": ""
+    },
+    "latexocr": {
+      "endpointUrl": "https://your-latexocr-space.hf.space/predict",
+      "apiKey": ""
+    },
+    "mathpix": {
+      "endpointUrl": "https://api.mathpix.com/v3/text",
+      "appId": "test_id",
+      "appKey": "test_key"
+    },
+    "google-vision": {
+      "endpointUrl": "https://vision.googleapis.com/v1/images:annotate",
+      "apiKey": ""
+    }
+  }
+}
