@@ -141,8 +141,14 @@ function StepIndicator({ current }: { current: Step }) {
 
 function CaptureStep({
   onImageSelected,
+  stagedPreview,
+  onScan,
+  onClearStaged,
 }: {
   onImageSelected: (file: File, preview: string) => void;
+  stagedPreview: string;
+  onScan: () => void;
+  onClearStaged: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
@@ -223,7 +229,31 @@ function CaptureStep({
         <p className="text-sm text-muted-foreground">Supports printed question papers, handwritten notes, and documents with mathematical or scientific equations</p>
       </div>
 
-      {!webcamActive ? (
+      {stagedPreview && (
+        <div className="space-y-4">
+          <div className="relative rounded-xl overflow-hidden border border-border bg-black flex items-center justify-center" style={{ maxHeight: "280px" }}>
+            <img src={stagedPreview} alt="Selected document" className="object-contain w-full" style={{ maxHeight: "280px" }} />
+            <button
+              onClick={onClearStaged}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" className="gap-2" onClick={onClearStaged}>
+              <RotateCcw className="w-4 h-4" />
+              Choose Different Image
+            </Button>
+            <Button className="gap-2 flex-1" onClick={onScan}>
+              <ScanLine className="w-4 h-4" />
+              Process Scan
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!stagedPreview && (!webcamActive ? (
         <>
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -301,7 +331,7 @@ function CaptureStep({
             Capture Photo
           </Button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -540,19 +570,23 @@ export default function ScanDocument() {
   const [result, setResult] = useState<OcrResult | null>(null);
   const [editedText, setEditedText] = useState("");
 
-  const handleImageSelected = useCallback(async (file: File, preview: string) => {
+  const handleImageSelected = useCallback((file: File, preview: string) => {
     setImageFile(file);
     setImagePreview(preview);
     setScanError(null);
     setScanErrorHint(null);
-    setScanning(true);
+  }, []);
 
+  const handleScan = useCallback(async () => {
+    if (!imageFile) return;
+    setScanError(null);
+    setScanErrorHint(null);
+    setScanning(true);
     try {
-      const res = await scanImage(file);
+      const res = await scanImage(imageFile);
       if (!res.success) {
         setScanError(res.error ?? "OCR failed");
         setScanErrorHint(res.hint ?? null);
-        setScanning(false);
         return;
       }
       setResult(res);
@@ -563,6 +597,13 @@ export default function ScanDocument() {
     } finally {
       setScanning(false);
     }
+  }, [imageFile]);
+
+  const clearStaged = useCallback(() => {
+    setImageFile(null);
+    setImagePreview("");
+    setScanError(null);
+    setScanErrorHint(null);
   }, []);
 
   const reset = useCallback(() => {
@@ -623,7 +664,12 @@ export default function ScanDocument() {
           )}
 
           {!scanning && !scanError && step === "capture" && (
-            <CaptureStep onImageSelected={handleImageSelected} />
+            <CaptureStep
+                onImageSelected={handleImageSelected}
+                stagedPreview={imagePreview}
+                onScan={handleScan}
+                onClearStaged={clearStaged}
+              />
           )}
 
           {!scanning && !scanError && step === "review" && result && (

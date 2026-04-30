@@ -67,6 +67,7 @@ function ScanEngineSection() {
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [fullConfig, setFullConfig] = useState<Record<string, { endpointUrl: string; hasApiKey?: boolean; hasAppId?: boolean; hasAppKey?: boolean }>>({});
 
   useEffect(() => {
@@ -79,7 +80,7 @@ function ScanEngineSection() {
           setEndpointUrl(provCfg.endpointUrl ?? "");
         }
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -138,6 +139,12 @@ function ScanEngineSection() {
         Choose the OCR engine used for document scanning. Switch providers anytime — no restart required. Pix2Text is recommended as the free default.
         {loading && <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground/70"><Loader2 className="w-3 h-3 animate-spin" />Loading current config…</span>}
       </p>
+      {loadError && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm mb-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          Could not load current OCR config — API server may be offline. Showing defaults.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         {providers.map((p) => (
