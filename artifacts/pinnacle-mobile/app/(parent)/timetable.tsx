@@ -1,11 +1,15 @@
-import React, { useState } from "react";
+import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import { useColors } from "@/hooks/useColors";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const schedule: Record<string, { time: string; subject: string; teacher: string }[]> = {
+const CACHE_KEY = "pinnacle_parent_timetable";
+type Schedule = Record<string, { time: string; subject: string; teacher: string }[]>;
+const schedule: Schedule = {
   Mon: [
     { time: "5:00 PM", subject: "Physics", teacher: "Dr. Ramesh Kumar" },
     { time: "7:00 PM", subject: "Study Hour", teacher: "Self-study" },
@@ -41,10 +45,34 @@ const subjectColor: Record<string, string> = {
 export default function ParentTimetable() {
   const colors = useColors();
   const [day, setDay] = useState("Mon");
-  const slots = schedule[day] ?? [];
+  const [timetable, setTimetable] = useState<Schedule>(schedule);
+  const [fromCache, setFromCache] = useState(false);
+
+  const loadCache = useCallback(async () => {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) { setTimetable(JSON.parse(cached)); setFromCache(true); }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadCache().then(() => {
+      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(schedule)).catch(() => {});
+      setTimetable(schedule);
+      setFromCache(false);
+    });
+  }, [loadCache]);
+
+  const slots = timetable[day] ?? [];
 
   return (
     <ScreenContainer>
+      {fromCache && (
+        <View style={[styles.offlineBanner, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "50", borderRadius: colors.radius - 4 }]}>
+          <Feather name="wifi-off" size={12} color={colors.warning} />
+          <Text style={[styles.offlineText, { color: colors.warning }]}>Showing cached timetable</Text>
+        </View>
+      )}
       <View
         style={[
           styles.childInfo,
@@ -134,6 +162,19 @@ export default function ParentTimetable() {
 }
 
 const styles = StyleSheet.create({
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   childInfo: {
     borderWidth: 1,
     padding: 12,

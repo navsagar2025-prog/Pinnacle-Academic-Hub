@@ -1,11 +1,23 @@
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import { useColors } from "@/hooks/useColors";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CACHE_KEY = "pinnacle_student_timetable";
 
-const schedule: Record<string, { time: string; subject: string; teacher: string; room: string }[]> = {
+type Slot = { time: string; subject: string; teacher: string; room: string };
+type Schedule = Record<string, Slot[]>;
+
+const SCHEDULE: Schedule = {
   Mon: [
     { time: "5:00 PM", subject: "Physics", teacher: "Dr. Ramesh Kumar", room: "Room 101" },
     { time: "7:00 PM", subject: "Study Hour", teacher: "Self-study", room: "Library" },
@@ -44,14 +56,55 @@ const subjectColor: Record<string, string> = {
 export default function StudentTimetable() {
   const colors = useColors();
   const [day, setDay] = useState("Mon");
+  const [schedule, setSchedule] = useState<Schedule>(SCHEDULE);
+  const [fromCache, setFromCache] = useState(false);
+
+  const loadFromCache = useCallback(async () => {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) {
+        setSchedule(JSON.parse(cached));
+        setFromCache(true);
+      }
+    } catch {}
+  }, []);
+
+  const saveToCache = useCallback(async (data: Schedule) => {
+    try {
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadFromCache().then(() => {
+      saveToCache(SCHEDULE);
+      setSchedule(SCHEDULE);
+      setFromCache(false);
+    });
+  }, [loadFromCache, saveToCache]);
+
   const slots = schedule[day] ?? [];
 
   return (
     <ScreenContainer>
+      {fromCache && (
+        <View
+          style={[
+            styles.offlineBanner,
+            { backgroundColor: colors.warning + "15", borderColor: colors.warning + "50", borderRadius: colors.radius - 4 },
+          ]}
+        >
+          <Feather name="wifi-off" size={12} color={colors.warning} />
+          <Text style={[styles.offlineText, { color: colors.warning }]}>
+            Showing cached timetable
+          </Text>
+        </View>
+      )}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={{ marginTop: 16, marginBottom: 16, marginHorizontal: -16 }}
+        style={{ marginBottom: 16, marginHorizontal: -16 }}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
       >
         {DAYS.map((d) => (
@@ -71,6 +124,7 @@ export default function StudentTimetable() {
                 styles.dayLabel,
                 {
                   color: day === d ? colors.primaryForeground : colors.mutedForeground,
+                  fontFamily: "PlusJakartaSans_600SemiBold",
                 },
               ]}
             >
@@ -96,7 +150,12 @@ export default function StudentTimetable() {
             return (
               <View key={i} style={styles.slotRow}>
                 <View style={styles.timeCol}>
-                  <Text style={[styles.time, { color: colors.mutedForeground }]}>
+                  <Text
+                    style={[
+                      styles.time,
+                      { color: colors.mutedForeground, fontFamily: "PlusJakartaSans_500Medium" },
+                    ]}
+                  >
                     {slot.time}
                   </Text>
                   {i < slots.length - 1 && (
@@ -113,10 +172,20 @@ export default function StudentTimetable() {
                     },
                   ]}
                 >
-                  <Text style={[styles.slotSubject, { color: colors.foreground }]}>
+                  <Text
+                    style={[
+                      styles.slotSubject,
+                      { color: colors.foreground, fontFamily: "PlusJakartaSans_700Bold" },
+                    ]}
+                  >
                     {slot.subject}
                   </Text>
-                  <Text style={[styles.slotMeta, { color: colors.mutedForeground }]}>
+                  <Text
+                    style={[
+                      styles.slotMeta,
+                      { color: colors.mutedForeground, fontFamily: "PlusJakartaSans_400Regular" },
+                    ]}
+                  >
                     {slot.teacher} · {slot.room}
                   </Text>
                 </View>
@@ -130,6 +199,19 @@ export default function StudentTimetable() {
 }
 
 const styles = StyleSheet.create({
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   dayBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,

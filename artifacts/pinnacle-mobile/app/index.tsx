@@ -86,8 +86,8 @@ export default function RoleSelectorScreen() {
           >
             <Feather name="award" size={40} color="#C9A84C" />
           </View>
-          <Text style={styles.appName}>PINNACLE</Text>
-          <Text style={styles.appSub}>Academic Classes · Greater Noida</Text>
+          <Text style={[styles.appName, { fontFamily: "PlayfairDisplay_800ExtraBold" }]}>PINNACLE</Text>
+          <Text style={[styles.appSub, { fontFamily: "PlusJakartaSans_400Regular" }]}>Academic Classes · Greater Noida</Text>
         </View>
 
         <View style={styles.divider} />

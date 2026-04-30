@@ -76,23 +76,31 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Workflow: `artifacts/pinnacle-mobile: expo` on port 19049
 - 4 roles: Student (5 tabs), Parent (3 tabs), Teacher (5 tabs), Admin (5 tabs)
 - Role stored in AsyncStorage (`pinnacle_role`); role selector on root screen
-- All write-action buttons trigger Alert.alert("Demo Mode") — read-only demo
-- Scan Document screen: camera/gallery image picker → real OCR API call (`POST /api/scan`) → export via `POST /api/export/pdf` and `POST /api/export/docx` with file sharing
-- `eas.json` present with development / preview / production profiles (Android APK / iOS simulator / store distribution)
+- All write-action buttons are visually disabled + trigger Alert.alert("Demo Mode") — read-only demo; Demo Mode banner on all portal screens
+- Scan Document screen: real expo-camera CameraView viewfinder → auto-crop suggestion → OCR API → KaTeX WebView preview for LaTeX → PDF/DOCX export with native share
+- `eas.json`: development (APK + iOS simulator) / preview / production (app-bundle / App Store) profiles
 - TypeScript: 0 errors; all Feather icon names typed via `ComponentProps<typeof Feather>["name"]`; no `as any` casts
-- Dependencies: `expo-file-system` (v55, legacy import), `expo-sharing`
+- Brand fonts: Playfair Display (headings) + Plus Jakarta Sans (body) + Inter (mono) loaded in `_layout.tsx`
+- Push notifications: `expo-notifications` wired; permission request + demo welcome notification on first launch
+- Offline timetable cache: Student + Parent timetable screens cache to AsyncStorage; offline/cached indicator shown
+- Dependencies: `expo-file-system/legacy`, `expo-sharing`, `expo-camera`, `expo-notifications`, `react-native-webview`, Playfair Display + Plus Jakarta Sans fonts
 - Key screens by role:
-  - **Student**: Dashboard, Live Classes, Materials, Timetable, More (Recordings + Papers + Fees)
-  - **Parent**: Dashboard, Fees (payment history + next due), Timetable
-  - **Teacher**: Dashboard, Schedule, Batches, Materials Upload, Scan Document (real OCR API)
+  - **Student**: Dashboard, Live Classes, Materials, Timetable (offline cache), More → sub-screens: Recordings, Practice Papers (with scores), Fees (history + due)
+  - **Parent**: Dashboard, Fees (payment history + next due), Timetable (offline cache)
+  - **Teacher**: Dashboard, Schedule, Batches, Materials Upload, Scan (CameraView + KaTeX), Notices
   - **Admin**: Dashboard, Students (searchable list), Finance (overview/due/recent), Notices, More (Teachers + Results + Enquiries + Scan + Settings)
 - Key files:
-  - `app/_layout.tsx` — Root layout with RoleContext, providers
-  - `app/index.tsx` — Role selector landing screen (navy gradient UI); Feather icons typed properly
-  - `app/(teacher)/scan.tsx` — Real OCR scan + PDF/DOCX export with native file sharing
-  - `app/(admin)/scan.tsx` — Admin scan screen (same OCR flow, accessible from More tab)
-  - `app/(admin)/more.tsx` — Admin More tab with Scan Document link + Settings
-  - `context/RoleContext.tsx` — Role state with AsyncStorage persistence
-  - `constants/colors.ts` — Brand color tokens (Navy/Teal/Maroon/Gold)
-  - `eas.json` — EAS Build profiles: development / preview / production
-  - `components/` — Reusable: ClassRow, NoticeRow, StatCard, DemoButton, RoleHeader, ScreenContainer
+  - `app/_layout.tsx` — Root layout; loads Playfair/Jakarta fonts; expo-notifications permission + demo notification
+  - `app/index.tsx` — Role selector (Playfair Display heading); Feather icons typed
+  - `app/(student)/more.tsx` — Navigation hub to Recordings / Papers / Fees
+  - `app/(student)/recordings.tsx` — Recorded lectures (distinct screen, disabled in demo)
+  - `app/(student)/papers.tsx` — Practice papers + test scores (distinct screen)
+  - `app/(student)/fees.tsx` — Fee history + next due + disabled pay button
+  - `app/(student)/timetable.tsx` — Timetable with AsyncStorage offline cache
+  - `app/(teacher)/scan.tsx` — CameraView viewfinder + auto-crop step + OCR + KaTeX WebView + export
+  - `app/(teacher)/notices.tsx` — Teacher notices with type filter + modal detail
+  - `app/(admin)/scan.tsx` — Admin scan (OCR flow, accessible from More)
+  - `app/(admin)/more.tsx` — Admin More: Teachers + Enquiries + Scan link + Settings
+  - `constants/fonts.ts` — Font family constants (Playfair Display / Plus Jakarta Sans / Inter)
+  - `components/DemoBanner.tsx` — Gold "Demo Mode" banner on all portal screens
+  - `components/ScreenContainer.tsx` — Wraps all screens with DemoBanner + safe area

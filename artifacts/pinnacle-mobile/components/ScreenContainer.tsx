@@ -1,18 +1,21 @@
 import React from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import DemoBanner from "@/components/DemoBanner";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
   children: React.ReactNode;
   scrollable?: boolean;
   padBottom?: number;
+  showDemoBanner?: boolean;
 }
 
 export default function ScreenContainer({
   children,
   scrollable = true,
   padBottom = 100,
+  showDemoBanner = true,
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -28,9 +31,11 @@ export default function ScreenContainer({
             backgroundColor: colors.background,
             paddingTop: topPad,
             paddingBottom: bottomPad + padBottom,
+            paddingHorizontal: 16,
           },
         ]}
       >
+        {showDemoBanner && <DemoBanner />}
         {children}
       </View>
     );
@@ -48,6 +53,7 @@ export default function ScreenContainer({
       ]}
       showsVerticalScrollIndicator={false}
     >
+      {showDemoBanner && <DemoBanner />}
       {children}
     </ScrollView>
   );

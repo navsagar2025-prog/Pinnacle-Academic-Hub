@@ -31,6 +31,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "doc.viewfinder", selected: "doc.viewfinder.fill" }} />
         <Label>Scan</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notices">
+        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
+        <Label>Notices</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -102,6 +106,14 @@ function ClassicTabLayout() {
           title: "Scan",
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="doc.viewfinder" tintColor={color} size={24} /> : <Feather name="camera" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notices"
+        options={{
+          title: "Notices",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="bell" tintColor={color} size={24} /> : <Feather name="bell" size={22} color={color} />,
         }}
       />
     </Tabs>

@@ -59,7 +59,7 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
               </Text>
             </View>
           </View>
-          <Text style={[styles.name, { color: colors.primaryForeground }]}>
+          <Text style={[styles.name, { color: colors.primaryForeground, fontFamily: "PlayfairDisplay_700Bold" }]}>
             {name}
           </Text>
           <Text
