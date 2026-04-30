@@ -8,6 +8,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "About Us — Pinnacle Academic Classes",
   description: "Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.",
+  openGraph: {
+    title: "About Us — Pinnacle Academic Classes",
+    description: "Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.",
+    url: "https://pinnacleacademic.in/about",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 export default function AboutPage() {

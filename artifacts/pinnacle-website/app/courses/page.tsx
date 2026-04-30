@@ -11,6 +11,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Courses — JEE, NEET, Class 10-12 | Pinnacle Academic Classes",
   description: "Explore Pinnacle's courses: JEE Main & Advanced, NEET UG, Class 11-12 Board, Class 9-10, and Foundation. Expert faculty, proven results.",
+  openGraph: {
+    title: "Courses — JEE, NEET, Class 10-12 | Pinnacle Academic Classes",
+    description: "Explore Pinnacle's courses: JEE Main & Advanced, NEET UG, Class 11-12 Board, Class 9-10, and Foundation. Expert faculty, proven results.",
+    url: "https://pinnacleacademic.in/courses",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const COURSE_DISPLAY: Record<string, { color: "navy" | "teal" | "maroon" | "gold"; icon: string }> = {

@@ -20,6 +20,18 @@ import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { COURSES, FACULTY, TOPPERS, TESTIMONIALS, STATS, NOTICES, FAQ } from "@/lib/data";
 
+export const metadata = {
+  title: "Pinnacle Academic Classes — JEE & NEET Coaching, Greater Noida",
+  description: "Greater Noida's premier coaching institute for JEE Main, JEE Advanced, and NEET UG. Expert faculty, 2,000+ students, proven results since 2012.",
+  openGraph: {
+    title: "Pinnacle Academic Classes — JEE & NEET Coaching, Greater Noida",
+    description: "Greater Noida's premier coaching institute for JEE Main, JEE Advanced, and NEET UG. Expert faculty, 2,000+ students, proven results since 2012.",
+    url: "https://pinnacleacademic.in/",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
+};
+
 export default function HomePage() {
   return (
     <>

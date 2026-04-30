@@ -7,6 +7,13 @@ import { Calendar, Clock, Tag } from "lucide-react";
 export const metadata = {
   title: "Study Tips & Blog — Pinnacle Academic Classes",
   description: "Expert study strategies, JEE & NEET preparation tips, and academic guidance from the faculty at Pinnacle Academic Classes, Greater Noida.",
+  openGraph: {
+    title: "Study Tips & Blog — Pinnacle Academic Classes",
+    description: "Expert study strategies, JEE & NEET preparation tips, and academic guidance from the faculty at Pinnacle Academic Classes, Greater Noida.",
+    url: "https://pinnacleacademic.in/blog",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const ARTICLES = [

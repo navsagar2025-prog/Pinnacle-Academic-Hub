@@ -7,6 +7,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Our Faculty — Expert Teachers | Pinnacle Academic Classes",
   description: "Meet Pinnacle's expert faculty — IIT/NIT alumni and PhD-qualified teachers with 7–14 years of coaching experience for JEE, NEET, and board exams.",
+  openGraph: {
+    title: "Our Faculty — Expert Teachers | Pinnacle Academic Classes",
+    description: "Meet Pinnacle's expert faculty — IIT/NIT alumni and PhD-qualified teachers with 7–14 years of coaching experience for JEE, NEET, and board exams.",
+    url: "https://pinnacleacademic.in/faculty",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 export default function FacultyPage() {

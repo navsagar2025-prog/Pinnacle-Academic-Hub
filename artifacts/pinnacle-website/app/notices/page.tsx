@@ -10,6 +10,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Notices & Announcements | Pinnacle Academic Classes",
   description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Greater Noida.",
+  openGraph: {
+    title: "Notices & Announcements | Pinnacle Academic Classes",
+    description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Greater Noida.",
+    url: "https://pinnacleacademic.in/notices",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {

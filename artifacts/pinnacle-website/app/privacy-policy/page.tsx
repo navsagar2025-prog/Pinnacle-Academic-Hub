@@ -2,7 +2,17 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Privacy Policy | Pinnacle Academic Classes" };
+export const metadata: Metadata = {
+  title: "Privacy Policy | Pinnacle Academic Classes",
+  description: "How Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.) collects, uses, and protects your personal data in compliance with Indian data protection laws.",
+  openGraph: {
+    title: "Privacy Policy | Pinnacle Academic Classes",
+    description: "How Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.) collects, uses, and protects your personal data in compliance with Indian data protection laws.",
+    url: "https://pinnacleacademic.in/privacy-policy",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
+};
 
 export default function PrivacyPolicyPage() {
   return (

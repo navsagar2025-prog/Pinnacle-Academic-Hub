@@ -10,6 +10,7 @@ import {
   TrendingUp,
   CreditCard,
   FileBarChart,
+  Search,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -22,6 +23,8 @@ const NAV_ITEMS = [
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", Icon: TrendingUp },
   { label: "Fee Collection", href: "/portal/admin/analytics/fees", Icon: CreditCard },
   { label: "Content Engagement", href: "/portal/admin/analytics/content", Icon: BookOpen },
+  { label: "Tools", href: "#", Icon: Search, divider: true },
+  { label: "SEO Health", href: "/portal/admin/seo", Icon: Search },
 ];
 
 export default async function AdminPortalLayout({ children }: { children: React.ReactNode }) {

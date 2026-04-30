@@ -5,6 +5,13 @@ import WhatsAppButton from "@/components/layout/WhatsAppButton";
 export const metadata = {
   title: "Gallery — Pinnacle Academic Classes",
   description: "Photos from classrooms, events, mock tests, and celebrations at Pinnacle Academic Classes, Greater Noida.",
+  openGraph: {
+    title: "Gallery — Pinnacle Academic Classes",
+    description: "Photos from classrooms, events, mock tests, and celebrations at Pinnacle Academic Classes, Greater Noida.",
+    url: "https://pinnacleacademic.in/gallery",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const CATEGORIES = ["All", "Classrooms", "Events", "Mock Tests", "Toppers' Celebration", "Campus"];

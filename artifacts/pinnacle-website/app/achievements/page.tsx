@@ -5,6 +5,13 @@ import WhatsAppButton from "@/components/layout/WhatsAppButton";
 export const metadata = {
   title: "Toppers & Achievements — Pinnacle Academic Classes",
   description: "JEE and NEET selections, board exam toppers, and student achievements from Pinnacle Academic Classes, Greater Noida.",
+  openGraph: {
+    title: "Toppers & Achievements — Pinnacle Academic Classes",
+    description: "JEE and NEET selections, board exam toppers, and student achievements from Pinnacle Academic Classes, Greater Noida.",
+    url: "https://pinnacleacademic.in/achievements",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const TOPPERS = [

@@ -8,6 +8,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes",
   description: "Pinnacle Academic Classes 2024 results: 85+ IIT/AIIMS selections, 320+ NIT selections. See our JEE and NEET toppers.",
+  openGraph: {
+    title: "Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes",
+    description: "Pinnacle Academic Classes 2024 results: 85+ IIT/AIIMS selections, 320+ NIT selections. See our JEE and NEET toppers.",
+    url: "https://pinnacleacademic.in/results",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
 };
 
 const YEAR_STATS = [

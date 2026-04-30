@@ -2,7 +2,17 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Refund Policy | Pinnacle Academic Classes" };
+export const metadata: Metadata = {
+  title: "Refund Policy | Pinnacle Academic Classes",
+  description: "Pinnacle Academic Classes refund and cancellation policy for course fees, including timelines, eligibility, and process for raising a refund request.",
+  openGraph: {
+    title: "Refund Policy | Pinnacle Academic Classes",
+    description: "Pinnacle Academic Classes refund and cancellation policy for course fees, including timelines, eligibility, and process for raising a refund request.",
+    url: "https://pinnacleacademic.in/refund-policy",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
+};
 
 export default function RefundPolicyPage() {
   return (
