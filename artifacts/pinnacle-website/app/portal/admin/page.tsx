@@ -1,106 +1,113 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import { Users, BookOpen, CreditCard, Bell, TrendingUp, ChevronRight, UserCheck } from "lucide-react";
+import { db } from "@workspace/db";
+import { students, batches, teachers, feeRecords, enquiries, notices } from "@workspace/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
+import { Users, BookOpen, CreditCard, Bell, UserCheck, MessageSquare, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = { title: "Admin Dashboard" };
 
-const RECENT_STUDENTS = [
-  { name: "Rohan Verma", batch: "JEE 2026 — Evening", enrolled: "15 Apr 2026", status: "active" },
-  { name: "Meera Singh", batch: "NEET 2026 — Morning", enrolled: "10 Apr 2026", status: "active" },
-  { name: "Aryan Gupta", batch: "JEE 2026 — Morning", enrolled: "5 Apr 2026", status: "active" },
-  { name: "Priya Kumari", batch: "Class 12 — Evening", enrolled: "1 Apr 2026", status: "pending" },
-];
-
-const STATS = [
-  { label: "Total Students", value: "187", icon: <Users size={20} />, color: "navy", href: "/portal/admin/students" },
-  { label: "Active Batches", value: "8", icon: <BookOpen size={20} />, color: "teal", href: "/portal/admin/batches" },
-  { label: "Faculty Members", value: "6", icon: <UserCheck size={20} />, color: "maroon", href: "/portal/admin/teachers" },
-  { label: "Fee Due (Apr)", value: "₹32k", icon: <CreditCard size={20} />, color: "gold", href: "/portal/admin/students" },
-];
-
 export default async function AdminDashboard() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  const user = await currentUser();
+  const [
+    [{ studentCount }],
+    [{ batchCount }],
+    [{ teacherCount }],
+    [{ enquiryCount }],
+    recentEnquiries,
+    recentNotices,
+  ] = await Promise.all([
+    db.select({ studentCount: sql<number>`count(*)::int` }).from(students).where(eq(students.isActive, true)),
+    db.select({ batchCount: sql<number>`count(*)::int` }).from(batches).where(eq(batches.status, "active")),
+    db.select({ teacherCount: sql<number>`count(*)::int` }).from(teachers).where(eq(teachers.isActive, true)),
+    db.select({ enquiryCount: sql<number>`count(*)::int` }).from(enquiries).where(eq(enquiries.isFollowedUp, false)),
+    db.select().from(enquiries).orderBy(desc(enquiries.createdAt)).limit(5),
+    db.select({ title: notices.title, category: notices.category, publishedAt: notices.publishedAt }).from(notices).orderBy(desc(notices.publishedAt)).limit(5),
+  ]);
+
+  const stats = [
+    { label: "Total Students", value: studentCount, icon: Users, color: "navy", href: "/portal/admin/students" },
+    { label: "Active Batches", value: batchCount, icon: BookOpen, color: "teal", href: "/portal/admin/batches" },
+    { label: "Faculty Members", value: teacherCount, icon: UserCheck, color: "maroon", href: "/portal/admin/teachers" },
+    { label: "Pending Enquiries", value: enquiryCount, icon: MessageSquare, color: "gold", href: "/portal/admin/enquiries" },
+  ];
+
+  const colorMap: Record<string, string> = {
+    navy: "border-l-[var(--color-navy)] bg-[var(--color-navy)]/10 text-[var(--color-navy)]",
+    teal: "border-l-[var(--color-teal)] bg-[var(--color-teal)]/10 text-[var(--color-teal)]",
+    maroon: "border-l-[var(--color-maroon)] bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]",
+    gold: "border-l-[var(--color-gold)] bg-[var(--color-gold)]/10 text-[var(--color-maroon)]",
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">
-          Admin Dashboard
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">Welcome, {user?.firstName ?? "Admin"} · Pinnacle Academic Classes</p>
+        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Admin Dashboard</h1>
+        <p className="text-slate-500 text-sm mt-1">Pinnacle Academic Classes · Live overview</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STATS.map((s) => (
-          <Link key={s.label} href={s.href} className={`card flex flex-col gap-3 hover:shadow-elevated transition-all border-l-4 ${s.color === "navy" ? "border-l-[var(--color-navy)]" : s.color === "teal" ? "border-l-[var(--color-teal)]" : s.color === "maroon" ? "border-l-[var(--color-maroon)]" : "border-l-[var(--color-gold)]"}`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color === "navy" ? "bg-[var(--color-navy)]/10 text-[var(--color-navy)]" : s.color === "teal" ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" : s.color === "maroon" ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)]" : "bg-[var(--color-gold)]/10 text-[var(--color-maroon)]"}`}>{s.icon}</div>
-            <div>
-              <div className="text-2xl font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">{s.value}</div>
-              <div className="text-slate-500 text-xs">{s.label}</div>
-            </div>
-          </Link>
-        ))}
+        {stats.map((s) => {
+          const Icon = s.icon;
+          const [border, bg, txt] = colorMap[s.color].split(" ");
+          return (
+            <Link key={s.label} href={s.href} className={`card flex flex-col gap-3 hover:shadow-elevated transition-all border-l-4 ${border}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg} ${txt}`}>
+                <Icon size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">{s.value}</div>
+                <div className="text-slate-500 text-xs">{s.label}</div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">Recent Enrolments</h2>
-            <Link href="/portal/admin/students" className="text-[var(--color-teal)] text-sm flex items-center gap-1 hover:underline">All Students <ChevronRight size={14} /></Link>
+            <h2 className="font-semibold text-[var(--color-navy)]">Recent Enquiries</h2>
+            <Link href="/portal/admin/enquiries" className="text-xs text-[var(--color-teal)] hover:underline flex items-center gap-1">
+              View all <ChevronRight size={14} />
+            </Link>
           </div>
-          <div className="divide-y divide-slate-100">
-            {RECENT_STUDENTS.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 py-3">
-                <div className="w-9 h-9 bg-[var(--color-navy)]/10 rounded-full flex items-center justify-center text-[var(--color-navy)] font-bold text-sm flex-shrink-0">{s.name.charAt(0)}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-[var(--color-navy)] truncate">{s.name}</div>
-                  <div className="text-xs text-slate-400">{s.batch} · {s.enrolled}</div>
+          <div className="space-y-3">
+            {recentEnquiries.length === 0 ? (
+              <p className="text-slate-400 text-sm">No enquiries yet.</p>
+            ) : (
+              recentEnquiries.map((e) => (
+                <div key={e.id} className="flex items-start justify-between gap-2 py-2 border-b border-slate-50 last:border-0">
+                  <div>
+                    <div className="text-sm font-medium text-slate-800">{e.name}</div>
+                    <div className="text-xs text-slate-400">{e.courseInterest ?? "General"} · {e.phone}</div>
+                  </div>
+                  <span className={`badge-${e.isFollowedUp ? "teal" : "gold"} shrink-0`}>
+                    {e.isFollowedUp ? "Followed Up" : "New"}
+                  </span>
                 </div>
-                <span className={`badge text-xs ${s.status === "active" ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" : "bg-[var(--color-gold)]/15 text-[var(--color-navy)]"}`}>{s.status}</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">Quick Actions</h2>
+            <h2 className="font-semibold text-[var(--color-navy)]">Recent Notices</h2>
+            <Link href="/notices" className="text-xs text-[var(--color-teal)] hover:underline flex items-center gap-1">
+              View all <ChevronRight size={14} />
+            </Link>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Add Student", href: "/portal/admin/students", color: "navy", icon: <Users size={16} /> },
-              { label: "Add Teacher", href: "/portal/admin/teachers", color: "maroon", icon: <UserCheck size={16} /> },
-              { label: "Create Batch", href: "/portal/admin/batches", color: "teal", icon: <BookOpen size={16} /> },
-              { label: "Post Notice", href: "/portal/teacher/notices", color: "gold", icon: <Bell size={16} /> },
-            ].map((a) => (
-              <Link key={a.label} href={a.href} className={`flex items-center gap-2 p-3 rounded-xl text-sm font-semibold transition-all hover:shadow-md ${a.color === "navy" ? "bg-[var(--color-navy)]/5 text-[var(--color-navy)] hover:bg-[var(--color-navy)] hover:text-white" : a.color === "teal" ? "bg-[var(--color-teal)]/5 text-[var(--color-teal)] hover:bg-[var(--color-teal)] hover:text-white" : a.color === "maroon" ? "bg-[var(--color-maroon)]/5 text-[var(--color-maroon)] hover:bg-[var(--color-maroon)] hover:text-white" : "bg-[var(--color-gold)]/10 text-[var(--color-navy)] hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)]"}`}>
-                {a.icon}{a.label}
-              </Link>
+          <div className="space-y-3">
+            {recentNotices.map((n, i) => (
+              <div key={i} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+                <div className={`badge-${n.category === "Fee" ? "gold" : n.category === "Test" ? "maroon" : "teal"} shrink-0`}>
+                  <span className="text-[var(--color-maroon)]">{n.category}</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-slate-800">{n.title}</div>
+                  <div className="text-xs text-slate-400">{new Date(n.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+                </div>
+              </div>
             ))}
-          </div>
-
-          <div className="mt-4 p-4 bg-[var(--color-slate-light)] rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp size={14} className="text-[var(--color-teal)]" />
-              <span className="text-xs font-semibold text-[var(--color-navy)]">This Month</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <div className="text-lg font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">12</div>
-                <div className="text-xs text-slate-500">New students</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold text-[var(--color-teal)] font-[family-name:var(--font-playfair)]">₹1.8L</div>
-                <div className="text-xs text-slate-500">Fees collected</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold text-[var(--color-maroon)] font-[family-name:var(--font-playfair)]">₹32k</div>
-                <div className="text-xs text-slate-500">Outstanding</div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

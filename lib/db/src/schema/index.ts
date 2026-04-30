@@ -40,6 +40,7 @@ export const courses = pgTable("courses", {
   highlights: text("highlights").array(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const batches = pgTable("batches", {
@@ -54,6 +55,7 @@ export const batches = pgTable("batches", {
   status: batchStatusEnum("status").default("active"),
   room: text("room"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const students = pgTable("students", {
@@ -69,6 +71,7 @@ export const students = pgTable("students", {
   enrolledAt: timestamp("enrolled_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const parents = pgTable("parents", {
@@ -77,6 +80,7 @@ export const parents = pgTable("parents", {
   studentId: uuid("student_id").references(() => students.id),
   relation: text("relation").default("Parent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const teachers = pgTable("teachers", {
@@ -90,6 +94,7 @@ export const teachers = pgTable("teachers", {
   initials: text("initials"),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const studyMaterials = pgTable("study_materials", {
@@ -104,6 +109,7 @@ export const studyMaterials = pgTable("study_materials", {
   downloadCount: integer("download_count").default(0),
   isVisible: boolean("is_visible").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const practicePapers = pgTable("practice_papers", {
@@ -119,6 +125,7 @@ export const practicePapers = pgTable("practice_papers", {
   downloadCount: integer("download_count").default(0),
   isVisible: boolean("is_visible").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const feeRecords = pgTable("fee_records", {
@@ -132,6 +139,7 @@ export const feeRecords = pgTable("fee_records", {
   transactionRef: text("transaction_ref"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const notices = pgTable("notices", {
@@ -145,6 +153,7 @@ export const notices = pgTable("notices", {
   publishedAt: timestamp("published_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const schedules = pgTable("schedules", {
@@ -159,6 +168,7 @@ export const schedules = pgTable("schedules", {
   room: text("room"),
   isRecurring: boolean("is_recurring").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const liveClasses = pgTable("live_classes", {
@@ -169,12 +179,14 @@ export const liveClasses = pgTable("live_classes", {
   subject: text("subject"),
   zoomMeetingId: text("zoom_meeting_id"),
   zoomJoinUrl: text("zoom_join_url"),
+  zoomHostUrl: text("zoom_host_url"),
   zoomPasscode: text("zoom_passcode"),
   scheduledAt: timestamp("scheduled_at").notNull(),
   status: classStatusEnum("status").default("scheduled"),
   durationMinutes: integer("duration_minutes"),
   recordingUrl: text("recording_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const classRecordings = pgTable("class_recordings", {
@@ -189,6 +201,7 @@ export const classRecordings = pgTable("class_recordings", {
   isVisible: boolean("is_visible").default(true),
   viewCount: integer("view_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const enquiries = pgTable("enquiries", {
@@ -201,13 +214,26 @@ export const enquiries = pgTable("enquiries", {
   source: text("source").default("website"),
   isFollowedUp: boolean("is_followed_up").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Course = typeof courses.$inferSelect;
+export type InsertCourse = typeof courses.$inferInsert;
 export type Batch = typeof batches.$inferSelect;
+export type InsertBatch = typeof batches.$inferInsert;
 export type Student = typeof students.$inferSelect;
+export type InsertStudent = typeof students.$inferInsert;
+export type Teacher = typeof teachers.$inferSelect;
+export type InsertTeacher = typeof teachers.$inferInsert;
 export type FeeRecord = typeof feeRecords.$inferSelect;
+export type InsertFeeRecord = typeof feeRecords.$inferInsert;
 export type Notice = typeof notices.$inferSelect;
+export type InsertNotice = typeof notices.$inferInsert;
 export type LiveClass = typeof liveClasses.$inferSelect;
+export type InsertLiveClass = typeof liveClasses.$inferInsert;
+export type StudyMaterial = typeof studyMaterials.$inferSelect;
+export type ClassRecording = typeof classRecordings.$inferSelect;
+export type Enquiry = typeof enquiries.$inferSelect;
+export type Schedule = typeof schedules.$inferSelect;

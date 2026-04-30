@@ -1,7 +1,9 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
-import { COURSES } from "@/lib/data";
+import { db } from "@workspace/db";
+import { courses, batches } from "@workspace/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { CheckCircle, Clock, Users, BookOpen, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -11,6 +13,15 @@ export const metadata: Metadata = {
   description: "Explore Pinnacle's courses: JEE Main & Advanced, NEET UG, Class 11-12 Board, Class 9-10, and Foundation. Expert faculty, proven results.",
 };
 
+const COURSE_DISPLAY: Record<string, { color: "navy" | "teal" | "maroon" | "gold"; icon: string }> = {
+  "jee-main-advanced": { color: "navy", icon: "⚛️" },
+  "neet-ug": { color: "teal", icon: "🧬" },
+  "class-11-12-boards": { color: "maroon", icon: "📚" },
+  "foundation-class-9-10": { color: "gold", icon: "🏗️" },
+  "dropper-jee": { color: "navy", icon: "🎯" },
+  "dropper-neet": { color: "teal", icon: "🔬" },
+};
+
 const COLOR_MAP: Record<string, { bg: string; text: string; badge: string }> = {
   navy: { bg: "bg-[var(--color-navy)]", text: "text-[var(--color-navy)]", badge: "bg-[var(--color-navy)]/10 text-[var(--color-navy)]" },
   teal: { bg: "bg-[var(--color-teal)]", text: "text-[var(--color-teal)]", badge: "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" },
@@ -18,7 +29,19 @@ const COLOR_MAP: Record<string, { bg: string; text: string; badge: string }> = {
   gold: { bg: "bg-[var(--color-gold)]", text: "text-[var(--color-maroon)]", badge: "bg-[var(--color-gold)]/10 text-[var(--color-maroon)]" },
 };
 
-export default function CoursesPage() {
+export default async function CoursesPage() {
+  const [allCourses, allBatches] = await Promise.all([
+    db.select().from(courses).where(eq(courses.isActive, true)).orderBy(asc(courses.createdAt)),
+    db.select().from(batches).where(eq(batches.status, "active")),
+  ]);
+
+  const batchesByCourse: Record<string, string[]> = {};
+  for (const b of allBatches) {
+    if (!b.courseId) continue;
+    if (!batchesByCourse[b.courseId]) batchesByCourse[b.courseId] = [];
+    batchesByCourse[b.courseId].push(b.timingLabel ?? "Flexible");
+  }
+
   return (
     <>
       <Navbar />
@@ -37,26 +60,29 @@ export default function CoursesPage() {
 
         <section className="py-16 bg-[var(--color-slate-light)]">
           <div className="max-w-7xl mx-auto px-4 space-y-8">
-            {COURSES.map((course) => {
-              const c = COLOR_MAP[course.color] ?? COLOR_MAP.navy;
+            {allCourses.map((course) => {
+              const display = COURSE_DISPLAY[course.slug] ?? { color: "navy" as const, icon: "📖" };
+              const c = COLOR_MAP[display.color];
+              const courseBatches = batchesByCourse[course.id] ?? [];
+
               return (
-                <div key={course.id} id={course.id} className="card grid md:grid-cols-3 gap-8">
+                <div key={course.id} id={course.slug} className="card grid md:grid-cols-3 gap-8">
                   <div className="md:col-span-2">
                     <div className="flex items-start gap-4 mb-4">
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${c.badge}`}>
-                        {course.icon}
+                        {display.icon}
                       </div>
                       <div>
                         <h2 className="font-bold text-[var(--color-navy)] text-2xl font-[family-name:var(--font-playfair)]">{course.title}</h2>
                         <div className="flex items-center gap-4 mt-1">
-                          <span className="text-sm text-slate-500 flex items-center gap-1"><Clock size={13} />{course.duration}</span>
-                          <span className="text-sm text-slate-500 flex items-center gap-1"><Users size={13} />{course.seats} seats/batch</span>
+                          <span className="text-sm text-slate-500 flex items-center gap-1"><Clock size={13} />{course.durationLabel ?? "1 Year"}</span>
+                          <span className="text-sm text-slate-500 flex items-center gap-1"><Users size={13} />{course.maxBatchSize ?? 35} seats/batch</span>
                         </div>
                       </div>
                     </div>
                     <p className="text-slate-600 leading-relaxed mb-4">{course.description}</p>
                     <div className="grid sm:grid-cols-2 gap-2">
-                      {course.highlights.map((h) => (
+                      {(course.highlights ?? []).map((h) => (
                         <div key={h} className="flex items-center gap-2 text-sm text-slate-700">
                           <CheckCircle size={14} className="text-[var(--color-teal)] flex-shrink-0" />
                           {h}
@@ -69,20 +95,22 @@ export default function CoursesPage() {
                     <div className="bg-[var(--color-slate-light)] rounded-xl p-4 space-y-3">
                       <div>
                         <div className="text-xs text-slate-500 mb-0.5">Eligibility</div>
-                        <div className="font-semibold text-sm text-[var(--color-navy)]">{course.eligibility}</div>
+                        <div className="font-semibold text-sm text-[var(--color-navy)]">{course.eligibility ?? "Enquire for details"}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Available Batches</div>
-                        <div className="flex gap-2 flex-wrap">
-                          {course.batches.map((b) => (
-                            <span key={b} className={`badge text-xs ${c.badge}`}>{b} Batch</span>
-                          ))}
+                      {courseBatches.length > 0 && (
+                        <div>
+                          <div className="text-xs text-slate-500 mb-0.5">Available Batches</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {courseBatches.map((b, i) => (
+                              <span key={i} className={`badge text-xs ${c.badge}`}>{b}</span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                       <div>
                         <div className="text-xs text-slate-500 mb-0.5">Annual Fee</div>
                         <div className="text-2xl font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
-                          ₹{course.fee.toLocaleString("en-IN")}
+                          ₹{Number(course.annualFee).toLocaleString("en-IN")}
                         </div>
                         <div className="text-xs text-slate-400">Instalment options available</div>
                       </div>

@@ -1,3 +1,16 @@
 
+# Next.js build output — never commit
+/.next/
+/out/
+
 # clerk configuration (can include secrets)
 /.clerk/
+
+# Dependency directories
+node_modules/
+
+# Environment files
+.env*.local
+
+# Vercel
+.vercel
