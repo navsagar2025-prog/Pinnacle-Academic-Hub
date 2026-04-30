@@ -1,5 +1,7 @@
 {
   "/api/v1/notices/route": "app/api/v1/notices/route.js",
   "/api/v1/live-classes/route": "app/api/v1/live-classes/route.js",
-  "/page": "app/page.js"
+  "/api/v1/materials/route": "app/api/v1/materials/route.js",
+  "/page": "app/page.js",
+  "/portal/teacher/live/page": "app/portal/teacher/live/page.js"
 }

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
@@ -6,26 +6,82 @@ import { eq } from "drizzle-orm";
 export type PortalRole = "student" | "parent" | "teacher" | "admin";
 
 /**
- * Server-side utility: verifies the signed-in user has the required role.
- * Redirects to /sign-in if not authenticated, or /unauthorized if wrong role.
- * Returns the DB user record on success.
+ * Upserts a DB user record from Clerk user data.
+ * - Creates a new record with role="student" on first sign-in.
+ * - If Clerk publicMetadata.role is set, syncs it to the DB role.
+ * - Updates name/email if changed in Clerk.
+ * Returns the up-to-date DB user.
  */
-export async function requirePortalRole(requiredRole: PortalRole) {
+async function provisionDbUser() {
   const { userId } = await auth();
+  if (!userId) return null;
 
-  if (!userId) {
-    redirect("/sign-in");
-  }
+  const clerkUser = await currentUser();
+  if (!clerkUser) return null;
 
-  const [user] = await db
+  const email = clerkUser.primaryEmailAddress?.emailAddress;
+  if (!email) return null;
+
+  const name = clerkUser.fullName ?? email.split("@")[0];
+  const phone = clerkUser.phoneNumbers?.[0]?.phoneNumber ?? null;
+  const clerkRole = (clerkUser.publicMetadata?.role as PortalRole | undefined) ?? null;
+
+  const [existing] = await db
     .select()
     .from(schema.users)
     .where(eq(schema.users.clerkUserId, userId))
     .limit(1);
 
-  if (!user) {
-    redirect("/sign-in");
+  if (existing) {
+    const needsUpdate =
+      existing.name !== name ||
+      existing.email !== email ||
+      (clerkRole && existing.role !== clerkRole);
+
+    if (needsUpdate) {
+      const [updated] = await db
+        .update(schema.users)
+        .set({
+          name,
+          email,
+          ...(phone ? { phone } : {}),
+          ...(clerkRole ? { role: clerkRole } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.users.clerkUserId, userId))
+        .returning();
+      return updated;
+    }
+    return existing;
   }
+
+  const [created] = await db
+    .insert(schema.users)
+    .values({
+      clerkUserId: userId,
+      name,
+      email,
+      phone,
+      role: clerkRole ?? "student",
+    })
+    .returning();
+
+  return created;
+}
+
+/**
+ * Server-side utility: verifies the signed-in user has the required role.
+ * - Creates/upserts the DB user record on first access.
+ * - Syncs role from Clerk publicMetadata if set.
+ * - Redirects to /sign-in if not authenticated.
+ * - Redirects to the user's correct portal if they have a different role.
+ */
+export async function requirePortalRole(requiredRole: PortalRole) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const user = await provisionDbUser();
+  if (!user) redirect("/sign-in");
 
   if (user.role !== requiredRole) {
     const rolePortalMap: Record<string, string> = {
@@ -35,11 +91,7 @@ export async function requirePortalRole(requiredRole: PortalRole) {
       admin: "/portal/admin",
     };
     const correctPortal = rolePortalMap[user.role];
-    if (correctPortal) {
-      redirect(correctPortal);
-    } else {
-      redirect("/sign-in");
-    }
+    redirect(correctPortal ?? "/sign-in");
   }
 
   return user;
@@ -47,55 +99,23 @@ export async function requirePortalRole(requiredRole: PortalRole) {
 
 /**
  * Resolves the DB user for any authenticated Clerk user.
- * Does NOT enforce role — use requirePortalRole for role enforcement.
- * Returns null if the user has no DB record.
+ * Creates the record if it doesn't exist yet (auto-provision).
+ * Does NOT enforce role — use requirePortalRole for that.
  */
 export async function getDbUser() {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const [user] = await db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.clerkUserId, userId))
-    .limit(1);
-
+  const user = await provisionDbUser();
   return user ?? null;
 }
 
 /**
- * Creates a DB user record when they sign in for the first time via Clerk.
- * Call from portal layout server component.
+ * Legacy helper: kept for backward compatibility with API routes
+ * that call getDbUser with a clerkUserId string directly.
  */
-export async function upsertDbUser(clerkUser: {
-  id: string;
-  fullName: string | null;
-  primaryEmailAddress: { emailAddress: string } | null;
-  phoneNumbers: Array<{ phoneNumber: string }>;
-}) {
-  const email = clerkUser.primaryEmailAddress?.emailAddress;
-  if (!email) return null;
-
-  const name = clerkUser.fullName ?? email.split("@")[0];
-
-  const existing = await db
+export async function getDbUserById(clerkUserId: string) {
+  const [user] = await db
     .select()
     .from(schema.users)
-    .where(eq(schema.users.clerkUserId, clerkUser.id))
+    .where(eq(schema.users.clerkUserId, clerkUserId))
     .limit(1);
-
-  if (existing.length > 0) return existing[0];
-
-  const [created] = await db
-    .insert(schema.users)
-    .values({
-      clerkUserId: clerkUser.id,
-      name,
-      email,
-      phone: clerkUser.phoneNumbers?.[0]?.phoneNumber ?? null,
-      role: "student",
-    })
-    .returning();
-
-  return created;
+  return user ?? null;
 }

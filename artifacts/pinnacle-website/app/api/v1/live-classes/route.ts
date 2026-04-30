@@ -104,10 +104,26 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { topic, subject, batchId, teacherId, scheduledAt, durationMinutes } = body;
+    const { topic, subject, batchId, scheduledAt, durationMinutes } = body;
 
     if (!topic || !batchId || !scheduledAt) {
       return NextResponse.json({ success: false, error: "topic, batchId, and scheduledAt are required" }, { status: 400 });
+    }
+
+    let resolvedTeacherId: string | null = null;
+
+    if (dbUser.role === "teacher") {
+      const [teacher] = await db
+        .select({ id: teachers.id })
+        .from(teachers)
+        .where(and(eq(teachers.userId, dbUser.id), eq(teachers.isActive, true)))
+        .limit(1);
+      if (!teacher) {
+        return NextResponse.json({ success: false, error: "Teacher profile not found" }, { status: 403 });
+      }
+      resolvedTeacherId = teacher.id;
+    } else if (dbUser.role === "admin") {
+      resolvedTeacherId = body.teacherId ?? null;
     }
 
     const meeting = await createZoomMeeting({
@@ -122,7 +138,7 @@ export async function POST(request: Request) {
         topic,
         subject,
         batchId,
-        teacherId: teacherId ?? null,
+        teacherId: resolvedTeacherId,
         zoomMeetingId: meeting.meetingId,
         zoomJoinUrl: meeting.joinUrl,
         zoomHostUrl: meeting.hostUrl,
