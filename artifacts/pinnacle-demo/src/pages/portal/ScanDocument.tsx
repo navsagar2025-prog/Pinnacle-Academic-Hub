@@ -20,26 +20,24 @@ function getRole(): Role {
   return r === "admin" ? "admin" : "teacher";
 }
 
+function KatexRenderedLine({ line }: { line: string }) {
+  try {
+    const html = katex.renderToString(line, {
+      displayMode: true,
+      throwOnError: true,
+      output: "html",
+    });
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  } catch {
+    return (
+      <div className="py-0.5">
+        <span className="font-mono text-sm text-muted-foreground">{line}</span>
+      </div>
+    );
+  }
+}
+
 function KatexRenderer({ latex }: { latex: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!ref.current || !latex.trim()) return;
-    const lines = latex.split("\n").filter((l) => l.trim());
-    const html = lines.map((line) => {
-      try {
-        return katex.renderToString(line, {
-          displayMode: true,
-          throwOnError: false,
-          output: "html",
-        });
-      } catch {
-        return `<span class="font-mono text-sm text-muted-foreground">${line}</span>`;
-      }
-    }).join("<br/>");
-    ref.current.innerHTML = html;
-  }, [latex]);
-
   if (!latex.trim()) {
     return (
       <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
@@ -49,7 +47,14 @@ function KatexRenderer({ latex }: { latex: string }) {
     );
   }
 
-  return <div ref={ref} className="overflow-auto text-sm leading-relaxed" />;
+  const lines = latex.split("\n").filter((l) => l.trim());
+  return (
+    <div className="overflow-auto text-sm leading-relaxed space-y-1">
+      {lines.map((line, i) => (
+        <KatexRenderedLine key={i} line={line} />
+      ))}
+    </div>
+  );
 }
 
 function StepIndicator({ current }: { current: Step }) {

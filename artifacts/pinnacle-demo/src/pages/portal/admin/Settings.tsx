@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { adminNavItems } from "./Dashboard";
 import { Building2, Phone, IndianRupee, Bell, Database, ScanLine, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { checkApiHealth, saveOcrSettings } from "@/lib/scan-api";
+import { checkApiHealth, saveOcrSettings, fetchOcrSettings } from "@/lib/scan-api";
 
 function Section({ title, icon: Icon, children }: { title: string; icon: React.FC<{ className?: string }>; children: React.ReactNode }) {
   return (
@@ -66,6 +66,20 @@ function ScanEngineSection() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOcrSettings()
+      .then((cfg) => {
+        if (cfg.activeProvider && providers.some((p) => p.id === cfg.activeProvider)) {
+          setActiveProvider(cfg.activeProvider as OcrProvider);
+        }
+        const provCfg = cfg.providers?.[cfg.activeProvider] ?? {};
+        setEndpointUrl(provCfg.endpointUrl ?? "");
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleTest = async () => {
     setTesting(true);
@@ -111,6 +125,7 @@ function ScanEngineSection() {
     <Section title="Scan Engine — OCR Provider" icon={ScanLine}>
       <p className="text-sm text-muted-foreground mb-5">
         Choose the OCR engine used for document scanning. Switch providers anytime — no restart required. Pix2Text is recommended as the free default.
+        {loading && <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground/70"><Loader2 className="w-3 h-3 animate-spin" />Loading current config…</span>}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
