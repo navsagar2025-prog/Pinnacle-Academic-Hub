@@ -210,6 +210,7 @@ export default function SeoAuditPage() {
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Desc (len)</th>
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">OG</th>
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">OG Img</th>
+              <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Canonical</th>
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Schema</th>
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
               <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Live</th>
@@ -238,6 +239,9 @@ export default function SeoAuditPage() {
                 </td>
                 <td className="py-2.5 px-3 text-center">
                   <BoolCell ok={r.hasOgImage} />
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  <BoolCell ok={r.hasCanonical} />
                 </td>
                 <td className="py-2.5 px-3 text-center">
                   <BoolCell ok={r.hasStructuredData} />
@@ -327,7 +331,7 @@ export default function SeoAuditPage() {
             {[
               "Add og:image for all pages (1200×630px recommended)",
               "Add JSON-LD structured data (LocalBusiness / Course schema)",
-              "Add canonical URL meta tags to all pages",
+              "Add <link rel=\"canonical\"> tags to all pages (prevents duplicate-content penalties)",
               "Submit sitemap to Google Search Console",
               "Add hreflang tags when multilingual support is added",
             ].map((tip, i) => (

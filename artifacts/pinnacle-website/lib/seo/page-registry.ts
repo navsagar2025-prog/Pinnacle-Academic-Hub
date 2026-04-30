@@ -233,6 +233,20 @@ export const PUBLIC_PAGES: PageSeoEntry[] = [
     changefreq: "monthly",
     priority: 0.3,
   },
+  {
+    label: "Terms & Conditions",
+    route: "/terms",
+    title: "Terms & Conditions | Pinnacle Academic Classes",
+    description: "Terms and conditions governing enrolment, usage of digital resources, and the student-institute relationship at Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.).",
+    hasOgTitle: true,
+    hasOgDescription: true,
+    hasOgUrl: true,
+    hasOgImage: false,
+    hasCanonical: false,
+    hasStructuredData: false,
+    changefreq: "monthly",
+    priority: 0.3,
+  },
 ];
 
 export function auditPage(entry: PageSeoEntry): SeoAuditEntry {
@@ -248,6 +262,7 @@ export function auditPage(entry: PageSeoEntry): SeoAuditEntry {
   if (!entry.hasOgDescription) issues.push("Missing og:description");
   if (!entry.hasOgUrl) issues.push("Missing og:url");
   if (!entry.hasOgImage) issues.push("No og:image — social previews will lack a thumbnail");
+  if (!entry.hasCanonical) issues.push("No canonical URL tag — duplicate content risk");
   if (!entry.hasStructuredData) issues.push("No structured data (schema.org)");
 
   let status: SeoStatus;

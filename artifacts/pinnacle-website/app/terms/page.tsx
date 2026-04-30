@@ -2,7 +2,17 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Terms & Conditions | Pinnacle Academic Classes" };
+export const metadata: Metadata = {
+  title: "Terms & Conditions | Pinnacle Academic Classes",
+  description: "Terms and conditions governing enrolment, usage of digital resources, and the student-institute relationship at Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.).",
+  openGraph: {
+    title: "Terms & Conditions | Pinnacle Academic Classes",
+    description: "Terms and conditions governing enrolment, usage of digital resources, and the student-institute relationship at Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.).",
+    url: "https://pinnacleacademic.in/terms",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+  },
+};
 
 export default function TermsPage() {
   return (
