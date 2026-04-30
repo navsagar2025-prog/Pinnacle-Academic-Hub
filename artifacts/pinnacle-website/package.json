@@ -17,6 +17,7 @@
     "next": "^15.3.3",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "recharts": "^3.8.1",
     "tailwind-merge": "catalog:",
     "zod": "catalog:"
   },

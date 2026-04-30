@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { students, batches, teachers, feeRecords, enquiries, notices } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
-import { Users, BookOpen, CreditCard, Bell, UserCheck, MessageSquare, ChevronRight } from "lucide-react";
+import { Users, BookOpen, CreditCard, UserCheck, MessageSquare, ChevronRight, TrendingUp, BarChart2 } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = { title: "Admin Dashboard" };
@@ -60,6 +60,35 @@ export default async function AdminDashboard() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="card bg-gradient-to-r from-[var(--color-navy)]/5 to-[var(--color-teal)]/5 border border-[var(--color-navy)]/10">
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart2 size={16} className="text-[var(--color-navy)]" />
+          <h2 className="font-semibold text-[var(--color-navy)] text-sm">Analytics Dashboards</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Enrollment Funnel", desc: "Enquiry volume & conversion", href: "/portal/admin/analytics/enrollment", icon: TrendingUp, color: "navy" },
+            { label: "Fee Collection", desc: "Collections & overdue dues", href: "/portal/admin/analytics/fees", icon: CreditCard, color: "teal" },
+            { label: "Content Engagement", desc: "Downloads, views & notices", href: "/portal/admin/analytics/content", icon: BarChart2, color: "maroon" },
+          ].map((a) => {
+            const Icon = a.icon;
+            const cls = { navy: "text-[var(--color-navy)] bg-[var(--color-navy)]/10", teal: "text-[var(--color-teal)] bg-[var(--color-teal)]/10", maroon: "text-[var(--color-maroon)] bg-[var(--color-maroon)]/10" }[a.color];
+            return (
+              <Link key={a.href} href={a.href} className="flex items-start gap-2.5 p-3 bg-white rounded-xl hover:shadow-md transition-all group">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cls}`}>
+                  <Icon size={15} />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-[var(--color-navy)]">{a.label}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{a.desc}</div>
+                </div>
+                <ChevronRight size={13} className="ml-auto text-slate-300 group-hover:text-[var(--color-teal)] transition-colors mt-1 shrink-0" />
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

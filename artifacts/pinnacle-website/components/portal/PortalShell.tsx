@@ -16,6 +16,7 @@ export interface NavItem {
   label: string;
   href: string;
   Icon: LucideIcon;
+  divider?: boolean;
 }
 
 interface PortalShellProps {
@@ -73,9 +74,18 @@ export function PortalShell({
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {navItems.map((item, i) => {
+            if (item.divider) {
+              return (
+                <div key={`divider-${i}`} className="pt-4 pb-1 px-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    {item.label.replace(/^─\s*/, "")}
+                  </span>
+                </div>
+              );
+            }
+            const isActive = pathname === item.href || (item.href !== "/" && item.href !== "#" && pathname.startsWith(item.href) && item.href.split("/").length > 3);
             return (
               <Link
                 key={item.href}
