@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
 import {
@@ -28,13 +27,12 @@ const NAV_ITEMS = [
 ];
 
 export default async function AdminPortalLayout({ children }: { children: React.ReactNode }) {
-  await requirePortalRole("admin");
-  const clerkUser = await currentUser();
+  const user = await requirePortalRole("admin");
   return (
     <PortalShell
       navItems={NAV_ITEMS}
       portalLabel="Admin Panel"
-      userName={clerkUser?.fullName ?? clerkUser?.emailAddresses?.[0]?.emailAddress ?? "Admin"}
+      userName={user.name}
       userRole="admin"
     >
       {children}

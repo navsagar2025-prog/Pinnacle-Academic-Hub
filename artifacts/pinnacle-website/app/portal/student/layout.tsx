@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
 import {
@@ -24,14 +23,13 @@ export default async function StudentPortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requirePortalRole("student");
-  const clerkUser = await currentUser();
+  const user = await requirePortalRole("student");
 
   return (
     <PortalShell
       navItems={NAV_ITEMS}
       portalLabel="Student Portal"
-      userName={clerkUser?.fullName ?? clerkUser?.emailAddresses?.[0]?.emailAddress ?? "Student"}
+      userName={user.name}
       userRole="student"
     >
       {children}

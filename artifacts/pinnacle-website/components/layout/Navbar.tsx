@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+// Allowed Clerk client UI import — display components only, no auth logic.
+// When migrating away from Clerk, swap these four for your provider's equivalents.
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Menu, X, BookOpen, Phone, ChevronDown, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";

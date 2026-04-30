@@ -1,13 +1,8 @@
-import { auth } from "@clerk/nextjs/server";
+import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { notices, users } from "@workspace/db/schema";
+import { notices } from "@workspace/db/schema";
 import { desc, eq, and, isNull, or, gte, sql } from "drizzle-orm";
 import { paginatedOk, created as createdRes, err } from "@/lib/server/api-response";
-
-async function getDbUser(clerkUserId: string) {
-  const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
-  return user ?? null;
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -54,11 +49,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
-  if (!userId) return err("Unauthorized", 401);
-
-  const dbUser = await getDbUser(userId);
-  if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
+  const dbUser = await getDbUser();
+  if (!dbUser) return err("Unauthorized", 401);
+  if (dbUser.role !== "teacher" && dbUser.role !== "admin") {
     return err("Forbidden: Only teachers and admins can post notices", 403);
   }
 

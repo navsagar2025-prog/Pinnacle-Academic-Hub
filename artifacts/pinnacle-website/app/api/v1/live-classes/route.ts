@@ -1,21 +1,13 @@
-import { auth } from "@clerk/nextjs/server";
+import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { liveClasses, batches, users, teachers, students } from "@workspace/db/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { createZoomMeeting } from "@/lib/services/zoom";
 import { paginatedOk, created, err } from "@/lib/server/api-response";
 
-async function getDbUser(clerkUserId: string) {
-  const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
-  return user ?? null;
-}
-
 export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) return err("Unauthorized", 401);
-
-  const dbUser = await getDbUser(userId);
-  if (!dbUser) return err("User not found", 404);
+  const dbUser = await getDbUser();
+  if (!dbUser) return err("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const upcomingOnly = searchParams.get("upcoming") === "true";
@@ -86,11 +78,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
-  if (!userId) return err("Unauthorized", 401);
-
-  const dbUser = await getDbUser(userId);
-  if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
+  const dbUser = await getDbUser();
+  if (!dbUser) return err("Unauthorized", 401);
+  if (dbUser.role !== "teacher" && dbUser.role !== "admin") {
     return err("Forbidden: Only teachers and admins can schedule classes", 403);
   }
 

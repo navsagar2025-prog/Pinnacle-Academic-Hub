@@ -1,18 +1,13 @@
-import { auth } from "@clerk/nextjs/server";
+import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { students, users, batches, courses } from "@workspace/db/schema";
 import { eq, sql, ilike, and } from "drizzle-orm";
 import { paginatedOk, err } from "@/lib/server/api-response";
 
-async function isAdmin(userId: string): Promise<boolean> {
-  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.clerkUserId, userId)).limit(1);
-  return user?.role === "admin";
-}
-
 export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) return err("Unauthorized", 401);
-  if (!(await isAdmin(userId))) return err("Forbidden", 403);
+  const dbUser = await getDbUser();
+  if (!dbUser) return err("Unauthorized", 401);
+  if (dbUser.role !== "admin") return err("Forbidden", 403);
 
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);

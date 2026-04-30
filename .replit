@@ -47,3 +47,4 @@ externalPort = 3003
 
 [userenv.shared]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Z2FtZS1idW5ueS05OC5jbGVyay5hY2NvdW50cy5kZXYk"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_Z2FtZS1idW5ueS05OC5jbGVyay5hY2NvdW50cy5kZXYk"

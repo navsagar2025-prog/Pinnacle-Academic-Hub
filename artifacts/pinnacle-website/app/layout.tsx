@@ -3,6 +3,19 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
+if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+  throw new Error(
+    "[Pinnacle] Missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY. " +
+    "Add it to your environment secrets before starting the app."
+  );
+}
+if (!process.env.CLERK_SECRET_KEY) {
+  throw new Error(
+    "[Pinnacle] Missing CLERK_SECRET_KEY. " +
+    "Add it to your environment secrets before starting the app."
+  );
+}
+
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
@@ -46,7 +59,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      afterSignInUrl="/portal"
+      afterSignUpUrl="/portal"
+    >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
         <body className="font-[family-name:var(--font-jakarta)]">{children}</body>
       </html>

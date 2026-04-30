@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { students, batches, teachers, feeRecords, enquiries, notices } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
-import { Users, BookOpen, CreditCard, UserCheck, MessageSquare, ChevronRight, TrendingUp, BarChart2 } from "lucide-react";
+import { Users, BookOpen, CreditCard, UserCheck, MessageSquare, ChevronRight, TrendingUp, BarChart2, Info } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = { title: "Admin Dashboard" };
@@ -88,6 +88,25 @@ export default async function AdminDashboard() {
               </Link>
             );
           })}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3">
+        <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
+        <div className="text-sm text-blue-800">
+          <span className="font-semibold">How to promote a user&apos;s role</span>
+          <ol className="mt-1 ml-4 list-decimal space-y-1 text-blue-700">
+            <li>Open the <strong>Clerk Dashboard</strong> → <em>Users</em> and find the user.</li>
+            <li>Click on the user, then go to <em>Metadata</em> → <em>Public</em>.</li>
+            <li>
+              Set <code className="bg-blue-100 px-1 rounded text-xs font-mono">publicMetadata.role</code> to one of:{" "}
+              <code className="bg-blue-100 px-1 rounded text-xs font-mono">student</code>,{" "}
+              <code className="bg-blue-100 px-1 rounded text-xs font-mono">teacher</code>,{" "}
+              <code className="bg-blue-100 px-1 rounded text-xs font-mono">admin</code>, or{" "}
+              <code className="bg-blue-100 px-1 rounded text-xs font-mono">parent</code>.
+            </li>
+            <li>Save. The next time that user signs in, their role will sync automatically.</li>
+          </ol>
         </div>
       </div>
 

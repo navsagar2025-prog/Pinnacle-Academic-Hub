@@ -1,11 +1,11 @@
-import { auth } from "@clerk/nextjs/server";
+import { authUserId } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { batches, courses } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { paginatedOk, err } from "@/lib/server/api-response";
 
 export async function GET(request: Request) {
-  const { userId } = await auth();
+  const userId = await authUserId();
   if (!userId) return err("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);

@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { LayoutDashboard, Calendar, BookOpen, Bell, Video } from "lucide-react";
@@ -12,13 +11,12 @@ const NAV_ITEMS = [
 ];
 
 export default async function TeacherPortalLayout({ children }: { children: React.ReactNode }) {
-  await requirePortalRole("teacher");
-  const clerkUser = await currentUser();
+  const user = await requirePortalRole("teacher");
   return (
     <PortalShell
       navItems={NAV_ITEMS}
       portalLabel="Teacher Portal"
-      userName={clerkUser?.fullName ?? clerkUser?.emailAddresses?.[0]?.emailAddress ?? "Teacher"}
+      userName={user.name}
       userRole="teacher"
     >
       {children}
