@@ -1,7 +1,9 @@
 import { db } from "@workspace/db";
 import { courses } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { paginatedOk, err } from "@/lib/server/api-response";
+import { paginatedOk, err, created } from "@/lib/server/api-response";
+import { getDbUser } from "@/lib/server/portal-auth";
+import { logAudit } from "@/lib/server/audit";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -18,5 +20,35 @@ export async function GET(request: Request) {
   } catch (e) {
     console.error("GET /api/v1/courses error:", e);
     return err("Failed to fetch courses");
+  }
+}
+
+export async function POST(request: Request) {
+  const actor = await getDbUser();
+  if (!actor) return err("Unauthorized", 401);
+  if (actor.role !== "admin") return err("Forbidden", 403);
+
+  try {
+    const body = await request.json();
+    const { slug, title, description, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights } = body;
+    if (!slug || !title || !annualFee) return err("slug, title and annualFee are required", 400);
+
+    const [row] = await db.insert(courses).values({
+      slug,
+      title,
+      description,
+      durationLabel,
+      annualFee: Number(annualFee),
+      admissionFee: admissionFee ? Number(admissionFee) : 2000,
+      maxBatchSize: maxBatchSize ? Number(maxBatchSize) : 35,
+      eligibility,
+      highlights: highlights ?? [],
+    }).returning();
+
+    await logAudit(actor.id, actor.name, "course.create", "course", row.id, { title });
+    return created(row);
+  } catch (e) {
+    console.error("POST /api/v1/courses error:", e);
+    return err("Failed to create course");
   }
 }

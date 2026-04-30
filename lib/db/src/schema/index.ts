@@ -6,6 +6,7 @@ import {
   timestamp,
   uuid,
   pgEnum,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["student", "parent", "teacher", "admin"]);
@@ -14,6 +15,8 @@ export const classStatusEnum = pgEnum("class_status", ["scheduled", "live", "com
 export const materialTypeEnum = pgEnum("material_type", ["notes", "formula", "exercise", "summary", "paper"]);
 export const noticeCategoryEnum = pgEnum("notice_category", ["Academic", "Test", "Fee", "Event", "Admissions", "General"]);
 export const batchStatusEnum = pgEnum("batch_status", ["active", "upcoming", "full", "completed"]);
+export const enquiryStatusEnum = pgEnum("enquiry_status", ["new", "contacted", "interested", "converted", "declined"]);
+export const blogStatusEnum = pgEnum("blog_status", ["draft", "published"]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -213,8 +216,60 @@ export const enquiries = pgTable("enquiries", {
   message: text("message"),
   source: text("source").default("website"),
   isFollowedUp: boolean("is_followed_up").default(false),
+  admissionStatus: enquiryStatusEnum("admission_status").default("new"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").unique().notNull(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt"),
+  content: text("content"),
+  category: text("category").notNull().default("General"),
+  authorName: text("author_name").notNull(),
+  featuredImageUrl: text("featured_image_url"),
+  status: blogStatusEnum("status").notNull().default("draft"),
+  readMinutes: integer("read_minutes").default(5),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const results = pgTable("results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentName: text("student_name").notNull(),
+  examName: text("exam_name").notNull(),
+  rank: text("rank").notNull(),
+  college: text("college"),
+  batch: text("batch"),
+  academicYear: text("academic_year").notNull(),
+  quote: text("quote"),
+  initials: text("initials").notNull(),
+  isTopper: boolean("is_topper").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const siteSettings = pgTable("site_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").unique().notNull(),
+  value: text("value"),
+  label: text("label"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorId: uuid("actor_id"),
+  actorName: text("actor_name"),
+  action: text("action").notNull(),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -237,3 +292,9 @@ export type StudyMaterial = typeof studyMaterials.$inferSelect;
 export type ClassRecording = typeof classRecordings.$inferSelect;
 export type Enquiry = typeof enquiries.$inferSelect;
 export type Schedule = typeof schedules.$inferSelect;
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = typeof blogPosts.$inferInsert;
+export type Result = typeof results.$inferSelect;
+export type InsertResult = typeof results.$inferInsert;
+export type SiteSetting = typeof siteSettings.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;

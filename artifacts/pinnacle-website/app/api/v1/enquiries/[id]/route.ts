@@ -1,33 +1,31 @@
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
-import { enquiries, users } from "@workspace/db/schema";
+import { enquiries } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
-
-async function isAdmin(userId: string): Promise<boolean> {
-  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.clerkUserId, userId)).limit(1);
-  return user?.role === "admin";
-}
+import { getDbUser } from "@/lib/server/portal-auth";
+import { logAudit } from "@/lib/server/audit";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth();
-  if (!userId) return err("Unauthorized", 401);
-  if (!(await isAdmin(userId))) return err("Forbidden", 403);
+  const actor = await getDbUser();
+  if (!actor) return err("Unauthorized", 401);
+  if (actor.role !== "admin") return err("Forbidden", 403);
 
   const { id } = await params;
   try {
     const body = await request.json();
-    const { isFollowedUp } = body;
-    if (typeof isFollowedUp !== "boolean") return err("isFollowedUp (boolean) is required", 400);
+    const { admissionStatus, notes, isFollowedUp } = body;
 
-    const [updated] = await db
-      .update(enquiries)
-      .set({ isFollowedUp, updatedAt: new Date() })
-      .where(eq(enquiries.id, id))
-      .returning();
+    const [row] = await db.update(enquiries).set({
+      ...(admissionStatus !== undefined && { admissionStatus }),
+      ...(notes !== undefined && { notes }),
+      ...(isFollowedUp !== undefined && { isFollowedUp }),
+      ...(admissionStatus === "converted" && { isFollowedUp: true }),
+      updatedAt: new Date(),
+    }).where(eq(enquiries.id, id)).returning();
 
-    if (!updated) return err("Enquiry not found", 404);
-    return ok(updated);
+    if (!row) return err("Enquiry not found", 404);
+    await logAudit(actor.id, actor.name, "enquiry.update", "enquiry", id, { admissionStatus });
+    return ok(row);
   } catch (e) {
     console.error("PATCH /api/v1/enquiries/[id] error:", e);
     return err("Failed to update enquiry");

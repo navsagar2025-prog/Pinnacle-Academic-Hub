@@ -4,6 +4,9 @@ import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { TOPPERS, STATS } from "@/lib/data";
 import { Star, Trophy } from "lucide-react";
 import type { Metadata } from "next";
+import { db } from "@workspace/db";
+import { results } from "@workspace/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export const metadata: Metadata = {
   title: "Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes",
@@ -24,7 +27,25 @@ const YEAR_STATS = [
   { year: "2021", iit: 28, aiims: 22, nit: 74, board90: 143 },
 ];
 
-export default function ResultsPage() {
+export default async function ResultsPage() {
+  const dbToppers = await db
+    .select()
+    .from(results)
+    .where(eq(results.isTopper, true))
+    .orderBy(desc(results.academicYear), desc(results.createdAt));
+
+  const displayToppers = dbToppers.length > 0
+    ? dbToppers.map((t) => ({
+        name: t.studentName,
+        exam: t.examName,
+        rank: t.rank,
+        college: t.college ?? "",
+        batch: t.batch ?? "",
+        quote: t.quote ?? "",
+        initials: t.initials,
+      }))
+    : TOPPERS;
+
   return (
     <>
       <Navbar />
@@ -79,7 +100,7 @@ export default function ResultsPage() {
               <h2 className="section-heading">Our 2024 Toppers</h2>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {TOPPERS.map((t) => (
+              {displayToppers.map((t) => (
                 <div key={t.name} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
                   <div className="flex items-center gap-1 mb-3">
                     {[...Array(5)].map((_, i) => <Star key={i} size={13} className="text-[var(--color-gold)]" fill="currentColor" />)}

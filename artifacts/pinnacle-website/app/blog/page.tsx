@@ -1,8 +1,10 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
-import Link from "next/link";
 import { Calendar, Clock, Tag } from "lucide-react";
+import { db } from "@workspace/db";
+import { blogPosts } from "@workspace/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export const metadata = {
   title: "Study Tips & Blog — Pinnacle Academic Classes",
@@ -16,7 +18,7 @@ export const metadata = {
   },
 };
 
-const ARTICLES = [
+const STATIC_ARTICLES = [
   {
     slug: "jee-mains-2026-preparation-strategy",
     title: "JEE Mains 2026: The Complete 90-Day Strategy",
@@ -25,7 +27,6 @@ const ARTICLES = [
     date: "28 Apr 2026",
     readMinutes: 8,
     category: "JEE",
-    image: null,
   },
   {
     slug: "organic-chemistry-named-reactions",
@@ -35,7 +36,6 @@ const ARTICLES = [
     date: "22 Apr 2026",
     readMinutes: 12,
     category: "Chemistry",
-    image: null,
   },
   {
     slug: "neet-biology-ncert-strategy",
@@ -45,7 +45,6 @@ const ARTICLES = [
     date: "15 Apr 2026",
     readMinutes: 7,
     category: "NEET",
-    image: null,
   },
   {
     slug: "calculus-common-mistakes",
@@ -55,7 +54,6 @@ const ARTICLES = [
     date: "10 Apr 2026",
     readMinutes: 10,
     category: "Mathematics",
-    image: null,
   },
   {
     slug: "mock-test-analysis-guide",
@@ -65,7 +63,6 @@ const ARTICLES = [
     date: "5 Apr 2026",
     readMinutes: 6,
     category: "Strategy",
-    image: null,
   },
   {
     slug: "study-schedule-for-droppers",
@@ -75,7 +72,6 @@ const ARTICLES = [
     date: "1 Apr 2026",
     readMinutes: 9,
     category: "Strategy",
-    image: null,
   },
 ];
 
@@ -87,8 +83,39 @@ const CATEGORY_COLORS: Record<string, string> = {
   Strategy: "bg-[var(--color-gold)]/10 text-[var(--color-navy)]",
 };
 
-export default function BlogPage() {
-  const [featured, ...rest] = ARTICLES;
+function categoryEmoji(cat: string) {
+  if (cat === "JEE") return "⚡";
+  if (cat === "Chemistry") return "🧪";
+  if (cat === "Mathematics") return "📐";
+  if (cat === "NEET") return "🔬";
+  return "🎯";
+}
+
+export default async function BlogPage() {
+  const dbPosts = await db
+    .select()
+    .from(blogPosts)
+    .where(eq(blogPosts.status, "published"))
+    .orderBy(desc(blogPosts.publishedAt));
+
+  const dbArticles = dbPosts.map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    excerpt: p.excerpt ?? "",
+    author: p.authorName,
+    date: p.publishedAt
+      ? new Date(p.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : "",
+    readMinutes: p.readMinutes ?? 5,
+    category: p.category,
+    fromDb: true,
+  }));
+
+  const staticSlugs = new Set(dbArticles.map((a) => a.slug));
+  const staticArticles = STATIC_ARTICLES.filter((a) => !staticSlugs.has(a.slug)).map((a) => ({ ...a, fromDb: false }));
+
+  const ALL_ARTICLES = [...dbArticles, ...staticArticles];
+  const [featured, ...rest] = ALL_ARTICLES;
 
   return (
     <>
@@ -106,32 +133,32 @@ export default function BlogPage() {
 
         <section className="py-16 bg-white">
           <div className="max-w-6xl mx-auto px-4">
-            {/* Featured article */}
-            <div className="card mb-10 lg:flex lg:gap-8 hover:shadow-elevated transition-all group cursor-pointer">
-              <div className="lg:w-96 h-52 lg:h-auto bg-gradient-to-br from-[var(--color-navy)] to-[var(--color-teal)] rounded-xl flex items-center justify-center flex-shrink-0 mb-4 lg:mb-0">
-                <span className="text-7xl opacity-30 select-none">{featured.category === "JEE" ? "⚡" : featured.category === "Chemistry" ? "🧪" : "📚"}</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="badge text-xs bg-[var(--color-gold)]/20 text-[var(--color-navy)] font-semibold">Featured</span>
-                  <span className={`badge text-xs ${CATEGORY_COLORS[featured.category] ?? "bg-slate-100 text-slate-600"}`}>{featured.category}</span>
+            {featured && (
+              <div className="card mb-10 lg:flex lg:gap-8 hover:shadow-elevated transition-all group cursor-pointer">
+                <div className="lg:w-96 h-52 lg:h-auto bg-gradient-to-br from-[var(--color-navy)] to-[var(--color-teal)] rounded-xl flex items-center justify-center flex-shrink-0 mb-4 lg:mb-0">
+                  <span className="text-7xl opacity-30 select-none">{categoryEmoji(featured.category)}</span>
                 </div>
-                <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-3 group-hover:text-[var(--color-teal)] transition-colors">{featured.title}</h2>
-                <p className="text-slate-600 mb-4">{featured.excerpt}</p>
-                <div className="flex items-center gap-4 text-xs text-slate-400">
-                  <span className="flex items-center gap-1"><Calendar size={12} />{featured.date}</span>
-                  <span className="flex items-center gap-1"><Clock size={12} />{featured.readMinutes} min read</span>
-                  <span>By {featured.author}</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="badge text-xs bg-[var(--color-gold)]/20 text-[var(--color-navy)] font-semibold">Featured</span>
+                    <span className={`badge text-xs ${CATEGORY_COLORS[featured.category] ?? "bg-slate-100 text-slate-600"}`}>{featured.category}</span>
+                  </div>
+                  <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-3 group-hover:text-[var(--color-teal)] transition-colors">{featured.title}</h2>
+                  <p className="text-slate-600 mb-4">{featured.excerpt}</p>
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <span className="flex items-center gap-1"><Calendar size={12} />{featured.date}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} />{featured.readMinutes} min read</span>
+                    <span>By {featured.author}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Article grid */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rest.map((a) => (
                 <div key={a.slug} className="card hover:shadow-elevated transition-all group cursor-pointer flex flex-col">
                   <div className="h-32 bg-gradient-to-br from-[var(--color-slate-light)] to-slate-200 rounded-xl flex items-center justify-center mb-4">
-                    <span className="text-4xl opacity-40 select-none">{a.category === "JEE" ? "⚡" : a.category === "Chemistry" ? "🧪" : a.category === "Mathematics" ? "📐" : a.category === "NEET" ? "🔬" : "🎯"}</span>
+                    <span className="text-4xl opacity-40 select-none">{categoryEmoji(a.category)}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`badge text-xs ${CATEGORY_COLORS[a.category] ?? "bg-slate-100 text-slate-600"}`}>
