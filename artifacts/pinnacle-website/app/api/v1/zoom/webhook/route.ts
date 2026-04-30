@@ -6,8 +6,10 @@ import crypto from "crypto";
 
 function verifyZoomWebhook(payload: string, signature: string, timestamp: string, secret: string): boolean {
   const message = `v0:${timestamp}:${payload}`;
-  const expected = "v0=" + crypto.createHmac("sha256", secret).update(message).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expected = Buffer.from("v0=" + crypto.createHmac("sha256", secret).update(message).digest("hex"));
+  const actual = Buffer.from(signature);
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
 }
 
 export async function POST(request: Request) {
@@ -16,10 +18,13 @@ export async function POST(request: Request) {
   const timestamp = request.headers.get("x-zm-request-timestamp") ?? "";
   const webhookSecret = process.env.ZOOM_WEBHOOK_SECRET_TOKEN ?? "";
 
-  if (webhookSecret && signature && timestamp) {
-    if (!verifyZoomWebhook(body, signature, timestamp, webhookSecret)) {
-      return err("Invalid webhook signature", 401);
-    }
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!webhookSecret) {
+    if (isProduction) return err("Webhook secret not configured", 500);
+    // development: allow through without verification
+  } else if (!signature || !timestamp || !verifyZoomWebhook(body, signature, timestamp, webhookSecret)) {
+    return err("Invalid webhook signature", 401);
   }
 
   let event: Record<string, unknown>;
