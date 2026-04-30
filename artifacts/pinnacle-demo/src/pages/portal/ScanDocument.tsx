@@ -57,6 +57,57 @@ function KatexRenderer({ latex }: { latex: string }) {
   );
 }
 
+const SCAN_PHASES = [
+  "Uploading image to OCR engine…",
+  "Detecting document regions…",
+  "Extracting printed text…",
+  "Parsing mathematical equations…",
+  "Rendering LaTeX output…",
+  "Finalising results…",
+];
+
+function ScanningProgress() {
+  const [phase, setPhase] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const phaseTimer = setInterval(() => {
+      setPhase((p) => Math.min(p + 1, SCAN_PHASES.length - 1));
+    }, 1400);
+    const progressTimer = setInterval(() => {
+      setProgress((p) => {
+        if (p >= 90) return p;
+        return p + Math.random() * 6;
+      });
+    }, 300);
+    return () => {
+      clearInterval(phaseTimer);
+      clearInterval(progressTimer);
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center py-14 gap-5">
+      <div className="relative">
+        <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <ScanLine className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      </div>
+      <div className="text-center w-full max-w-xs">
+        <div className="font-semibold text-foreground mb-1">{SCAN_PHASES[phase]}</div>
+        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-3">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground mt-2">
+          {Math.round(progress)}% — est. 5–15 s depending on engine
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StepIndicator({ current }: { current: Step }) {
   const steps: { id: Step; label: string }[] = [
     { id: "capture", label: "Capture" },
@@ -294,36 +345,32 @@ function ReviewStep({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="rounded-xl overflow-hidden border border-border bg-black flex items-center justify-center max-h-48">
-          <img src={imagePreview} alt="Scanned document" className="object-contain max-h-48 w-full" />
-        </div>
-
-        <div className="lg:col-span-2 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Extracted Text <span className="text-xs font-normal">(editable)</span>
-            </label>
-            <textarea
-              value={editedText}
-              onChange={(e) => onTextChange(e.target.value)}
-              rows={6}
-              className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-        </div>
+      <div className="rounded-xl overflow-hidden border border-border bg-black flex items-center justify-center mb-4" style={{ maxHeight: "160px" }}>
+        <img src={imagePreview} alt="Scanned document" className="object-contain w-full" style={{ maxHeight: "160px" }} />
       </div>
 
-      {result.latex && (
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
-            Equations Preview (KaTeX rendered)
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Extracted Text <span className="text-xs font-normal normal-case">(editable)</span>
           </label>
-          <div className="p-4 rounded-xl border border-border bg-muted/30 overflow-x-auto">
+          <textarea
+            value={editedText}
+            onChange={(e) => onTextChange(e.target.value)}
+            rows={10}
+            className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 h-full"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Equation Preview <span className="text-xs font-normal normal-case">(KaTeX rendered)</span>
+          </label>
+          <div className="p-4 rounded-xl border border-border bg-muted/30 overflow-x-auto min-h-[240px] flex-1">
             <KatexRenderer latex={result.latex} />
           </div>
         </div>
-      )}
+      </div>
 
       <div className="flex gap-3 flex-wrap">
         <Button variant="outline" onClick={onReset} className="gap-2">
@@ -547,20 +594,7 @@ export default function ScanDocument() {
         <StepIndicator current={step} />
 
         <div className="bg-card border border-border rounded-2xl p-6 md:p-8">
-          {scanning && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                <ScanLine className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-foreground">Processing image…</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  OCR engine is extracting text and equations
-                </div>
-              </div>
-            </div>
-          )}
+          {scanning && <ScanningProgress />}
 
           {!scanning && scanError && (
             <div className="space-y-4">

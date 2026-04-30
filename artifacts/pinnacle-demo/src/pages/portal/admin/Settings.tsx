@@ -67,19 +67,30 @@ function ScanEngineSection() {
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fullConfig, setFullConfig] = useState<Record<string, { endpointUrl: string; hasApiKey?: boolean; hasAppId?: boolean; hasAppKey?: boolean }>>({});
 
   useEffect(() => {
     fetchOcrSettings()
       .then((cfg) => {
+        setFullConfig(cfg.providers ?? {});
         if (cfg.activeProvider && providers.some((p) => p.id === cfg.activeProvider)) {
           setActiveProvider(cfg.activeProvider as OcrProvider);
+          const provCfg = cfg.providers?.[cfg.activeProvider] ?? {};
+          setEndpointUrl(provCfg.endpointUrl ?? "");
         }
-        const provCfg = cfg.providers?.[cfg.activeProvider] ?? {};
-        setEndpointUrl(provCfg.endpointUrl ?? "");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const switchProvider = (id: OcrProvider) => {
+    setActiveProvider(id);
+    const provCfg = fullConfig[id] ?? {};
+    setEndpointUrl(provCfg.endpointUrl ?? "");
+    setApiKey("");
+    setAppId("");
+    setTestResult(null);
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -132,7 +143,7 @@ function ScanEngineSection() {
         {providers.map((p) => (
           <button
             key={p.id}
-            onClick={() => setActiveProvider(p.id)}
+            onClick={() => switchProvider(p.id)}
             className={`text-left p-4 rounded-xl border-2 transition-all ${
               activeProvider === p.id
                 ? "border-primary bg-primary/5 shadow-sm"
