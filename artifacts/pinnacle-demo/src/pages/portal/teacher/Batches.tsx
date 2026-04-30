@@ -1,6 +1,5 @@
 import { teacherNavItems } from "./Dashboard";
 import { PortalLayout } from "@/components/layout/PortalLayout";
-import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users } from "lucide-react";
 
 
 const batches = [

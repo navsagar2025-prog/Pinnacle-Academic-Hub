@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useLocation } from "wouter";
 import katex from "katex";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { adminNavItems } from "@/pages/portal/admin/Dashboard";

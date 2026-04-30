@@ -1,6 +1,5 @@
 import { teacherNavItems } from "./Dashboard";
 import { PortalLayout } from "@/components/layout/PortalLayout";
-import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
