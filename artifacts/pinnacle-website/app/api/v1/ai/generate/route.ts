@@ -40,6 +40,22 @@ function openrouterClient() {
 
 type Provider = "openai" | "gemini" | "anthropic" | "openrouter";
 
+const PROVIDER_ENV_VARS: Record<Provider, string[]> = {
+  openai: ["AI_INTEGRATIONS_OPENAI_BASE_URL", "AI_INTEGRATIONS_OPENAI_API_KEY"],
+  gemini: ["AI_INTEGRATIONS_GEMINI_BASE_URL", "AI_INTEGRATIONS_GEMINI_API_KEY"],
+  anthropic: ["AI_INTEGRATIONS_ANTHROPIC_BASE_URL", "AI_INTEGRATIONS_ANTHROPIC_API_KEY"],
+  openrouter: ["AI_INTEGRATIONS_OPENROUTER_BASE_URL", "AI_INTEGRATIONS_OPENROUTER_API_KEY"],
+};
+
+function checkCredentials(provider: Provider): string | null {
+  for (const key of PROVIDER_ENV_VARS[provider]) {
+    if (!process.env[key]) {
+      return `Missing environment variable: ${key}. Re-run the AI Integration setup for provider "${provider}".`;
+    }
+  }
+  return null;
+}
+
 async function* generateTokens(
   provider: Provider,
   model: string,
@@ -146,6 +162,14 @@ export async function POST(request: Request) {
     return new Response(
       JSON.stringify({ error: "provider, model, tool and context are required" }),
       { status: 400 }
+    );
+  }
+
+  const credError = checkCredentials(provider);
+  if (credError) {
+    return new Response(
+      JSON.stringify({ success: false, error: credError, data: null }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
     );
   }
 

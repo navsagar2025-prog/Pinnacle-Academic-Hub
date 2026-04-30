@@ -24,9 +24,9 @@ const MODEL_GROUPS = [
     label: "OpenAI",
     color: "#10a37f",
     models: [
-      { id: "gpt-5.4", label: "GPT-5.4 · Most Capable" },
-      { id: "gpt-5-mini", label: "GPT-5 Mini · Fast" },
-      { id: "o4-mini", label: "o4-mini · Reasoning" },
+      { id: "gpt-4o", label: "GPT-4o · Most Capable" },
+      { id: "gpt-4o-mini", label: "GPT-4o Mini · Fast" },
+      { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
     ],
   },
   {
@@ -34,9 +34,9 @@ const MODEL_GROUPS = [
     label: "Google Gemini",
     color: "#4285f4",
     models: [
-      { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro · Latest" },
-      { id: "gemini-3-flash-preview", label: "Gemini 3 Flash · Hybrid" },
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash · Daily" },
+      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash · Fast" },
+      { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro · Capable" },
+      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash · Daily" },
     ],
   },
   {
@@ -44,9 +44,9 @@ const MODEL_GROUPS = [
     label: "Anthropic Claude",
     color: "#d97706",
     models: [
-      { id: "claude-opus-4-7", label: "Claude Opus 4.7 · Best" },
-      { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 · Balanced" },
-      { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 · Fast" },
+      { id: "claude-opus-4-5", label: "Claude Opus 4.5 · Best" },
+      { id: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 · Balanced" },
+      { id: "claude-haiku-3-5", label: "Claude Haiku 3.5 · Fast" },
     ],
   },
   {
@@ -238,7 +238,7 @@ function OutputArea({
 
 export default function AIAssistant({ enquiries, batches, overdueStudents, recentNotices, userRole }: Props) {
   const [selectedProvider, setSelectedProvider] = useState("openai");
-  const [selectedModel, setSelectedModel] = useState("gpt-5.4");
+  const [selectedModel, setSelectedModel] = useState("gpt-4o");
   const [activeTool, setActiveTool] = useState<AiTool>("notice_writer");
   const [output, setOutput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -251,16 +251,7 @@ export default function AIAssistant({ enquiries, batches, overdueStudents, recen
   const [batchId, setBatchId] = useState(batches[0]?.id ?? "");
   const [overdueId, setOverdueId] = useState(overdueStudents[0]?.feeRecordId ?? "");
 
-  const availableTools =
-    userRole === "teacher"
-      ? TOOLS.filter((t) => t.id !== "enquiry_responder" && t.id !== "fee_reminder")
-      : TOOLS;
-
-  useEffect(() => {
-    if (!availableTools.find((t) => t.id === activeTool)) {
-      setActiveTool(availableTools[0]?.id ?? "study_summariser");
-    }
-  }, [userRole]);
+  const availableTools = TOOLS;
 
   const buildContext = useCallback((): unknown | null => {
     if (activeTool === "notice_writer") {
@@ -279,7 +270,15 @@ export default function AIAssistant({ enquiries, batches, overdueStudents, recen
     if (activeTool === "batch_insight") {
       const b = batches.find((b) => b.id === batchId);
       if (!b) return null;
-      return b;
+      return {
+        batchName: b.name,
+        courseTitle: b.courseTitle,
+        studentCount: b.studentCount,
+        maxStudents: b.maxStudents,
+        materialCount: b.materialCount,
+        totalFeeRecords: b.totalFeeRecords,
+        paidFeeRecords: b.paidFeeRecords,
+      };
     }
     if (activeTool === "fee_reminder") {
       const s = overdueStudents.find((s) => s.feeRecordId === overdueId);
