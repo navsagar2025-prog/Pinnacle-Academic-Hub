@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { enquiries, users } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
+import { paginatedOk, created, err } from "@/lib/server/api-response";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.clerkUserId, userId)).limit(1);
@@ -11,8 +11,8 @@ async function isAdmin(userId: string): Promise<boolean> {
 
 export async function GET(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  if (!(await isAdmin(userId))) return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+  if (!userId) return err("Unauthorized", 401);
+  if (!(await isAdmin(userId))) return err("Forbidden", 403);
 
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
@@ -22,15 +22,10 @@ export async function GET(request: Request) {
   try {
     const rows = await db.select().from(enquiries).orderBy(desc(enquiries.createdAt)).limit(limit).offset(offset);
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(enquiries);
-
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(count / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/enquiries error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch enquiries" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/enquiries error:", e);
+    return err("Failed to fetch enquiries");
   }
 }
 
@@ -38,19 +33,16 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { name, phone, email, courseInterest, message } = body;
+    if (!name || !phone) return err("name and phone are required", 400);
 
-    if (!name || !phone) {
-      return NextResponse.json({ success: false, error: "name and phone are required" }, { status: 400 });
-    }
-
-    const [created] = await db
+    const [row] = await db
       .insert(enquiries)
       .values({ name, phone, email, courseInterest, message, source: "website" })
       .returning();
 
-    return NextResponse.json({ success: true, data: created }, { status: 201 });
-  } catch (err) {
-    console.error("POST /api/v1/enquiries error:", err);
-    return NextResponse.json({ success: false, error: "Failed to submit enquiry" }, { status: 500 });
+    return created(row);
+  } catch (e) {
+    console.error("POST /api/v1/enquiries error:", e);
+    return err("Failed to submit enquiry");
   }
 }

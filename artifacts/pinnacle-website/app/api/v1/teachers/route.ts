@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { teachers, users } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { paginatedOk, err } from "@/lib/server/api-response";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -37,13 +36,9 @@ export async function GET(request: Request) {
       .from(teachers)
       .where(eq(teachers.isActive, true));
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(count / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/teachers error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch teachers" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/teachers error:", e);
+    return err("Failed to fetch teachers");
   }
 }

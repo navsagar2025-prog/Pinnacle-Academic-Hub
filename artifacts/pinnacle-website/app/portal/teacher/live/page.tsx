@@ -2,8 +2,8 @@ import { db } from "@workspace/db";
 import { liveClasses, batches, teachers, users } from "@workspace/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { requirePortalRole } from "@/lib/server/portal-auth";
-import { Video, Plus, Clock, Users, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { Video, Clock, Users, ExternalLink } from "lucide-react";
+import ScheduleClassForm from "./ScheduleClassForm";
 
 export const metadata = { title: "Live Classes — Teacher Portal" };
 
@@ -15,6 +15,11 @@ export default async function TeacherLivePage() {
     .from(teachers)
     .where(and(eq(teachers.userId, dbUser.id), eq(teachers.isActive, true)))
     .limit(1);
+
+  const allBatches = await db
+    .select({ id: batches.id, name: batches.name })
+    .from(batches)
+    .orderBy(batches.name);
 
   const myClasses = teacher
     ? await db
@@ -60,16 +65,10 @@ export default async function TeacherLivePage() {
             Live Classes
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Your scheduled and past live sessions
+            Schedule and manage your Zoom live sessions
           </p>
         </div>
-        <Link
-          href="/portal/teacher/schedule"
-          className="btn-primary py-2.5 px-5 text-sm"
-        >
-          <Plus size={15} />
-          Schedule Class
-        </Link>
+        <ScheduleClassForm batches={allBatches} />
       </div>
 
       {!teacher && (

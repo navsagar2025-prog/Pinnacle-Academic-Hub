@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { studyMaterials, users, batches, students, teachers } from "@workspace/db/schema";
 import { eq, and, asc, sql } from "drizzle-orm";
+import { paginatedOk, created, err } from "@/lib/server/api-response";
 
 async function getDbUser(clerkUserId: string) {
   const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
@@ -11,10 +11,10 @@ async function getDbUser(clerkUserId: string) {
 
 export async function GET(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!userId) return err("Unauthorized", 401);
 
   const dbUser = await getDbUser(userId);
-  if (!dbUser) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+  if (!dbUser) return err("User not found", 404);
 
   const { searchParams } = new URL(request.url);
   const subject = searchParams.get("subject");
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       if (enrollment?.batchId) {
         conditions.push(eq(studyMaterials.batchId, enrollment.batchId) as ReturnType<typeof eq>);
       } else {
-        return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } });
+        return paginatedOk([], 0, page, limit);
       }
     } else if (dbUser.role === "teacher") {
       conditions.push(eq(studyMaterials.uploadedBy, dbUser.id) as ReturnType<typeof eq>);
@@ -78,13 +78,45 @@ export async function GET(request: Request) {
       .from(studyMaterials)
       .where(whereClause);
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(Math.max(1, count) / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/materials error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch materials" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/materials error:", e);
+    return err("Failed to fetch materials");
+  }
+}
+
+export async function POST(request: Request) {
+  const { userId } = await auth();
+  if (!userId) return err("Unauthorized", 401);
+
+  const dbUser = await getDbUser(userId);
+  if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
+    return err("Forbidden: Only teachers and admins can upload materials", 403);
+  }
+
+  try {
+    const body = await request.json();
+    const { title, subject, type, batchId, fileUrl, description } = body;
+    if (!title || !fileUrl || !batchId) {
+      return err("title, fileUrl, and batchId are required", 400);
+    }
+
+    const [row] = await db
+      .insert(studyMaterials)
+      .values({
+        title,
+        subject: subject ?? "General",
+        type: type ?? "Notes",
+        batchId,
+        fileUrl,
+        uploadedBy: dbUser.id,
+        isVisible: true,
+      })
+      .returning();
+
+    return created(row);
+  } catch (e) {
+    console.error("POST /api/v1/materials error:", e);
+    return err("Failed to upload material");
   }
 }

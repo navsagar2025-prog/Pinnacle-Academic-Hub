@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { notices, users } from "@workspace/db/schema";
 import { desc, eq, and, isNull, or, gte, sql } from "drizzle-orm";
+import { paginatedOk, created as createdRes, err } from "@/lib/server/api-response";
 
 async function getDbUser(clerkUserId: string) {
   const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
@@ -46,56 +46,35 @@ export async function GET(request: Request) {
       .from(notices)
       .where(and(...conditions));
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(count / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/notices error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch notices" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/notices error:", e);
+    return err("Failed to fetch notices");
   }
 }
 
 export async function POST(request: Request) {
   const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  if (!userId) return err("Unauthorized", 401);
 
   const dbUser = await getDbUser(userId);
   if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
-    return NextResponse.json(
-      { success: false, error: "Forbidden: Only teachers and admins can post notices" },
-      { status: 403 }
-    );
+    return err("Forbidden: Only teachers and admins can post notices", 403);
   }
 
   try {
     const reqBody = await request.json();
     const { title, body: noticeBody, category } = reqBody;
+    if (!title || !noticeBody) return err("title and body are required", 400);
 
-    if (!title || !noticeBody) {
-      return NextResponse.json(
-        { success: false, error: "title and body are required" },
-        { status: 400 }
-      );
-    }
-
-    const [created] = await db
+    const [notice] = await db
       .insert(notices)
-      .values({
-        title,
-        body: noticeBody,
-        category: category ?? "General",
-        isPublic: true,
-        postedBy: dbUser.id,
-      })
+      .values({ title, body: noticeBody, category: category ?? "General", isPublic: true, postedBy: dbUser.id })
       .returning();
 
-    return NextResponse.json({ success: true, data: created }, { status: 201 });
-  } catch (err) {
-    console.error("POST /api/v1/notices error:", err);
-    return NextResponse.json({ success: false, error: "Failed to create notice" }, { status: 500 });
+    return createdRes(notice);
+  } catch (e) {
+    console.error("POST /api/v1/notices error:", e);
+    return err("Failed to create notice");
   }
 }

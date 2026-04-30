@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { students, users, batches, courses } from "@workspace/db/schema";
 import { eq, sql, ilike, and } from "drizzle-orm";
+import { paginatedOk, err } from "@/lib/server/api-response";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.clerkUserId, userId)).limit(1);
@@ -11,8 +11,8 @@ async function isAdmin(userId: string): Promise<boolean> {
 
 export async function GET(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  if (!(await isAdmin(userId))) return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+  if (!userId) return err("Unauthorized", 401);
+  if (!(await isAdmin(userId))) return err("Forbidden", 403);
 
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
@@ -57,13 +57,9 @@ export async function GET(request: Request) {
       .select({ count: sql<number>`count(*)::int` })
       .from(students);
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(count / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/students error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch students" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/students error:", e);
+    return err("Failed to fetch students");
   }
 }

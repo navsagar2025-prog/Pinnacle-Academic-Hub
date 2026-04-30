@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@workspace/db";
 import { liveClasses, batches, users, teachers, students } from "@workspace/db/schema";
-import { eq, desc, sql, and, gte, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { createZoomMeeting } from "@/lib/services/zoom";
+import { paginatedOk, created, err } from "@/lib/server/api-response";
 
 async function getDbUser(clerkUserId: string) {
   const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
@@ -12,10 +12,10 @@ async function getDbUser(clerkUserId: string) {
 
 export async function GET(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!userId) return err("Unauthorized", 401);
 
   const dbUser = await getDbUser(userId);
-  if (!dbUser) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+  if (!dbUser) return err("User not found", 404);
 
   const { searchParams } = new URL(request.url);
   const upcomingOnly = searchParams.get("upcoming") === "true";
@@ -33,9 +33,7 @@ export async function GET(request: Request) {
         .from(students)
         .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
         .limit(1);
-      if (!enrollment?.batchId) {
-        return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } });
-      }
+      if (!enrollment?.batchId) return paginatedOk([], 0, page, limit);
       conditions.push(eq(liveClasses.batchId, enrollment.batchId) as ReturnType<typeof eq>);
     } else if (dbUser.role === "teacher") {
       const [teacher] = await db
@@ -43,12 +41,10 @@ export async function GET(request: Request) {
         .from(teachers)
         .where(and(eq(teachers.userId, dbUser.id), eq(teachers.isActive, true)))
         .limit(1);
-      if (!teacher) {
-        return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } });
-      }
+      if (!teacher) return paginatedOk([], 0, page, limit);
       conditions.push(eq(liveClasses.teacherId, teacher.id) as ReturnType<typeof eq>);
     } else if (dbUser.role === "parent") {
-      return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } });
+      return paginatedOk([], 0, page, limit);
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -82,32 +78,27 @@ export async function GET(request: Request) {
       .from(liveClasses)
       .where(whereClause);
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-      meta: { total: count, page, limit, pages: Math.ceil(count / limit) },
-    });
-  } catch (err) {
-    console.error("GET /api/v1/live-classes error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch live classes" }, { status: 500 });
+    return paginatedOk(rows, count, page, limit);
+  } catch (e) {
+    console.error("GET /api/v1/live-classes error:", e);
+    return err("Failed to fetch live classes");
   }
 }
 
 export async function POST(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!userId) return err("Unauthorized", 401);
 
   const dbUser = await getDbUser(userId);
   if (!dbUser || (dbUser.role !== "teacher" && dbUser.role !== "admin")) {
-    return NextResponse.json({ success: false, error: "Forbidden: Only teachers and admins can schedule classes" }, { status: 403 });
+    return err("Forbidden: Only teachers and admins can schedule classes", 403);
   }
 
   try {
     const body = await request.json();
     const { topic, subject, batchId, scheduledAt, durationMinutes } = body;
-
     if (!topic || !batchId || !scheduledAt) {
-      return NextResponse.json({ success: false, error: "topic, batchId, and scheduledAt are required" }, { status: 400 });
+      return err("topic, batchId, and scheduledAt are required", 400);
     }
 
     let resolvedTeacherId: string | null = null;
@@ -118,9 +109,7 @@ export async function POST(request: Request) {
         .from(teachers)
         .where(and(eq(teachers.userId, dbUser.id), eq(teachers.isActive, true)))
         .limit(1);
-      if (!teacher) {
-        return NextResponse.json({ success: false, error: "Teacher profile not found" }, { status: 403 });
-      }
+      if (!teacher) return err("Teacher profile not found", 403);
       resolvedTeacherId = teacher.id;
     } else if (dbUser.role === "admin") {
       resolvedTeacherId = body.teacherId ?? null;
@@ -132,7 +121,7 @@ export async function POST(request: Request) {
       durationMinutes: durationMinutes ?? 90,
     });
 
-    const [created] = await db
+    const [row] = await db
       .insert(liveClasses)
       .values({
         topic,
@@ -149,9 +138,9 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    return NextResponse.json({ success: true, data: { ...created, zoomHostUrl: meeting.hostUrl } }, { status: 201 });
-  } catch (err) {
-    console.error("POST /api/v1/live-classes error:", err);
-    return NextResponse.json({ success: false, error: "Failed to create live class" }, { status: 500 });
+    return created({ ...row, zoomHostUrl: meeting.hostUrl });
+  } catch (e) {
+    console.error("POST /api/v1/live-classes error:", e);
+    return err("Failed to create live class");
   }
 }
