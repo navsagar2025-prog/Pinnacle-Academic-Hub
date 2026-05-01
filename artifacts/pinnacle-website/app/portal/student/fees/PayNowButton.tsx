@@ -46,7 +46,8 @@ export default function PayNowButton({ feeId, amount, period }: Props) {
         await loadRazorpayScript();
       }
 
-      const res = await fetch("/pinnacle-website/api/v1/payments/create-order", {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+      const res = await fetch(`${base}/api/v1/payments/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ feeId }),
@@ -72,7 +73,7 @@ export default function PayNowButton({ feeId, amount, period }: Props) {
         handler: async (response) => {
           setLoading(true);
           try {
-            const verRes = await fetch("/pinnacle-website/api/v1/payments/verify", {
+            const verRes = await fetch(`${base}/api/v1/payments/verify`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -84,7 +85,7 @@ export default function PayNowButton({ feeId, amount, period }: Props) {
             });
             const verJson = await verRes.json();
             if (verJson.success) {
-              router.push(`/pinnacle-website/portal/student/fees/receipt/${feeId}`);
+              router.push(`/portal/student/fees/receipt/${feeId}`);
             } else {
               setError(verJson.error ?? "Payment verification failed");
             }
@@ -95,7 +96,10 @@ export default function PayNowButton({ feeId, amount, period }: Props) {
           }
         },
         modal: {
-          ondismiss: () => setLoading(false),
+          ondismiss: () => {
+            setLoading(false);
+            setError("Payment cancelled. No amount has been charged.");
+          },
         },
       });
       rzp.open();

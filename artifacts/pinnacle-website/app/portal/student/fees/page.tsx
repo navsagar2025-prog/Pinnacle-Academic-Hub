@@ -156,7 +156,7 @@ export default async function FeesPage() {
                         </span>
                         {r.status === "paid" && (
                           <Link
-                            href={`/pinnacle-website/portal/student/fees/receipt/${r.id}`}
+                            href={`/portal/student/fees/receipt/${r.id}`}
                             className="flex items-center gap-1 text-xs text-[var(--color-teal)] hover:underline"
                           >
                             <Receipt size={13} />

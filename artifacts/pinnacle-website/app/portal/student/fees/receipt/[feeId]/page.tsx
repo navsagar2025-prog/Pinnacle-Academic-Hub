@@ -48,7 +48,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ feeId:
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between no-print">
-        <Link href="/pinnacle-website/portal/student/fees" className="text-sm text-[var(--color-teal)] hover:underline">
+        <Link href="/portal/student/fees" className="text-sm text-[var(--color-teal)] hover:underline">
           ← Back to Fee Status
         </Link>
         <PrintButton />
