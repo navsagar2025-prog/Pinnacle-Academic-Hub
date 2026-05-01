@@ -1,14 +1,22 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { notices } from "@workspace/db/schema";
-import { desc } from "drizzle-orm";
+import { notices, students } from "@workspace/db/schema";
+import { desc, eq, and, or, isNull, gt } from "drizzle-orm";
 import { Bell } from "lucide-react";
 import { NotificationsClient } from "./NotificationsClient";
 
 export const metadata = { title: "Notifications — Student Portal" };
 
 export default async function NotificationsPage() {
-  await requirePortalRole("student");
+  const dbUser = await requirePortalRole("student");
+
+  const [enrollment] = await db
+    .select({ batchId: students.batchId })
+    .from(students)
+    .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
+    .limit(1);
+
+  const now = new Date();
 
   const allNotices = await db
     .select({
@@ -19,6 +27,15 @@ export default async function NotificationsPage() {
       category: notices.category,
     })
     .from(notices)
+    .where(
+      and(
+        eq(notices.isPublic, true),
+        or(isNull(notices.expiresAt), gt(notices.expiresAt, now)),
+        enrollment?.batchId
+          ? or(isNull(notices.targetBatchId), eq(notices.targetBatchId, enrollment.batchId))
+          : isNull(notices.targetBatchId)
+      )
+    )
     .orderBy(desc(notices.publishedAt))
     .limit(50);
 
