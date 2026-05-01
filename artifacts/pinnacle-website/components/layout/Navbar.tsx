@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 // Allowed Clerk client UI import — display components only, no auth logic.
 // When migrating away from Clerk, swap these four for your provider's equivalents.
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import { Menu, X, BookOpen, Phone, ChevronDown, GraduationCap } from "lucide-react";
+import { Menu, X, BookOpen, Phone, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CONTACT } from "@/lib/contact";
 
@@ -72,10 +72,15 @@ export default function Navbar() {
       {/* Main navbar */}
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
-          <div className="w-9 h-9 bg-[var(--color-navy)] rounded-lg flex items-center justify-center">
-            <GraduationCap size={20} className="text-[var(--color-gold)]" />
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/logo.png`}
+            alt="Pinnacle Academic Classes"
+            width={44}
+            height={44}
+            className="object-contain w-11 h-11"
+          />
           <div>
             <div className="text-[var(--color-navy)] font-bold text-base font-[family-name:var(--font-playfair)] leading-tight">
               Pinnacle
