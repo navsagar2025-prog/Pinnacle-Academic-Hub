@@ -17,6 +17,7 @@ import {
   Users2,
   Settings,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { label: "Courses", href: "/portal/admin/courses", Icon: BookOpen },
   { label: "Fee Management", href: "/portal/admin/fees", Icon: CreditCard },
   { label: "Results & Toppers", href: "/portal/admin/results", Icon: Trophy },
+  { label: "Test Scores", href: "/portal/admin/test-scores", Icon: ClipboardList },
   { label: "Blog CMS", href: "/portal/admin/blog", Icon: FileText },
   { label: "Analytics", href: "#", Icon: FileBarChart, divider: true },
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", Icon: TrendingUp },
