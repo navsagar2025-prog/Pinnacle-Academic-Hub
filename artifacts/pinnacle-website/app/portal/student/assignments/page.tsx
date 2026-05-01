@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { students, assignments, batches } from "@workspace/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { ClipboardList, Download, Calendar, Clock, AlertCircle } from "lucide-react";
+import { AssignmentSubmitButton } from "./AssignmentSubmitButton";
 
 export const metadata = { title: "Assignments — Student Portal" };
 
@@ -148,23 +149,26 @@ export default async function AssignmentsPage() {
                     Due: {a.dueDate.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}
                   </div>
                 </div>
-                {a.fileUrl ? (
-                  <a
-                    href={a.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors flex-shrink-0"
-                  >
-                    <Download size={14} />Download
-                  </a>
-                ) : (
-                  <button
-                    disabled
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-300 text-sm font-semibold cursor-not-allowed flex-shrink-0"
-                  >
-                    <Download size={14} />Download
-                  </button>
-                )}
+                <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                  {a.fileUrl ? (
+                    <a
+                      href={a.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors"
+                    >
+                      <Download size={14} />Download
+                    </a>
+                  ) : (
+                    <button
+                      disabled
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-300 text-sm font-semibold cursor-not-allowed"
+                    >
+                      <Download size={14} />Download
+                    </button>
+                  )}
+                  <AssignmentSubmitButton assignmentId={a.id} />
+                </div>
               </div>
             </div>
           );

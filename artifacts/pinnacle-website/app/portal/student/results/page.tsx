@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { students, studentTestResults, batches } from "@workspace/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { TrendingUp, AlertCircle, Award, CheckCircle, XCircle } from "lucide-react";
+import { PerformanceLineChart } from "./PerformanceLineChart";
 
 export const metadata = { title: "Results & Performance — Student Portal" };
 
@@ -35,23 +36,6 @@ function PassBadge({ pct }: { pct: number }) {
   );
 }
 
-function PerformanceBar({ pct, subject }: { pct: number; subject: string }) {
-  const colorMap: Record<string, string> = {
-    Physics: "bg-[var(--color-navy)]",
-    Chemistry: "bg-[var(--color-teal)]",
-    Mathematics: "bg-[var(--color-maroon)]",
-    Biology: "bg-green-600",
-  };
-  const color = colorMap[subject] ?? "bg-slate-500";
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs font-semibold text-slate-600 w-10 text-right">{pct}%</span>
-    </div>
-  );
-}
 
 export default async function ResultsPage() {
   const dbUser = await requirePortalRole("student");
@@ -156,40 +140,11 @@ export default async function ResultsPage() {
 
           <div className="card">
             <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] mb-4 flex items-center gap-2">
-              <TrendingUp size={17} />Performance by Subject
+              <TrendingUp size={17} />Performance Trend
             </h2>
-            <div className="space-y-4">
-              {Object.entries(subjectTrend).map(([subject, points]) => {
-                const latest = points[points.length - 1];
-                return (
-                  <div key={subject}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`badge text-xs ${SUBJECT_COLORS[subject] ?? "bg-slate-100 text-slate-600"}`}>{subject}</span>
-                      <span className="text-xs text-slate-400">{points.length} test{points.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div className="flex items-end gap-1.5 h-12 mb-2">
-                      {points.map((p, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                          <div
-                            className={`w-full rounded-t transition-all ${
-                              subject === "Physics" ? "bg-[var(--color-navy)]" :
-                              subject === "Chemistry" ? "bg-[var(--color-teal)]" :
-                              subject === "Mathematics" ? "bg-[var(--color-maroon)]" : "bg-green-600"
-                            }`}
-                            style={{ height: `${Math.max(p.pct, 4)}%` }}
-                            title={`${p.exam}: ${p.pct}%`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <PerformanceBar pct={latest.pct} subject={subject} />
-                    <div className="flex justify-between text-xs text-slate-300 mt-1">
-                      {points.map((p, i) => <span key={i}>{p.exam.replace("Unit Test ", "UT").replace("Monthly Test — ", "")}</span>)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <PerformanceLineChart
+              series={Object.entries(subjectTrend).map(([subject, points]) => ({ subject, points }))}
+            />
           </div>
 
           {examNames.map((exam) => (
