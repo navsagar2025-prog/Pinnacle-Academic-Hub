@@ -36,12 +36,20 @@ export async function POST(request: Request) {
       .values({ name, phone, email, courseInterest, message, source: source ?? "website" })
       .returning();
 
-    void Promise.allSettled([
+    Promise.allSettled([
       email
         ? sendEnquiryAcknowledgement({ to: email, name, courseInterest })
-        : Promise.resolve(),
+        : Promise.resolve({ ok: true } as import("@/lib/server/email").SendResult),
       sendAdminEnquiryAlert({ name, phone, email, courseInterest, message }),
-    ]);
+    ]).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.error(`[email] enquiry email ${i} rejected:`, r.reason);
+        } else if (!r.value.ok) {
+          console.warn(`[email] enquiry email ${i} failed:`, r.value.error);
+        }
+      });
+    });
 
     return created(row);
   } catch (e) {

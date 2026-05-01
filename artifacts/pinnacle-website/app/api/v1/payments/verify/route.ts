@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   );
 
   if (actor.email) {
-    void sendPaymentConfirmation({
+    sendPaymentConfirmation({
       to: actor.email,
       name: actor.name,
       period: fee.period,
@@ -79,7 +79,9 @@ export async function POST(request: Request) {
       orderId: razorpay_order_id,
       paidDate: updated.paidDate ?? now,
       receiptPath: `/portal/student/fees/receipt/${feeId}`,
-    });
+    }).then((result) => {
+      if (!result.ok) console.warn("[email] payment confirmation failed:", result.error);
+    }).catch((e) => console.error("[email] payment confirmation exception:", e));
   }
 
   return ok({ feeId, status: "paid", paidDate: updated.paidDate, paymentId: razorpay_payment_id });

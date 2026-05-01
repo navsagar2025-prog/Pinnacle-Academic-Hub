@@ -1,5 +1,14 @@
 import { Resend } from "resend";
 
+function escHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 let _resend: Resend | null = null;
 
 function getResend(): Resend | null {
@@ -136,9 +145,10 @@ function emailLayout(content: string): string {
 }
 
 function enquiryAckHtml(p: { name: string; courseInterest?: string }): string {
-  const course = p.courseInterest ? `<p style="margin:16px 0 0;color:#475569;">Programme of interest: <strong style="color:#0A1F5C;">${p.courseInterest}</strong></p>` : "";
+  const name = escHtml(p.name);
+  const course = p.courseInterest ? `<p style="margin:16px 0 0;color:#475569;">Programme of interest: <strong style="color:#0A1F5C;">${escHtml(p.courseInterest)}</strong></p>` : "";
   return emailLayout(`
-    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0A1F5C;">Hello ${p.name},</h1>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0A1F5C;">Hello ${name},</h1>
     <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
       Thank you for reaching out to <strong>Pinnacle Academic Classes</strong>! We have received your enquiry and our admissions counsellor will get back to you within <strong>24 hours</strong>.
     </p>
@@ -159,11 +169,11 @@ function enquiryAckHtml(p: { name: string; courseInterest?: string }): string {
 
 function adminEnquiryHtml(p: { name: string; phone: string; email?: string; courseInterest?: string; message?: string }): string {
   const rows = [
-    ["Name", p.name],
-    ["Phone", p.phone],
-    ["Email", p.email ?? "—"],
-    ["Course Interest", p.courseInterest ?? "—"],
-    ["Message", p.message ?? "—"],
+    ["Name", escHtml(p.name)],
+    ["Phone", escHtml(p.phone)],
+    ["Email", p.email ? escHtml(p.email) : "—"],
+    ["Course Interest", p.courseInterest ? escHtml(p.courseInterest) : "—"],
+    ["Message", p.message ? escHtml(p.message) : "—"],
   ];
   const tableRows = rows.map(([k, v]) => `
     <tr>
@@ -183,6 +193,9 @@ function adminEnquiryHtml(p: { name: string; phone: string; email?: string; cour
 }
 
 function paymentConfirmHtml(p: { name: string; period: string; amount: number; paymentId: string; orderId?: string; paidDate: Date; receiptPath: string }): string {
+  const name = escHtml(p.name);
+  const period = escHtml(p.period);
+  const paymentId = escHtml(p.paymentId);
   const dateStr = p.paidDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   const amountStr = `₹${p.amount.toLocaleString("en-IN")}`;
   const receiptUrl = `${SITE_URL}${p.receiptPath}`;
@@ -191,12 +204,12 @@ function paymentConfirmHtml(p: { name: string; period: string; amount: number; p
       <div style="display:inline-block;background:#f0fdf4;border:2px solid #86efac;border-radius:50%;width:60px;height:60px;line-height:60px;font-size:28px;text-align:center;">✓</div>
     </div>
     <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0A1F5C;text-align:center;">Payment Confirmed!</h1>
-    <p style="margin:0 0 24px;color:#475569;font-size:15px;text-align:center;">Hi ${p.name}, your fee payment has been successfully received.</p>
+    <p style="margin:0 0 24px;color:#475569;font-size:15px;text-align:center;">Hi ${name}, your fee payment has been successfully received.</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
       <tr>
         <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;">
           <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">PERIOD</span>
-          <span style="font-size:15px;color:#0A1F5C;font-weight:700;">${p.period}</span>
+          <span style="font-size:15px;color:#0A1F5C;font-weight:700;">${period}</span>
         </td>
         <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">
           <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">AMOUNT PAID</span>
@@ -210,7 +223,7 @@ function paymentConfirmHtml(p: { name: string; period: string; amount: number; p
         </td>
         <td style="padding:12px 16px;border-left:1px solid #e2e8f0;">
           <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">PAYMENT ID</span>
-          <span style="font-size:12px;color:#1e293b;font-family:monospace;">${p.paymentId}</span>
+          <span style="font-size:12px;color:#1e293b;font-family:monospace;">${paymentId}</span>
         </td>
       </tr>
     </table>
