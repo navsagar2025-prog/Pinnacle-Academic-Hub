@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
-import { generateUploadURL } from "@/lib/server/object-storage";
+import {
+  generateUploadURL,
+  validateCategoryMime,
+  validateSize,
+  type UploadCategory,
+} from "@/lib/server/object-storage";
 
-const ALLOWED_PDF_TYPES = ["application/pdf"];
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const VALID_CATEGORIES: UploadCategory[] = [
+  "material_pdf",
+  "assignment_pdf",
+  "faculty_photo",
+  "course_banner",
+  "blog_image",
+];
+
+const ADMIN_ONLY_CATEGORIES: UploadCategory[] = [
+  "faculty_photo",
+  "course_banner",
+  "blog_image",
+];
 
 export async function POST(req: NextRequest) {
   const user = await getDbUser();
@@ -13,37 +27,53 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { name?: string; size?: number; contentType?: string };
+  let body: { name?: string; size?: number; contentType?: string; category?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, size, contentType } = body;
-  if (!name || typeof size !== "number" || !contentType) {
-    return NextResponse.json({ error: "Missing name, size, or contentType" }, { status: 400 });
-  }
+  const { name, size, contentType, category } = body;
 
-  const isPdf = ALLOWED_PDF_TYPES.includes(contentType);
-  const isImage = ALLOWED_IMAGE_TYPES.includes(contentType);
-
-  if (!isPdf && !isImage) {
+  if (!name || typeof size !== "number" || !contentType || !category) {
     return NextResponse.json(
-      { error: "File type not allowed. Only PDFs and images are accepted." },
-      { status: 415 },
+      { error: "Missing required fields: name, size, contentType, category" },
+      { status: 400 },
     );
   }
-  if (isPdf && size > MAX_PDF_BYTES) {
-    return NextResponse.json({ error: "PDF files must be under 20 MB" }, { status: 413 });
+
+  if (!VALID_CATEGORIES.includes(category as UploadCategory)) {
+    return NextResponse.json(
+      { error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 },
+    );
   }
-  if (isImage && size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: "Image files must be under 5 MB" }, { status: 413 });
+
+  const cat = category as UploadCategory;
+
+  if (ADMIN_ONLY_CATEGORIES.includes(cat) && user.role !== "admin") {
+    return NextResponse.json({ error: "Only admins can upload images" }, { status: 403 });
+  }
+
+  const mimeCheck = validateCategoryMime(cat, contentType);
+  if (!mimeCheck.ok) {
+    return NextResponse.json({ error: mimeCheck.error }, { status: 415 });
+  }
+
+  const sizeCheck = validateSize(cat, size);
+  if (!sizeCheck.ok) {
+    return NextResponse.json({ error: sizeCheck.error }, { status: 413 });
   }
 
   try {
-    const { uploadURL, objectPath } = await generateUploadURL();
-    return NextResponse.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    const { uploadURL, objectPath, isPublic } = await generateUploadURL(cat, contentType);
+    return NextResponse.json({
+      uploadURL,
+      objectPath,
+      isPublic,
+      metadata: { name, size, contentType, category },
+    });
   } catch (err) {
     console.error("[upload] Error generating presigned URL:", err);
     return NextResponse.json({ error: "Failed to generate upload URL" }, { status: 500 });

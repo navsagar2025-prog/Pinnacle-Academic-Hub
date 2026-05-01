@@ -39,21 +39,26 @@ async function signObjectURL({
   objectName,
   method,
   ttlSec,
+  contentType,
 }: {
   bucketName: string;
   objectName: string;
   method: "GET" | "PUT";
   ttlSec: number;
+  contentType?: string;
 }): Promise<string> {
+  const body: Record<string, string> = {
+    bucket_name: bucketName,
+    object_name: objectName,
+    method,
+    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+  };
+  if (contentType) body.content_type = contentType;
+
   const res = await fetch(`${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      bucket_name: bucketName,
-      object_name: objectName,
-      method,
-      expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-    }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`Failed to sign object URL: ${res.status}`);
@@ -61,18 +66,95 @@ async function signObjectURL({
   return signed_url;
 }
 
-export async function generateUploadURL(): Promise<{ uploadURL: string; objectPath: string }> {
+/**
+ * Upload category determines the storage path and serving policy.
+ *
+ * Public categories are accessible without authentication from the serving route.
+ * Private categories require admin auth to serve.
+ */
+export type UploadCategory =
+  | "material_pdf"    // public — students/parents can download
+  | "assignment_pdf"  // public — students can download
+  | "faculty_photo"   // public — shown on public faculty page
+  | "course_banner"   // public — shown on public courses page
+  | "blog_image";     // public — shown on public blog page
+
+const CATEGORY_SUBPATH: Record<UploadCategory, string> = {
+  material_pdf:   "public/materials",
+  assignment_pdf: "public/assignments",
+  faculty_photo:  "public/faculty",
+  course_banner:  "public/courses",
+  blog_image:     "public/blog",
+};
+
+/**
+ * Validate that the file's MIME type is allowed for the given category.
+ * This provides server-side intent validation — the actual upload PUT is
+ * content-type-bound via the signed URL's content_type parameter.
+ */
+export function validateCategoryMime(
+  category: UploadCategory,
+  contentType: string,
+): { ok: true } | { ok: false; error: string } {
+  const PDF = ["application/pdf"];
+  const IMAGES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+
+  const allowedMimes: string[] =
+    category === "material_pdf" || category === "assignment_pdf" ? PDF : IMAGES;
+
+  if (!allowedMimes.includes(contentType)) {
+    return {
+      ok: false,
+      error: `Category "${category}" only accepts: ${allowedMimes.join(", ")}. Received: ${contentType}`,
+    };
+  }
+  return { ok: true };
+}
+
+export function validateSize(
+  category: UploadCategory,
+  size: number,
+): { ok: true } | { ok: false; error: string } {
+  const maxPdf = 20 * 1024 * 1024;
+  const maxImage = 5 * 1024 * 1024;
+  const isPdf = category === "material_pdf" || category === "assignment_pdf";
+  const max = isPdf ? maxPdf : maxImage;
+  if (size > max) {
+    return { ok: false, error: `File too large. Max ${isPdf ? "20 MB" : "5 MB"} for this category.` };
+  }
+  return { ok: true };
+}
+
+export async function generateUploadURL(
+  category: UploadCategory,
+  contentType: string,
+): Promise<{ uploadURL: string; objectPath: string; isPublic: boolean }> {
   const privateObjectDir = getPrivateObjectDir();
   const objectId = randomUUID();
-  const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+  const subpath = CATEGORY_SUBPATH[category];
+  const fullPath = `${privateObjectDir}/${subpath}/${objectId}`;
   const { bucketName, objectName } = parseObjectPath(fullPath);
-  const uploadURL = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 900 });
-  const objectPath = `/objects/uploads/${objectId}`;
-  return { uploadURL, objectPath };
+
+  // Bind the presigned URL to the specific content-type so only that MIME is accepted by GCS
+  const uploadURL = await signObjectURL({
+    bucketName,
+    objectName,
+    method: "PUT",
+    ttlSec: 900,
+    contentType,
+  });
+
+  const objectPath = `/objects/${subpath}/${objectId}`;
+  return { uploadURL, objectPath, isPublic: subpath.startsWith("public/") };
 }
 
 export function objectPathToServingUrl(objectPath: string, basePath = "/pinnacle-website"): string {
   return `${basePath}/api/v1/storage${objectPath}`;
+}
+
+/** Is this object path under the public prefix? */
+export function isPublicObjectPath(objectPath: string): boolean {
+  return objectPath.startsWith("/objects/public/");
 }
 
 export async function streamObject(objectPath: string): Promise<Response> {

@@ -168,6 +168,7 @@ function TeacherModal({ teacher, onClose }: { teacher?: TeacherRow; onClose: () 
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Faculty Photo</label>
               <FileUpload
+                category="faculty_photo"
                 accept="image"
                 label="Upload photo"
                 hint="JPG, PNG, or WebP — max 5 MB"

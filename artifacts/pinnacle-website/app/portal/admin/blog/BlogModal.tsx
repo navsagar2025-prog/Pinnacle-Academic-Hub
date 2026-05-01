@@ -176,6 +176,7 @@ function BlogModal({ post, onClose }: { post?: BlogPost; onClose: () => void }) 
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Featured Image</label>
               <FileUpload
+                category="blog_image"
                 accept="image"
                 label="Upload featured image"
                 hint="JPG, PNG, or WebP — max 5 MB"

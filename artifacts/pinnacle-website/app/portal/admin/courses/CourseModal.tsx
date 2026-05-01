@@ -153,6 +153,7 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Course Banner Image</label>
             <FileUpload
+              category="course_banner"
               accept="image"
               label="Upload course banner"
               hint="JPG, PNG, or WebP — max 5 MB"

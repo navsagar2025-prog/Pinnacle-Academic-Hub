@@ -123,6 +123,7 @@ export default function TeacherMaterialUpload({ batches, uploaderId }: Props) {
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">PDF File *</label>
               <FileUpload
+                category="material_pdf"
                 accept="pdf"
                 label="Click or drag a PDF here"
                 hint="PDF only, max 20 MB"

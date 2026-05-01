@@ -2,12 +2,14 @@
 
 import { useRef, useState } from "react";
 import { Upload, CheckCircle, AlertCircle, X, FileText, Image } from "lucide-react";
+import type { UploadCategory } from "@/lib/server/object-storage";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 export type FileUploadAccept = "pdf" | "image" | "any";
 
 interface Props {
+  category: UploadCategory;
   accept?: FileUploadAccept;
   label?: string;
   hint?: string;
@@ -30,6 +32,7 @@ const ACCEPT_LABEL: Record<FileUploadAccept, string> = {
 };
 
 export default function FileUpload({
+  category,
   accept = "any",
   label = "Upload File",
   hint,
@@ -54,7 +57,12 @@ export default function FileUpload({
       const metaRes = await fetch(`${BASE}/api/v1/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+          category,
+        }),
       });
 
       if (!metaRes.ok) {
@@ -75,7 +83,7 @@ export default function FileUpload({
         body: file,
       });
 
-      if (!putRes.ok) throw new Error("Upload to storage failed");
+      if (!putRes.ok) throw new Error("Upload to storage failed. Please try again.");
 
       setProgress(100);
       setStatus("done");

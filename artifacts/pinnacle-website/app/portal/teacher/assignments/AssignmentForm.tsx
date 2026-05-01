@@ -137,6 +137,7 @@ export default function AssignmentForm({ batches }: { batches: Batch[] }) {
           <div className="sm:col-span-2">
             <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">Question Paper PDF (optional)</label>
             <FileUpload
+              category="assignment_pdf"
               accept="pdf"
               label="Attach question paper PDF"
               hint="PDF only, max 20 MB"
