@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  const objectPath = `/objects/${path.join("/")}`;
+  // path segments already include "objects/..." from the serving URL, so just join with leading slash
+  const objectPath = `/${path.join("/")}`;
 
   const isPublic = isPublicObjectPath(objectPath);
 
