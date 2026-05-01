@@ -124,21 +124,38 @@ export async function POST(req: NextRequest) {
     if (typeof e.totalMarks !== "number" || typeof e.marksObtained !== "number") {
       return NextResponse.json({ error: "totalMarks and marksObtained must be numbers" }, { status: 400 });
     }
+    if (!Number.isInteger(e.totalMarks) || e.totalMarks <= 0) {
+      return NextResponse.json({ error: "totalMarks must be a positive integer" }, { status: 400 });
+    }
     if (e.marksObtained < 0 || e.marksObtained > e.totalMarks) {
       return NextResponse.json({ error: "marksObtained must be between 0 and totalMarks" }, { status: 400 });
     }
+    const examDateMs = Date.parse(e.examDate);
+    if (isNaN(examDateMs)) {
+      return NextResponse.json({ error: "examDate is not a valid date" }, { status: 400 });
+    }
   }
 
-  // Verify all studentIds exist
+  // Verify all studentIds exist and match their declared batchId when provided
   const studentIds = [...new Set(entries.map((e) => e.studentId))];
   const existingStudents = await db
-    .select({ id: students.id })
+    .select({ id: students.id, batchId: students.batchId })
     .from(students)
     .where(inArray(students.id, studentIds));
-  const existingIds = new Set(existingStudents.map((s) => s.id));
-  const missing = studentIds.filter((id) => !existingIds.has(id));
+  const existingMap = new Map(existingStudents.map((s) => [s.id, s.batchId]));
+  const missing = studentIds.filter((id) => !existingMap.has(id));
   if (missing.length > 0) {
     return NextResponse.json({ error: `Unknown student IDs: ${missing.join(", ")}` }, { status: 400 });
+  }
+
+  // Enforce student–batch consistency when caller supplies a batchId
+  const batchMismatches = entries.filter(
+    (e) => e.batchId && existingMap.get(e.studentId) !== e.batchId,
+  );
+  if (batchMismatches.length > 0) {
+    return NextResponse.json({
+      error: `Student–batch mismatch for ${batchMismatches.length} entry(ies). Student must belong to the specified batch.`,
+    }, { status: 400 });
   }
 
   const inserted = await db

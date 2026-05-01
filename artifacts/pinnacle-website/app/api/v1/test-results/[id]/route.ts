@@ -31,12 +31,20 @@ export async function PUT(
 
   const { examName, subject, totalMarks, marksObtained, rank, examDate } = body;
 
+  if (typeof totalMarks === "number" && (!Number.isInteger(totalMarks) || totalMarks <= 0)) {
+    return NextResponse.json({ error: "totalMarks must be a positive integer" }, { status: 400 });
+  }
+
   if (
     typeof totalMarks === "number" &&
     typeof marksObtained === "number" &&
     (marksObtained < 0 || marksObtained > totalMarks)
   ) {
     return NextResponse.json({ error: "marksObtained must be between 0 and totalMarks" }, { status: 400 });
+  }
+
+  if (examDate && isNaN(Date.parse(examDate))) {
+    return NextResponse.json({ error: "examDate is not a valid date" }, { status: 400 });
   }
 
   const updates: Record<string, unknown> = {};
