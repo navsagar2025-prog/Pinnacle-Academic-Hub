@@ -151,13 +151,6 @@ export default async function TeacherPerformancePage() {
     return "text-[var(--color-maroon)]";
   }
 
-  function attPctColor(pct: number | null | undefined) {
-    if (pct === null || pct === undefined) return "text-slate-400";
-    if (pct >= 75) return "text-green-600";
-    if (pct >= 60) return "text-amber-600";
-    return "text-[var(--color-maroon)]";
-  }
-
   function attBadgeBg(pct: number | null | undefined) {
     if (pct === null || pct === undefined) return "bg-slate-100 text-slate-400";
     if (pct >= 75) return "bg-green-50 text-green-700 ring-1 ring-green-200";
