@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slug, title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights } = body;
+    const { slug, title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights, featuredImageUrl } = body;
     if (!slug || !title || !annualFee) return err("slug, title and annualFee are required", 400);
 
     const [row] = await db.insert(courses).values({
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       maxBatchSize: maxBatchSize ? Number(maxBatchSize) : 35,
       eligibility,
       highlights: highlights ?? [],
+      featuredImageUrl: featuredImageUrl ?? null,
     }).returning();
 
     await logAudit(actor.id, actor.name, "course.create", "course", row.id, { title });

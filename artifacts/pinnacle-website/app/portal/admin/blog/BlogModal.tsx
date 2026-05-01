@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, Pencil, Trash2, Globe } from "lucide-react";
 import type { BlogPost } from "@workspace/db/schema";
+import FileUpload from "@/components/upload/FileUpload";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -173,13 +174,13 @@ function BlogModal({ post, onClose }: { post?: BlogPost; onClose: () => void }) 
             </div>
 
             <div className="col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Featured Image URL</label>
-              <input
-                type="url"
-                value={form.featuredImageUrl}
-                onChange={(e) => set("featuredImageUrl", e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Featured Image</label>
+              <FileUpload
+                accept="image"
+                label="Upload featured image"
+                hint="JPG, PNG, or WebP — max 5 MB"
+                currentUrl={form.featuredImageUrl || undefined}
+                onUploaded={(_objectPath, servingUrl) => set("featuredImageUrl", servingUrl)}
               />
               {form.featuredImageUrl && (
                 <img src={form.featuredImageUrl} alt="preview" className="mt-2 rounded-lg h-24 w-full object-cover border border-slate-100" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />

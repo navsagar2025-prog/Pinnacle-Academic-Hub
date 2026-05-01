@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import type { Course } from "@workspace/db/schema";
+import FileUpload from "@/components/upload/FileUpload";
 
 type Props = { course?: Course };
 
@@ -82,6 +83,7 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
     maxBatchSize: course?.maxBatchSize?.toString() ?? "35",
     eligibility: course?.eligibility ?? "",
     highlights: (course?.highlights ?? []).join("\n"),
+    featuredImageUrl: course?.featuredImageUrl ?? "",
   });
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -96,6 +98,7 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
       admissionFee: Number(form.admissionFee),
       maxBatchSize: Number(form.maxBatchSize),
       highlights: form.highlights.split("\n").map((s) => s.trim()).filter(Boolean),
+      featuredImageUrl: form.featuredImageUrl || undefined,
     };
     const url = course ? `${BASE}/api/v1/courses/${course.id}` : `${BASE}/api/v1/courses`;
     const method = course ? "PUT" : "POST";
@@ -146,6 +149,19 @@ function CourseModal({ course, onClose }: { course?: Course; onClose: () => void
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Highlights (one per line)</label>
             <textarea value={form.highlights} onChange={(e) => set("highlights", e.target.value)} rows={4} placeholder="500+ hours of teaching&#10;Weekly mock tests" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Course Banner Image</label>
+            <FileUpload
+              accept="image"
+              label="Upload course banner"
+              hint="JPG, PNG, or WebP — max 5 MB"
+              currentUrl={form.featuredImageUrl || undefined}
+              onUploaded={(_objectPath, servingUrl) => set("featuredImageUrl", servingUrl)}
+            />
+            {form.featuredImageUrl && (
+              <img src={form.featuredImageUrl} alt="preview" className="mt-2 rounded-lg h-20 w-full object-cover border border-slate-100" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            )}
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 btn-outline py-2.5 text-sm">Cancel</button>

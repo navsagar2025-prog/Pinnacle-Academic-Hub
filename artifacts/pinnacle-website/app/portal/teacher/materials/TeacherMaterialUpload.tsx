@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Upload, CheckCircle, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import FileUpload from "@/components/upload/FileUpload";
 
 interface Batch { id: string; name: string; timingLabel: string | null; }
 
@@ -14,6 +15,8 @@ interface Props {
 
 const TYPES = ["Notes", "Summary", "Exercise", "Formula", "Previous Year", "Mock Test"] as const;
 const SUBJECTS = ["Physics", "Chemistry", "Biology", "Mathematics", "English", "General"];
+
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 export default function TeacherMaterialUpload({ batches, uploaderId }: Props) {
   const router = useRouter();
@@ -36,7 +39,7 @@ export default function TeacherMaterialUpload({ batches, uploaderId }: Props) {
     setStatus("idle");
 
     try {
-      const res = await fetch("/pinnacle-website/api/v1/materials", {
+      const res = await fetch(`${BASE}/api/v1/materials`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -117,17 +120,18 @@ export default function TeacherMaterialUpload({ batches, uploaderId }: Props) {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">File URL *</label>
-              <input
-                type="url"
-                required
-                value={form.fileUrl}
-                onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
-                className="input-field w-full"
-                placeholder="https://drive.google.com/..."
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[var(--color-navy)] mb-1.5">PDF File *</label>
+              <FileUpload
+                accept="pdf"
+                label="Click or drag a PDF here"
+                hint="PDF only, max 20 MB"
+                currentUrl={form.fileUrl || undefined}
+                onUploaded={(_objectPath, servingUrl) => setForm((f) => ({ ...f, fileUrl: servingUrl }))}
               />
-              <p className="text-xs text-slate-400 mt-1">Paste a shareable link (Google Drive, Dropbox, etc.)</p>
+              {!form.fileUrl && (
+                <p className="text-xs text-slate-400 mt-1">You must upload a PDF before submitting.</p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -153,9 +157,13 @@ export default function TeacherMaterialUpload({ batches, uploaderId }: Props) {
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3 flex items-center justify-center gap-2">
+          <button
+            type="submit"
+            disabled={loading || !form.fileUrl}
+            className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
             <Upload size={16} />
-            {loading ? "Adding..." : "Add Material"}
+            {loading ? "Saving…" : "Add Material"}
           </button>
         </form>
       )}

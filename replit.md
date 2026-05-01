@@ -79,7 +79,9 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - **16 public pages**: Home, About, Courses, Faculty, Admissions, Results, Notices, Contact, FAQ, Privacy Policy, Terms, Refund Policy, Blog, Gallery, Achievements, Fee Structure
 - **Role portals**: Student (dashboard, timetable, materials, papers, fees, recordings), Parent (dashboard, fees, timetable, notices), Teacher (dashboard, schedule, materials, notices), Admin (dashboard, students, teachers, batches) — all DB-backed via Drizzle
 - **AI Assistant** (`/portal/admin/ai`, `/portal/teacher/ai`): Multi-model AI workspace powered by Replit AI Integrations (OpenAI, Gemini, Anthropic, OpenRouter); 5 tools: Notice Writer, Enquiry Responder, Study Summariser, Batch Performance Insight, Fee Reminder Composer; SSE streaming; model selector persisted in localStorage; teachers see 3 tools (no enquiry responder or fee reminder)
-- **API routes** (`/api/v1/`): health (with `error:null` envelope), courses, notices, enquiries, materials (auth-protected), `POST /api/v1/ai/generate` (SSE streaming, auth-gated to admin+teacher)
+- **Object Storage**: GCS-backed file storage via Replit sidecar auth (`lib/server/object-storage.ts`); bucket provisioned; `POST /api/v1/upload` returns presigned PUT URL; uploaded files served via `GET /api/v1/storage/[...path]`; reusable `<FileUpload>` component at `components/upload/FileUpload.tsx`; supports PDFs (max 20 MB) and images (max 5 MB)
+- **File uploads integrated**: Teacher materials (PDF upload replaces URL field), Teacher assignments (new page at `/portal/teacher/assignments` with question paper PDF upload), Admin blog featured image upload, Admin course banner image upload, Admin faculty photo upload
+- **API routes** (`/api/v1/`): health (with `error:null` envelope), courses, notices, enquiries, materials (auth-protected), assignments (GET+POST), teachers (GET+POST+PUT via `[id]`), upload (presigned URL), storage serving, `POST /api/v1/ai/generate` (SSE streaming, auth-gated to admin+teacher)
 - **Navbar**: "Courses" dropdown (JEE, NEET, 11-12, 9-10, Fee Structure); "More" dropdown (Results, Achievements, Gallery, Blog, Notices, About)
 - **All portal pages** use `requirePortalRole()` which auto-provisions DB user on first Clerk sign-in
 - Seed command: `pnpm --filter @workspace/db run seed`
@@ -89,7 +91,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `artifacts/pinnacle-website/middleware.ts` — Clerk route protection for /portal/*
   - `artifacts/pinnacle-website/lib/data.ts` — All demo/static data (courses, faculty, toppers, testimonials)
   - `artifacts/pinnacle-website/next.config.ts` — basePath=/pinnacle-website, assetPrefix set
-  - `lib/db/src/schema/index.ts` — Full Drizzle schema (13 tables: users, courses, batches, students, parents, teachers, studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries)
+  - `lib/db/src/schema/index.ts` — Full Drizzle schema (16 tables: users, courses [+featuredImageUrl], batches, students, parents, teachers [+photoUrl], studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries, assignments, attendance, studentTestResults)
 
 ### 6. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
 - Expo React Native app (iOS + Android + Web) for Pinnacle Academic Classes

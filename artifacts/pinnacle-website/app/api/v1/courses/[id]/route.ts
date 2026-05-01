@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const body = await request.json();
-    const { title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights, isActive } = body;
+    const { title, description, category, startDate, durationLabel, annualFee, admissionFee, maxBatchSize, eligibility, highlights, isActive, featuredImageUrl } = body;
 
     const [row] = await db.update(courses).set({
       ...(title !== undefined && { title }),
@@ -27,6 +27,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       ...(eligibility !== undefined && { eligibility }),
       ...(highlights !== undefined && { highlights }),
       ...(isActive !== undefined && { isActive }),
+      ...(featuredImageUrl !== undefined && { featuredImageUrl }),
       updatedAt: new Date(),
     }).where(eq(courses.id, id)).returning();
 

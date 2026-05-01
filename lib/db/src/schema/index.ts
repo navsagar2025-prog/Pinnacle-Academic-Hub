@@ -43,6 +43,7 @@ export const courses = pgTable("courses", {
   maxBatchSize: integer("max_batch_size").default(35),
   eligibility: text("eligibility"),
   highlights: text("highlights").array(),
+  featuredImageUrl: text("featured_image_url"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -99,6 +100,7 @@ export const teachers = pgTable("teachers", {
   initials: text("initials"),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true),
+  photoUrl: text("photo_url"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
