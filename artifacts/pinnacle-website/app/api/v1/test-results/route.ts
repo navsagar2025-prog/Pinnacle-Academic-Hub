@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@workspace/db";
-import { studentTestResults, students, batches, users } from "@workspace/db/schema";
+import { studentTestResults, students, batches, users, teachers, schedules } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { logAudit } from "@/lib/server/audit";
@@ -12,7 +12,54 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const batchId = searchParams.get("batchId");
+  const clientBatchId = searchParams.get("batchId");
+
+  // Determine which batch IDs this caller may access
+  let allowedBatchIds: string[] | null = null; // null = admin (unrestricted)
+
+  if (user.role === "teacher") {
+    // Scope teacher reads to their own assigned batches via teachers → schedules
+    const [teacherRow] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(and(eq(teachers.userId, user.id), eq(teachers.isActive, true)))
+      .limit(1);
+
+    if (!teacherRow) {
+      return NextResponse.json({ error: "Teacher profile not found" }, { status: 403 });
+    }
+
+    const assignedSchedules = await db
+      .selectDistinct({ batchId: schedules.batchId })
+      .from(schedules)
+      .where(eq(schedules.teacherId, teacherRow.id));
+
+    allowedBatchIds = assignedSchedules
+      .map((s) => s.batchId)
+      .filter((id): id is string => id !== null);
+
+    if (allowedBatchIds.length === 0) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+
+    // If client supplied a batchId filter, verify it is within the allowed set
+    if (clientBatchId && !allowedBatchIds.includes(clientBatchId)) {
+      return NextResponse.json({ error: "Forbidden — not assigned to that batch" }, { status: 403 });
+    }
+  }
+
+  // Build WHERE condition
+  const effectiveBatchId = clientBatchId ?? null;
+  let whereCondition;
+  if (allowedBatchIds !== null) {
+    // Teacher: restrict to assigned batches; optionally further filtered by requested batch
+    whereCondition = effectiveBatchId
+      ? and(inArray(studentTestResults.batchId, allowedBatchIds), eq(studentTestResults.batchId, effectiveBatchId))
+      : inArray(studentTestResults.batchId, allowedBatchIds);
+  } else {
+    // Admin: unrestricted, optional client filter
+    whereCondition = effectiveBatchId ? eq(studentTestResults.batchId, effectiveBatchId) : undefined;
+  }
 
   const rows = await db
     .select({
@@ -34,7 +81,7 @@ export async function GET(req: NextRequest) {
     .leftJoin(students, eq(studentTestResults.studentId, students.id))
     .leftJoin(users, eq(students.userId, users.id))
     .leftJoin(batches, eq(studentTestResults.batchId, batches.id))
-    .where(batchId ? eq(studentTestResults.batchId, batchId) : undefined)
+    .where(whereCondition)
     .orderBy(desc(studentTestResults.examDate), desc(studentTestResults.createdAt));
 
   return NextResponse.json({ success: true, data: rows });
