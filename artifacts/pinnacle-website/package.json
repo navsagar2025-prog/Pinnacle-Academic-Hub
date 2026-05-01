@@ -22,6 +22,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "recharts": "^3.8.1",
+    "resend": "^6.12.2",
     "tailwind-merge": "catalog:",
     "zod": "catalog:"
   },

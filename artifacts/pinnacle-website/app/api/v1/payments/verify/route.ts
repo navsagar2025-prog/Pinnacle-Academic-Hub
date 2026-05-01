@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
 import { verifyPaymentSignature } from "@/lib/server/razorpay";
 import { logAudit } from "@/lib/server/audit";
+import { sendPaymentConfirmation } from "@/lib/server/email";
 
 export async function POST(request: Request) {
   const actor = await getDbUser();
@@ -67,6 +68,19 @@ export async function POST(request: Request) {
     feeId,
     { orderId: razorpay_order_id, paymentId: razorpay_payment_id, amount: fee.amount },
   );
+
+  if (actor.email) {
+    void sendPaymentConfirmation({
+      to: actor.email,
+      name: actor.name,
+      period: fee.period,
+      amount: fee.amount,
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      paidDate: updated.paidDate ?? now,
+      receiptPath: `/portal/student/fees/receipt/${feeId}`,
+    });
+  }
 
   return ok({ feeId, status: "paid", paidDate: updated.paidDate, paymentId: razorpay_payment_id });
 }

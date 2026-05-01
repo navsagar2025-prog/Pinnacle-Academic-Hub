@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { enquiries } from "@workspace/db/schema";
 import { desc, sql } from "drizzle-orm";
 import { paginatedOk, created, err } from "@/lib/server/api-response";
+import { sendEnquiryAcknowledgement, sendAdminEnquiryAlert } from "@/lib/server/email";
 
 export async function GET(request: Request) {
   const dbUser = await getDbUser();
@@ -27,13 +28,20 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, phone, email, courseInterest, message } = body;
+    const { name, phone, email, courseInterest, message, source } = body;
     if (!name || !phone) return err("name and phone are required", 400);
 
     const [row] = await db
       .insert(enquiries)
-      .values({ name, phone, email, courseInterest, message, source: "website" })
+      .values({ name, phone, email, courseInterest, message, source: source ?? "website" })
       .returning();
+
+    void Promise.allSettled([
+      email
+        ? sendEnquiryAcknowledgement({ to: email, name, courseInterest })
+        : Promise.resolve(),
+      sendAdminEnquiryAlert({ name, phone, email, courseInterest, message }),
+    ]);
 
     return created(row);
   } catch (e) {
