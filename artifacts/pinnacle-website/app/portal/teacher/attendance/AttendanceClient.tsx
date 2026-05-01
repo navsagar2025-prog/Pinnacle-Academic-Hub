@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, AlertCircle, Save, Users, Clock,
-  History, ChevronDown, ChevronUp, Filter, Loader2,
+  History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X,
 } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
@@ -71,6 +71,13 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  // --- Edit session state ---
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editStatuses, setEditStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSaved, setEditSaved] = useState(false);
 
   const currentBatch = batches.find((b) => b.id === batchId);
   const students = studentsByBatch[batchId] ?? [];
@@ -160,6 +167,89 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
     }
   }, [tab, fetchHistory]);
 
+  // --- Edit helpers ---
+  function startEdit(session: Session) {
+    const statuses: Record<string, AttendanceStatus> = {};
+    for (const r of session.records) {
+      statuses[r.studentId] = r.status as AttendanceStatus;
+    }
+    setEditStatuses(statuses);
+    setEditingKey(sessionKey(session));
+    setEditError("");
+    setEditSaved(false);
+  }
+
+  function cancelEdit() {
+    setEditingKey(null);
+    setEditStatuses({});
+    setEditError("");
+    setEditSaved(false);
+  }
+
+  function setEditStatus(studentId: string, status: AttendanceStatus) {
+    setEditStatuses((prev) => ({ ...prev, [studentId]: status }));
+  }
+
+  function markAllEdit(session: Session, status: AttendanceStatus) {
+    const updated: Record<string, AttendanceStatus> = {};
+    for (const r of session.records) updated[r.studentId] = status;
+    setEditStatuses(updated);
+  }
+
+  async function handleEditSave(session: Session) {
+    setEditLoading(true);
+    setEditError("");
+    setEditSaved(false);
+
+    const records = session.records.map((r) => ({
+      studentId: r.studentId,
+      status: editStatuses[r.studentId] ?? (r.status as AttendanceStatus),
+    }));
+
+    try {
+      const res = await fetch(`${BASE}/api/v1/attendance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchId: session.batchId,
+          date: session.date,
+          subject: session.subject,
+          records,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditSaved(true);
+        // Update session in local state so UI reflects changes immediately
+        setSessions((prev) =>
+          prev.map((s) =>
+            sessionKey(s) === editingKey
+              ? {
+                  ...s,
+                  records: s.records.map((r) => ({
+                    ...r,
+                    status: editStatuses[r.studentId] ?? r.status,
+                  })),
+                }
+              : s
+          )
+        );
+        // Exit edit mode after a brief success flash
+        setTimeout(() => {
+          setEditingKey(null);
+          setEditStatuses({});
+          setEditSaved(false);
+        }, 1200);
+      } else {
+        setEditError(data.error ?? "Failed to save changes.");
+      }
+    } catch {
+      setEditError("Network error. Please try again.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
   const presentCount = students.filter((s) => (attendance[s.id] ?? "present") === "present").length;
   const absentCount = students.filter((s) => attendance[s.id] === "absent").length;
   const lateCount = students.filter((s) => attendance[s.id] === "late").length;
@@ -177,6 +267,57 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
     if (status === "present") return "text-green-700 bg-green-50";
     if (status === "absent") return "text-[var(--color-maroon)] bg-red-50";
     return "text-amber-700 bg-amber-50";
+  }
+
+  function StatusToggle({
+    studentId,
+    currentStatus,
+    onChange,
+  }: {
+    studentId: string;
+    currentStatus: AttendanceStatus;
+    onChange: (id: string, s: AttendanceStatus) => void;
+  }) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(studentId, "present")}
+          title="Present"
+          className={`p-1.5 rounded-lg transition-colors ${
+            currentStatus === "present"
+              ? "bg-green-500 text-white"
+              : "bg-slate-100 text-slate-400 hover:bg-green-100 hover:text-green-600"
+          }`}
+        >
+          <CheckCircle size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(studentId, "late")}
+          title="Late"
+          className={`p-1.5 rounded-lg transition-colors ${
+            currentStatus === "late"
+              ? "bg-amber-500 text-white"
+              : "bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600"
+          }`}
+        >
+          <Clock size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(studentId, "absent")}
+          title="Absent"
+          className={`p-1.5 rounded-lg transition-colors ${
+            currentStatus === "absent"
+              ? "bg-[var(--color-maroon)] text-white"
+              : "bg-slate-100 text-slate-400 hover:bg-red-100 hover:text-[var(--color-maroon)]"
+          }`}
+        >
+          <XCircle size={15} />
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -459,15 +600,27 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
               {sessions.map((session) => {
                 const key = sessionKey(session);
                 const isExpanded = expandedKey === key;
+                const isEditing = editingKey === key;
                 const total = session.records.length;
-                const present = session.records.filter((r) => r.status === "present").length;
-                const absent = session.records.filter((r) => r.status === "absent").length;
-                const late = session.records.filter((r) => r.status === "late").length;
+                const present = session.records.filter((r) =>
+                  isEditing ? editStatuses[r.studentId] === "present" : r.status === "present"
+                ).length;
+                const absent = session.records.filter((r) =>
+                  isEditing ? editStatuses[r.studentId] === "absent" : r.status === "absent"
+                ).length;
+                const late = session.records.filter((r) =>
+                  isEditing ? editStatuses[r.studentId] === "late" : r.status === "late"
+                ).length;
 
                 return (
-                  <div key={key} className="card p-0 overflow-hidden">
+                  <div key={key} className={`card p-0 overflow-hidden ${isEditing ? "ring-2 ring-[var(--color-teal)]/40" : ""}`}>
+                    {/* Session header — always visible */}
                     <button
-                      onClick={() => setExpandedKey(isExpanded ? null : key)}
+                      onClick={() => {
+                        if (isEditing) return; // don't collapse while editing
+                        setExpandedKey(isExpanded ? null : key);
+                        if (!isExpanded) cancelEdit();
+                      }}
                       className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
@@ -479,6 +632,11 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                             {session.subject}
                           </span>
                           <span className="text-xs text-slate-400">{session.batchName}</span>
+                          {isEditing && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--color-teal)]/10 text-[var(--color-teal)]">
+                              Editing
+                            </span>
+                          )}
                         </div>
                         <div className="flex gap-3 text-xs">
                           <span className="text-green-600 font-medium">{present} present</span>
@@ -488,40 +646,129 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                         </div>
                       </div>
                       <div className="text-slate-400 flex-shrink-0">
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {(isExpanded || isEditing) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </div>
                     </button>
 
-                    {isExpanded && (
+                    {/* Expanded student list */}
+                    {(isExpanded || isEditing) && (
                       <div className="border-t border-slate-100">
+                        {/* Edit / cancel bar */}
+                        {!isEditing ? (
+                          <div className="flex items-center justify-between px-5 py-2.5 bg-slate-50/60 border-b border-slate-100">
+                            <span className="text-xs text-slate-400">
+                              {total} student{total !== 1 ? "s" : ""}
+                            </span>
+                            <button
+                              onClick={() => startEdit(session)}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-teal)] hover:text-[var(--color-navy)] transition-colors"
+                            >
+                              <Pencil size={12} />
+                              Edit Session
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-[var(--color-teal)]/5 border-b border-[var(--color-teal)]/20">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => markAllEdit(session, "present")}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium transition-colors"
+                              >All Present</button>
+                              <button
+                                type="button"
+                                onClick={() => markAllEdit(session, "absent")}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-red-50 text-[var(--color-maroon)] hover:bg-red-100 font-medium transition-colors"
+                              >All Absent</button>
+                            </div>
+                            <button
+                              onClick={cancelEdit}
+                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                            >
+                              <X size={12} />
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Student rows */}
                         <div className="divide-y divide-slate-50">
                           {session.records
                             .sort((a, b) => a.rollNumber.localeCompare(b.rollNumber, undefined, { numeric: true }))
-                            .map((r) => (
-                              <div key={r.studentId} className="flex items-center gap-3 px-5 py-2.5">
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                    r.status === "present"
-                                      ? "bg-green-100 text-green-700"
-                                      : r.status === "absent"
-                                      ? "bg-red-100 text-[var(--color-maroon)]"
-                                      : "bg-amber-100 text-amber-700"
-                                  }`}
-                                >
-                                  {r.studentName.charAt(0).toUpperCase()}
+                            .map((r) => {
+                              const currentStatus = isEditing
+                                ? (editStatuses[r.studentId] ?? r.status as AttendanceStatus)
+                                : r.status;
+                              return (
+                                <div key={r.studentId} className="flex items-center gap-3 px-5 py-2.5">
+                                  <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                      currentStatus === "present"
+                                        ? "bg-green-100 text-green-700"
+                                        : currentStatus === "absent"
+                                        ? "bg-red-100 text-[var(--color-maroon)]"
+                                        : "bg-amber-100 text-amber-700"
+                                    }`}
+                                  >
+                                    {r.studentName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-medium text-[var(--color-navy)]">{r.studentName}</div>
+                                    <div className="text-xs text-slate-400">Roll #{r.rollNumber}</div>
+                                  </div>
+                                  {isEditing ? (
+                                    <StatusToggle
+                                      studentId={r.studentId}
+                                      currentStatus={editStatuses[r.studentId] ?? r.status as AttendanceStatus}
+                                      onChange={setEditStatus}
+                                    />
+                                  ) : (
+                                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(r.status)}`}>
+                                      {r.status}
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-medium text-[var(--color-navy)]">{r.studentName}</div>
-                                  <div className="text-xs text-slate-400">Roll #{r.rollNumber}</div>
-                                </div>
-                                <span
-                                  className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(r.status)}`}
-                                >
-                                  {r.status}
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
+
+                        {/* Save / feedback bar — only when editing */}
+                        {isEditing && (
+                          <div className="px-5 py-3.5 border-t border-slate-100 space-y-2.5">
+                            {editError && (
+                              <div className="flex items-center gap-2 text-[var(--color-maroon)] bg-red-50 rounded-lg px-3 py-2 text-xs">
+                                <AlertCircle size={13} /> {editError}
+                              </div>
+                            )}
+                            {editSaved && (
+                              <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-xs">
+                                <CheckCircle size={13} /> Changes saved successfully!
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={cancelEdit}
+                                className="flex-1 btn-outline py-2 text-sm"
+                                disabled={editLoading}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditSave(session)}
+                                disabled={editLoading || editSaved}
+                                className="flex-[2] btn-primary py-2 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                {editLoading ? (
+                                  <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                                ) : (
+                                  <><Save size={14} /> Save Changes</>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
