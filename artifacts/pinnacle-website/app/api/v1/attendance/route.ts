@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         name: users.name,
         rollNumber: students.rollNumber,
         batchId: students.batchId,
+        isActive: students.isActive,
       })
       .from(students)
       .leftJoin(users, eq(students.userId, users.id))
@@ -102,7 +103,7 @@ export async function GET(request: Request) {
       subject: string;
       batchId: string;
       batchName: string;
-      records: { studentId: string; studentName: string; rollNumber: string; status: string }[];
+      records: { studentId: string; studentName: string; rollNumber: string; status: string; isActive: boolean }[];
     }>();
 
     // Build a map from studentId -> batchId
@@ -135,6 +136,7 @@ export async function GET(request: Request) {
         studentName: student?.name ?? "Unknown",
         rollNumber: student?.rollNumber ?? "",
         status: r.status,
+        isActive: student?.isActive ?? false,
       });
     }
 

@@ -34,6 +34,7 @@ interface SessionRecord {
   studentName: string;
   rollNumber: string;
   status: string;
+  isActive: boolean;
 }
 
 interface Session {
@@ -672,18 +673,21 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                             <div className="flex gap-2">
                               <button
                                 type="button"
+                                disabled={editLoading}
                                 onClick={() => markAllEdit(session, "present")}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
                               >All Present</button>
                               <button
                                 type="button"
+                                disabled={editLoading}
                                 onClick={() => markAllEdit(session, "absent")}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-red-50 text-[var(--color-maroon)] hover:bg-red-100 font-medium transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-lg bg-red-50 text-[var(--color-maroon)] hover:bg-red-100 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
                               >All Absent</button>
                             </div>
                             <button
                               onClick={cancelEdit}
-                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                              disabled={editLoading}
+                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
                             >
                               <X size={12} />
                               Cancel
@@ -716,12 +720,19 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                                     <div className="text-sm font-medium text-[var(--color-navy)]">{r.studentName}</div>
                                     <div className="text-xs text-slate-400">Roll #{r.rollNumber}</div>
                                   </div>
-                                  {isEditing ? (
+                                  {isEditing && r.isActive ? (
                                     <StatusToggle
                                       studentId={r.studentId}
                                       currentStatus={editStatuses[r.studentId] ?? r.status as AttendanceStatus}
-                                      onChange={setEditStatus}
+                                      onChange={editLoading ? () => {} : setEditStatus}
                                     />
+                                  ) : isEditing && !r.isActive ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(r.status)}`}>
+                                        {r.status}
+                                      </span>
+                                      <span className="text-xs text-slate-400 italic">inactive</span>
+                                    </div>
                                   ) : (
                                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(r.status)}`}>
                                       {r.status}
