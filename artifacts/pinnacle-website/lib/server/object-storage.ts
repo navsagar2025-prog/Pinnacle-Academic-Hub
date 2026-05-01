@@ -174,9 +174,10 @@ export async function streamObject(objectPath: string): Promise<Response> {
   const { Readable } = await import("stream");
   const nodeStream = file.createReadStream();
   const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+  const isPublicPath = objectPath.startsWith("/objects/public/");
   const headers: Record<string, string> = {
     "Content-Type": (metadata.contentType as string) || "application/octet-stream",
-    "Cache-Control": "public, max-age=86400",
+    "Cache-Control": isPublicPath ? "public, max-age=86400" : "private, no-store",
   };
   if (metadata.size) headers["Content-Length"] = String(metadata.size);
   return new Response(webStream, { headers });
