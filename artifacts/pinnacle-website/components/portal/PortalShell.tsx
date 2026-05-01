@@ -3,21 +3,67 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-// Allowed Clerk client UI import — display component only, no auth logic.
-// When migrating away from Clerk, swap UserButton for your provider's equivalent.
 import { UserButton } from "@clerk/nextjs";
 import {
   Menu,
   GraduationCap,
   LogOut,
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  MessageSquare,
+  TrendingUp,
+  CreditCard,
+  FileBarChart,
+  Search,
+  Bot,
+  Video,
+  Trophy,
+  FileText,
+  Users2,
+  Settings,
+  ShieldCheck,
+  ClipboardList,
+  Calendar,
+  Bell,
+  Layers,
+  CheckSquare,
+  Radio,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const ICON_MAP: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  BookOpen,
+  MessageSquare,
+  TrendingUp,
+  CreditCard,
+  FileBarChart,
+  Search,
+  Bot,
+  Video,
+  Trophy,
+  FileText,
+  Users2,
+  Settings,
+  ShieldCheck,
+  ClipboardList,
+  Calendar,
+  Bell,
+  Layers,
+  CheckSquare,
+  Radio,
+  UserCheck,
+};
+
 export interface NavItem {
   label: string;
   href: string;
-  Icon: LucideIcon;
+  icon: string;
   divider?: boolean;
 }
 
@@ -88,9 +134,10 @@ export function PortalShell({
               );
             }
             const isActive = pathname === item.href || (item.href !== "/" && item.href !== "#" && pathname.startsWith(item.href) && item.href.split("/").length > 3);
+            const IconComponent = ICON_MAP[item.icon] ?? LayoutDashboard;
             return (
               <Link
-                key={item.href}
+                key={item.href + i}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
@@ -98,7 +145,7 @@ export function PortalShell({
                   isActive && "portal-nav-link-active"
                 )}
               >
-                <item.Icon size={17} />
+                <IconComponent size={17} />
                 {item.label}
               </Link>
             );

@@ -1,19 +1,18 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
-import { LayoutDashboard, Calendar, BookOpen, Bell, Video, Bot, ClipboardList, Layers, CheckSquare, TrendingUp } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/portal/teacher", Icon: LayoutDashboard },
-  { label: "My Batches", href: "/portal/teacher/batches", Icon: Layers },
-  { label: "Schedule", href: "/portal/teacher/schedule", Icon: Calendar },
-  { label: "Attendance", href: "/portal/teacher/attendance", Icon: CheckSquare },
-  { label: "Assignments", href: "/portal/teacher/assignments", Icon: ClipboardList },
-  { label: "Performance", href: "/portal/teacher/performance", Icon: TrendingUp },
-  { label: "Materials", href: "/portal/teacher/materials", Icon: BookOpen },
-  { label: "Notices", href: "/portal/teacher/notices", Icon: Bell },
-  { label: "Live Classes", href: "/portal/teacher/live", Icon: Video },
-  { label: "Tools", href: "#", Icon: Bot, divider: true },
-  { label: "AI Assistant", href: "/portal/teacher/ai", Icon: Bot },
+  { label: "Dashboard", href: "/portal/teacher", icon: "LayoutDashboard" },
+  { label: "My Batches", href: "/portal/teacher/batches", icon: "Layers" },
+  { label: "Schedule", href: "/portal/teacher/schedule", icon: "Calendar" },
+  { label: "Attendance", href: "/portal/teacher/attendance", icon: "CheckSquare" },
+  { label: "Assignments", href: "/portal/teacher/assignments", icon: "ClipboardList" },
+  { label: "Performance", href: "/portal/teacher/performance", icon: "TrendingUp" },
+  { label: "Materials", href: "/portal/teacher/materials", icon: "BookOpen" },
+  { label: "Notices", href: "/portal/teacher/notices", icon: "Bell" },
+  { label: "Live Classes", href: "/portal/teacher/live", icon: "Video" },
+  { label: "Tools", href: "#", icon: "Bot", divider: true },
+  { label: "AI Assistant", href: "/portal/teacher/ai", icon: "Bot" },
 ];
 
 export default async function TeacherPortalLayout({ children }: { children: React.ReactNode }) {

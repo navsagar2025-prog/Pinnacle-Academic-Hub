@@ -3,8 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, AlertCircle, Save, Users, Clock,
-  History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X,
+  History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X, BarChart2,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer,
+} from "recharts";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -575,6 +579,66 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
               </button>
             </div>
           </div>
+
+          {/* Summary Chart */}
+          {!historyLoading && !historyError && sessions.length > 0 && (() => {
+            // Aggregate present / absent / late counts by date
+            const dateMap = new Map<string, { date: string; present: number; absent: number; late: number }>();
+            for (const session of sessions) {
+              if (!dateMap.has(session.date)) {
+                dateMap.set(session.date, { date: session.date, present: 0, absent: 0, late: 0 });
+              }
+              const entry = dateMap.get(session.date)!;
+              for (const r of session.records) {
+                if (r.status === "present") entry.present += 1;
+                else if (r.status === "absent") entry.absent += 1;
+                else if (r.status === "late") entry.late += 1;
+              }
+            }
+            const chartData = Array.from(dateMap.values())
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((d) => ({
+                ...d,
+                label: new Date(d.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+              }));
+
+            return (
+              <div className="card">
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart2 size={15} className="text-[var(--color-navy)]" />
+                  <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
+                    Attendance Summary
+                  </h2>
+                  <span className="text-xs text-slate-400 ml-auto">per session date</span>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }} barSize={18}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0" }}
+                      cursor={{ fill: "#f1f5f9" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="present" name="Present" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="late" name="Late" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="absent" name="Absent" stackId="a" fill="#b91c1c" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {/* Results */}
           {historyLoading ? (

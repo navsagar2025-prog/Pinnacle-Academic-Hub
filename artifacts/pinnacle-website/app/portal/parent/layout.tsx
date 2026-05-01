@@ -1,14 +1,13 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
-import { LayoutDashboard, CreditCard, Calendar, Bell, UserCheck, TrendingUp } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/portal/parent", Icon: LayoutDashboard },
-  { label: "Attendance", href: "/portal/parent/attendance", Icon: UserCheck },
-  { label: "Performance", href: "/portal/parent/performance", Icon: TrendingUp },
-  { label: "Fee Status", href: "/portal/parent/fees", Icon: CreditCard },
-  { label: "Timetable", href: "/portal/parent/timetable", Icon: Calendar },
-  { label: "Notices", href: "/portal/parent/notices", Icon: Bell },
+  { label: "Dashboard", href: "/portal/parent", icon: "LayoutDashboard" },
+  { label: "Attendance", href: "/portal/parent/attendance", icon: "UserCheck" },
+  { label: "Performance", href: "/portal/parent/performance", icon: "TrendingUp" },
+  { label: "Fee Status", href: "/portal/parent/fees", icon: "CreditCard" },
+  { label: "Timetable", href: "/portal/parent/timetable", icon: "Calendar" },
+  { label: "Notices", href: "/portal/parent/notices", icon: "Bell" },
 ];
 
 export default async function ParentPortalLayout({ children }: { children: React.ReactNode }) {
