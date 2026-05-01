@@ -19,25 +19,39 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
+    label: "Attendance",
+    sub: "Subject-wise attendance tracker",
+    icon: "check-square",
+    route: "/(student)/attendance",
+    color: "#0D7377",
+  },
+  {
+    label: "Test Results",
+    sub: "Performance chart & scores",
+    icon: "bar-chart-2",
+    route: "/(student)/results",
+    color: "#0A1F5C",
+  },
+  {
     label: "Recorded Classes",
     sub: "Watch missed or past lectures",
     icon: "play-circle",
     route: "/(student)/recordings",
-    color: "#0D7377",
+    color: "#8B1A1A",
   },
   {
     label: "Practice Papers",
     sub: "Mock tests and past papers with scores",
     icon: "edit-3",
     route: "/(student)/papers",
-    color: "#8B1A1A",
+    color: "#C9A84C",
   },
   {
     label: "Fee Status",
     sub: "Payment history and next due date",
     icon: "credit-card",
     route: "/(student)/fees",
-    color: "#C9A84C",
+    color: "#6B7280",
   },
 ];
 

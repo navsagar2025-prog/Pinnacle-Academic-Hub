@@ -15,9 +15,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="progress">
+        <Icon sf={{ default: "chart.line.uptrend.xyaxis", selected: "chart.line.uptrend.xyaxis.circle.fill" }} />
+        <Label>Progress</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="fees">
         <Icon sf={{ default: "indianrupeesign.circle", selected: "indianrupeesign.circle.fill" }} />
         <Label>Fees</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notices">
+        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
+        <Label>Notices</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="timetable">
         <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
@@ -50,9 +58,15 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={100}
+              tint={isDark ? "dark" : "light"}
+              style={StyleSheet.absoluteFill}
+            />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
+            />
           ) : null,
       }}
     >
@@ -61,7 +75,23 @@ function ClassicTabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={24} /> : <Feather name="home" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="house" tintColor={color} size={24} />
+            ) : (
+              <Feather name="home" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: "Progress",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="chart.line.uptrend.xyaxis" tintColor={color} size={24} />
+            ) : (
+              <Feather name="trending-up" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -69,7 +99,23 @@ function ClassicTabLayout() {
         options={{
           title: "Fees",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="indianrupeesign.circle" tintColor={color} size={24} /> : <Feather name="credit-card" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="indianrupeesign.circle" tintColor={color} size={24} />
+            ) : (
+              <Feather name="credit-card" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="notices"
+        options={{
+          title: "Notices",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="bell" tintColor={color} size={24} />
+            ) : (
+              <Feather name="bell" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -77,7 +123,11 @@ function ClassicTabLayout() {
         options={{
           title: "Schedule",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="calendar" tintColor={color} size={24} /> : <Feather name="calendar" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="calendar" tintColor={color} size={24} />
+            ) : (
+              <Feather name="calendar" size={22} color={color} />
+            ),
         }}
       />
     </Tabs>

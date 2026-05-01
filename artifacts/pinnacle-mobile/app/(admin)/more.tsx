@@ -23,16 +23,41 @@ const results = [
   { exam: "Class 12 Board — Mock Test 1", topScore: "485/500", average: "412", passRate: "92%" },
 ];
 
-const enquiries = [
-  { name: "Ananya Singh", course: "JEE 2026", phone: "98765-XXXXX", date: "Today", status: "New" },
-  { name: "Rohan Gupta", course: "NEET 2026", phone: "87654-XXXXX", date: "Today", status: "New" },
-  { name: "Priya Sharma", course: "Class 12 PCM", phone: "76543-XXXXX", date: "Yesterday", status: "Contacted" },
-  { name: "Vaibhav Jain", course: "Foundation", phone: "65432-XXXXX", date: "Yesterday", status: "Enrolled" },
+type QuickLink = { label: string; sub: string; icon: FeatherName; route: string; color: string };
+
+const quickLinks: QuickLink[] = [
+  {
+    label: "Gallery",
+    sub: "Manage photo gallery & media",
+    icon: "image",
+    route: "/(admin)/gallery",
+    color: "#0D7377",
+  },
+  {
+    label: "Batch Management",
+    sub: "View and manage all batches",
+    icon: "users",
+    route: "/(admin)/batches",
+    color: "#0A1F5C",
+  },
+  {
+    label: "Notices",
+    sub: "Post notices for all roles",
+    icon: "bell",
+    route: "/(admin)/notices",
+    color: "#C9A84C",
+  },
+  {
+    label: "Scan Document",
+    sub: "OCR scan a question paper",
+    icon: "camera",
+    route: "/(admin)/scan",
+    color: "#8B1A1A",
+  },
 ];
 
 const settingsItems: { label: string; icon: FeatherName }[] = [
   { label: "Institute Profile", icon: "settings" },
-  { label: "Batch Management", icon: "grid" },
   { label: "OCR Engine Settings", icon: "cpu" },
   { label: "Portal Access Control", icon: "lock" },
   { label: "Backup & Export Data", icon: "archive" },
@@ -47,7 +72,7 @@ async function sendTestNotification() {
   if (status !== "granted") {
     const { status: newStatus } = await Notifications.requestPermissionsAsync();
     if (newStatus !== "granted") {
-      Alert.alert("Permission Required", "Enable notifications in device Settings to test this feature.", [{ text: "OK" }]);
+      Alert.alert("Permission Required", "Enable notifications in device Settings.", [{ text: "OK" }]);
       return;
     }
   }
@@ -68,14 +93,41 @@ export default function AdminMore() {
   const router = useRouter();
   const demo = () => Alert.alert("Demo Mode", "This action is disabled in demo.", [{ text: "OK" }]);
 
-  const statusColor = (s: string) => {
-    if (s === "New") return colors.secondary;
-    if (s === "Enrolled") return colors.success;
-    return colors.mutedForeground;
-  };
-
   return (
     <ScreenContainer>
+      <View style={{ marginTop: 8 }}>
+        <SectionHeader title="Quick Links" />
+        {quickLinks.map((item) => (
+          <TouchableOpacity
+            key={item.route}
+            onPress={() => router.push(item.route as never)}
+            activeOpacity={0.7}
+            style={[
+              styles.navCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.navIcon,
+                { backgroundColor: item.color + "15", borderRadius: colors.radius - 4 },
+              ]}
+            >
+              <Feather name={item.icon} size={22} color={item.color} />
+            </View>
+            <View style={styles.navText}>
+              <Text style={[styles.navLabel, { color: colors.foreground }]}>{item.label}</Text>
+              <Text style={[styles.navSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <View style={{ marginTop: 16 }}>
         <SectionHeader title="Teachers" />
         {teachers.map((t, i) => (
@@ -100,198 +152,117 @@ export default function AdminMore() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.teacherName, { color: colors.foreground }]}>{t.name}</Text>
-              <Text style={[styles.teacherMeta, { color: colors.mutedForeground }]}>
-                {t.subject}
-              </Text>
-              <Text style={[styles.teacherBatches, { color: colors.mutedForeground }]}>
-                {t.batches}
-              </Text>
+              <Text style={[styles.teacherMeta, { color: colors.mutedForeground }]}>{t.subject}</Text>
+              <Text style={[styles.teacherBatches, { color: colors.mutedForeground }]}>{t.batches}</Text>
             </View>
           </View>
         ))}
+      </View>
 
-        <View style={{ marginTop: 16 }}>
-          <SectionHeader title="Exam Results" />
-          {results.map((r, i) => (
-            <View
-              key={i}
-              style={[
-                styles.resultCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                },
-              ]}
-            >
-              <Text style={[styles.examName, { color: colors.foreground }]}>{r.exam}</Text>
-              <View style={styles.resultRow}>
-                {[
-                  { label: "Top Score", value: r.topScore },
-                  { label: "Average", value: r.average },
-                  { label: "Pass Rate", value: r.passRate },
-                ].map((s, j) => (
-                  <View key={j} style={styles.resultStat}>
-                    <Text style={[styles.resultValue, { color: colors.primary }]}>{s.value}</Text>
-                    <Text style={[styles.resultLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={{ marginTop: 16 }}>
-          <SectionHeader title="Enquiries" />
-          {enquiries.map((e, i) => (
-            <View
-              key={i}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.avatar,
-                  { backgroundColor: colors.primary + "18", borderRadius: 22 },
-                ]}
-              >
-                <Text style={[styles.avatarText, { color: colors.primary }]}>{e.name[0]}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.teacherName, { color: colors.foreground }]}>{e.name}</Text>
-                <Text style={[styles.teacherMeta, { color: colors.mutedForeground }]}>
-                  {e.course} · {e.date}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: statusColor(e.status) + "18", borderRadius: 4 },
-                ]}
-              >
-                <Text style={[styles.badgeText, { color: statusColor(e.status) }]}>{e.status}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={{ marginTop: 16 }}>
-          <SectionHeader title="Batch Management" />
-          <TouchableOpacity
-            onPress={() => router.push("/(admin)/batches")}
-            activeOpacity={0.7}
+      <View style={{ marginTop: 16 }}>
+        <SectionHeader title="Exam Results" />
+        {results.map((r, i) => (
+          <View
+            key={i}
             style={[
-              styles.settingRow,
+              styles.resultCard,
               {
-                backgroundColor: colors.secondary + "10",
-                borderColor: colors.secondary + "40",
+                backgroundColor: colors.card,
+                borderColor: colors.border,
                 borderRadius: colors.radius,
               },
             ]}
           >
-            <View style={[styles.settingIcon, { backgroundColor: colors.secondary + "18", borderRadius: 8 }]}>
-              <Feather name="users" size={18} color={colors.secondary} />
+            <Text style={[styles.examName, { color: colors.foreground }]}>{r.exam}</Text>
+            <View style={styles.resultRow}>
+              {[
+                { label: "Top Score", value: r.topScore },
+                { label: "Average", value: r.average },
+                { label: "Pass Rate", value: r.passRate },
+              ].map((s, j) => (
+                <View key={j} style={styles.resultStat}>
+                  <Text style={[styles.resultValue, { color: colors.primary }]}>{s.value}</Text>
+                  <Text style={[styles.resultLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+                </View>
+              ))}
             </View>
-            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Manage Batches</Text>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
+          </View>
+        ))}
+      </View>
 
-        <View style={{ marginTop: 4 }}>
-          <SectionHeader title="Scan Document" />
-          <TouchableOpacity
-            onPress={() => router.push("/(admin)/scan")}
-            activeOpacity={0.7}
-            style={[
-              styles.settingRow,
-              {
-                backgroundColor: colors.maroon + "12",
-                borderColor: colors.maroon + "40",
-                borderRadius: colors.radius,
-              },
-            ]}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: colors.maroon + "20", borderRadius: 8 }]}>
-              <Feather name="camera" size={18} color={colors.maroon} />
-            </View>
-            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Open Scanner</Text>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ marginTop: 4 }}>
-          <SectionHeader title="Settings" />
-          <TouchableOpacity
-            onPress={sendTestNotification}
-            activeOpacity={0.7}
-            style={[
-              styles.settingRow,
-              {
-                backgroundColor: colors.primary + "10",
-                borderColor: colors.primary + "30",
-                borderRadius: colors.radius,
-                marginBottom: 8,
-              },
-            ]}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: colors.primary + "18", borderRadius: 8 }]}>
-              <Feather name="bell" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.settingLabel, { color: colors.foreground }]}>Test Push Notification</Text>
-            <Feather name="send" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          {settingsItems.map((s, i) => (
-            <TouchableOpacity
-              key={i}
-              disabled
-              onPress={demo}
-              activeOpacity={0.7}
-              style={[
-                styles.settingRow,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                  opacity: 0.6,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.settingIcon,
-                  { backgroundColor: colors.muted, borderRadius: 8 },
-                ]}
-              >
-                <Feather name={s.icon} size={18} color={colors.foreground} />
-              </View>
-              <Text style={[styles.settingLabel, { color: colors.foreground }]}>{s.label}</Text>
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
+      <View style={{ marginTop: 16 }}>
+        <SectionHeader title="Settings" />
         <TouchableOpacity
-          onPress={() => setRole(null)}
+          onPress={sendTestNotification}
+          activeOpacity={0.7}
           style={[
-            styles.signOut,
-            { backgroundColor: colors.muted, borderRadius: colors.radius, marginTop: 16 },
+            styles.settingRow,
+            {
+              backgroundColor: colors.primary + "10",
+              borderColor: colors.primary + "30",
+              borderRadius: colors.radius,
+              marginBottom: 8,
+            },
           ]}
         >
-          <Feather name="log-out" size={16} color={colors.mutedForeground} />
-          <Text style={[styles.signOutText, { color: colors.mutedForeground }]}>Switch Role</Text>
+          <View style={[styles.settingIcon, { backgroundColor: colors.primary + "18", borderRadius: 8 }]}>
+            <Feather name="bell" size={18} color={colors.primary} />
+          </View>
+          <Text style={[styles.settingLabel, { color: colors.foreground }]}>Test Push Notification</Text>
+          <Feather name="send" size={14} color={colors.primary} />
         </TouchableOpacity>
+        {settingsItems.map((s, i) => (
+          <TouchableOpacity
+            key={i}
+            disabled
+            onPress={demo}
+            activeOpacity={0.7}
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                opacity: 0.6,
+              },
+            ]}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.muted, borderRadius: 8 }]}>
+              <Feather name={s.icon} size={18} color={colors.foreground} />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.foreground }]}>{s.label}</Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ))}
       </View>
+
+      <TouchableOpacity
+        onPress={() => setRole(null)}
+        style={[
+          styles.signOut,
+          { backgroundColor: colors.muted, borderRadius: colors.radius, marginTop: 16 },
+        ]}
+      >
+        <Feather name="log-out" size={16} color={colors.mutedForeground} />
+        <Text style={[styles.signOutText, { color: colors.mutedForeground }]}>Switch Role</Text>
+      </TouchableOpacity>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  navCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  navIcon: { width: 48, height: 48, justifyContent: "center", alignItems: "center" },
+  navText: { flex: 1, gap: 3 },
+  navLabel: { fontSize: 15, fontWeight: "700" },
+  navSub: { fontSize: 12 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -300,63 +271,17 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  teacherName: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  teacherMeta: {
-    fontSize: 12,
-    marginTop: 1,
-  },
-  teacherBatches: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  resultCard: {
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 8,
-    gap: 10,
-  },
-  examName: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  resultRow: {
-    flexDirection: "row",
-    gap: 0,
-  },
-  resultStat: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2,
-  },
-  resultValue: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  resultLabel: {
-    fontSize: 10,
-    fontWeight: "500",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
+  avatar: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+  avatarText: { fontSize: 18, fontWeight: "700" },
+  teacherName: { fontSize: 13, fontWeight: "700" },
+  teacherMeta: { fontSize: 12, marginTop: 1 },
+  teacherBatches: { fontSize: 11, marginTop: 2 },
+  resultCard: { borderWidth: 1, padding: 14, marginBottom: 8, gap: 10 },
+  examName: { fontSize: 13, fontWeight: "700" },
+  resultRow: { flexDirection: "row" },
+  resultStat: { flex: 1, alignItems: "center", gap: 2 },
+  resultValue: { fontSize: 15, fontWeight: "700" },
+  resultLabel: { fontSize: 10, fontWeight: "500" },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -365,17 +290,8 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  settingIcon: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  settingLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-  },
+  settingIcon: { width: 36, height: 36, justifyContent: "center", alignItems: "center" },
+  settingLabel: { flex: 1, fontSize: 14, fontWeight: "500" },
   signOut: {
     flexDirection: "row",
     alignItems: "center",
@@ -384,8 +300,5 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
   },
-  signOutText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  signOutText: { fontSize: 14, fontWeight: "600" },
 });

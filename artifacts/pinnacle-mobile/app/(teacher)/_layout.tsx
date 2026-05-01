@@ -19,17 +19,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
         <Label>Schedule</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="batches">
-        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
-        <Label>Batches</Label>
+      <NativeTabs.Trigger name="attendance">
+        <Icon sf={{ default: "checklist", selected: "checklist.checked" }} />
+        <Label>Attendance</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="assignments">
+        <Icon sf={{ default: "doc.badge.plus", selected: "doc.badge.plus" }} />
+        <Label>Assignments</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="materials">
-        <Icon sf={{ default: "doc.badge.plus", selected: "doc.badge.plus" }} />
+        <Icon sf={{ default: "book.closed", selected: "book.closed.fill" }} />
         <Label>Materials</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="scan">
-        <Icon sf={{ default: "doc.viewfinder", selected: "doc.viewfinder.fill" }} />
-        <Label>Scan</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="notices">
         <Icon sf={{ default: "bell", selected: "bell.fill" }} />
@@ -62,9 +62,15 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={100}
+              tint={isDark ? "dark" : "light"}
+              style={StyleSheet.absoluteFill}
+            />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
+            />
           ) : null,
       }}
     >
@@ -73,7 +79,11 @@ function ClassicTabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={24} /> : <Feather name="home" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="house" tintColor={color} size={24} />
+            ) : (
+              <Feather name="home" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -81,15 +91,35 @@ function ClassicTabLayout() {
         options={{
           title: "Schedule",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="calendar" tintColor={color} size={24} /> : <Feather name="calendar" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="calendar" tintColor={color} size={24} />
+            ) : (
+              <Feather name="calendar" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
-        name="batches"
+        name="attendance"
         options={{
-          title: "Batches",
+          title: "Attendance",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="person.3" tintColor={color} size={24} /> : <Feather name="users" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="checklist" tintColor={color} size={24} />
+            ) : (
+              <Feather name="check-square" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: "Assignments",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="doc.badge.plus" tintColor={color} size={24} />
+            ) : (
+              <Feather name="file-plus" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -97,15 +127,11 @@ function ClassicTabLayout() {
         options={{
           title: "Materials",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="doc.badge.plus" tintColor={color} size={24} /> : <Feather name="upload" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: "Scan",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="doc.viewfinder" tintColor={color} size={24} /> : <Feather name="camera" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="book.closed" tintColor={color} size={24} />
+            ) : (
+              <Feather name="upload" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -113,9 +139,15 @@ function ClassicTabLayout() {
         options={{
           title: "Notices",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="bell" tintColor={color} size={24} /> : <Feather name="bell" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="bell" tintColor={color} size={24} />
+            ) : (
+              <Feather name="bell" size={22} color={color} />
+            ),
         }}
       />
+      <Tabs.Screen name="scan" options={{ href: null }} />
+      <Tabs.Screen name="batches" options={{ href: null }} />
     </Tabs>
   );
 }

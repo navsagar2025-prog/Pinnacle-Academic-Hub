@@ -19,13 +19,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "graduationcap", selected: "graduationcap.fill" }} />
         <Label>Students</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="enquiries">
+        <Icon sf={{ default: "person.crop.circle.badge.questionmark", selected: "person.crop.circle.badge.questionmark.fill" }} />
+        <Label>Enquiries</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="finance">
         <Icon sf={{ default: "indianrupeesign.circle", selected: "indianrupeesign.circle.fill" }} />
         <Label>Finance</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notices">
-        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
-        <Label>Notices</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="more">
         <Icon sf={{ default: "ellipsis", selected: "ellipsis.circle.fill" }} />
@@ -58,9 +58,15 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={100}
+              tint={isDark ? "dark" : "light"}
+              style={StyleSheet.absoluteFill}
+            />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
+            />
           ) : null,
       }}
     >
@@ -69,7 +75,11 @@ function ClassicTabLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="chart.bar" tintColor={color} size={24} /> : <Feather name="bar-chart-2" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="chart.bar" tintColor={color} size={24} />
+            ) : (
+              <Feather name="bar-chart-2" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -77,7 +87,23 @@ function ClassicTabLayout() {
         options={{
           title: "Students",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="graduationcap" tintColor={color} size={24} /> : <Feather name="book-open" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="graduationcap" tintColor={color} size={24} />
+            ) : (
+              <Feather name="book-open" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="enquiries"
+        options={{
+          title: "Enquiries",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.crop.circle.badge.questionmark" tintColor={color} size={24} />
+            ) : (
+              <Feather name="user-plus" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -85,15 +111,11 @@ function ClassicTabLayout() {
         options={{
           title: "Finance",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="indianrupeesign.circle" tintColor={color} size={24} /> : <Feather name="credit-card" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notices"
-        options={{
-          title: "Notices",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="bell" tintColor={color} size={24} /> : <Feather name="bell" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="indianrupeesign.circle" tintColor={color} size={24} />
+            ) : (
+              <Feather name="credit-card" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
@@ -101,11 +123,17 @@ function ClassicTabLayout() {
         options={{
           title: "More",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="ellipsis" tintColor={color} size={24} /> : <Feather name="more-horizontal" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="ellipsis" tintColor={color} size={24} />
+            ) : (
+              <Feather name="more-horizontal" size={22} color={color} />
+            ),
         }}
       />
+      <Tabs.Screen name="notices" options={{ href: null }} />
       <Tabs.Screen name="scan" options={{ href: null }} />
       <Tabs.Screen name="batches" options={{ href: null }} />
+      <Tabs.Screen name="gallery" options={{ href: null }} />
     </Tabs>
   );
 }

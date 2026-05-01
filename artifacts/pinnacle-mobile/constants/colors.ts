@@ -38,6 +38,47 @@ const colors = {
     warning: "#D97706",
     warningForeground: "#FFFFFF",
   },
+
+  dark: {
+    text: "#E8EDF8",
+    tint: "#14A8AE",
+
+    background: "#0D1117",
+    foreground: "#E8EDF8",
+
+    card: "#161B27",
+    cardForeground: "#E8EDF8",
+
+    primary: "#3A5FC0",
+    primaryForeground: "#FFFFFF",
+
+    secondary: "#14A8AE",
+    secondaryForeground: "#FFFFFF",
+
+    muted: "#1E2433",
+    mutedForeground: "#9BA3B0",
+
+    accent: "#D4A93C",
+    accentForeground: "#FFFFFF",
+
+    destructive: "#C0302E",
+    destructiveForeground: "#FFFFFF",
+
+    maroon: "#D64040",
+    gold: "#D4A93C",
+    navy: "#3A5FC0",
+    teal: "#14A8AE",
+
+    border: "#2A3144",
+    input: "#2A3144",
+
+    success: "#22C55E",
+    successForeground: "#FFFFFF",
+
+    warning: "#F59E0B",
+    warningForeground: "#FFFFFF",
+  },
+
   radius: 12,
 };
 
