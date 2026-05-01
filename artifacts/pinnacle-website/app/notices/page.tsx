@@ -9,11 +9,11 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Notices & Announcements | Pinnacle Academic Classes",
-  description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Greater Noida.",
+  description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Gaur City 2, Sec. 16C, Greater Noida — 201009.",
   openGraph: {
     title: "Notices & Announcements | Pinnacle Academic Classes",
-    description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Greater Noida.",
-    url: "https://pinnacleacademic.in/notices",
+    description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Gaur City 2, Sec. 16C, Greater Noida — 201009.",
+    url: "https://paconline.in/notices",
     siteName: "Pinnacle Academic Classes",
     type: "website",
   },

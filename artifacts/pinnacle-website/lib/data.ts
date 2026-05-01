@@ -276,7 +276,7 @@ export const FAQ = [
   },
   {
     q: "How do I enrol my child?",
-    a: "Visit us at our centre in Knowledge Park II, Greater Noida, or fill the online enquiry form. A counsellor will contact you within 24 hours to guide you through batch selection and the admission process.",
+    a: "Visit us at Shop Mart, Gaur City 2, Sec. 16C, Greater Noida (PIN 201009), or fill the online enquiry form. A counsellor will contact you within 24 hours to guide you through batch selection and the admission process.",
   },
   {
     q: "Is there a demo class available?",

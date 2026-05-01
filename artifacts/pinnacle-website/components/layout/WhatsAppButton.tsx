@@ -1,16 +1,16 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
+import { CONTACT } from "@/lib/contact";
 
 export default function WhatsAppButton() {
-  const phone = "919876543210";
   const message = encodeURIComponent(
     "Hello! I'm interested in joining Pinnacle Academic Classes. Could you please share details about courses, fees, and batches?"
   );
 
   return (
     <a
-      href={`https://wa.me/${phone}?text=${message}`}
+      href={`${CONTACT.whatsappHref}?text=${message}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"

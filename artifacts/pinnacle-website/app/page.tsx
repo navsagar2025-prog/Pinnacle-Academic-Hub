@@ -19,6 +19,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { COURSES, FACULTY, TOPPERS, TESTIMONIALS, STATS, NOTICES, FAQ } from "@/lib/data";
+import { CONTACT } from "@/lib/contact";
 
 export const metadata = {
   title: "Pinnacle Academic Classes — JEE & NEET Coaching, Greater Noida",
@@ -161,7 +162,7 @@ function HeroSection() {
       {/* Mobile sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-white border-t border-slate-200 px-4 py-3 flex gap-3">
         <a
-          href="tel:+919876543210"
+          href={CONTACT.telHref}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-[var(--color-navy)] text-white text-sm font-semibold"
         >
           <Phone size={15} />
@@ -175,7 +176,7 @@ function HeroSection() {
           Book Demo
         </a>
         <a
-          href="https://wa.me/919876543210"
+          href={CONTACT.whatsappHref}
           className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-[#25D366] text-white text-sm font-semibold"
         >
           <MessageCircle size={15} />
@@ -190,7 +191,7 @@ function QuickActions() {
     { icon: <BookOpen size={20} />, label: "Book Demo Class", href: "/admissions", color: "navy" },
     { icon: <FileText size={20} />, label: "Download Brochure", href: "/admissions#brochure", color: "teal" },
     { icon: <Video size={20} />, label: "Student Portal", href: "/portal/student", color: "maroon" },
-    { icon: <Phone size={20} />, label: "Talk to Counsellor", href: "tel:+919876543210", color: "gold" },
+    { icon: <Phone size={20} />, label: "Talk to Counsellor", href: CONTACT.telHref, color: "gold" },
   ];
 
   return (
@@ -670,18 +671,18 @@ function CTABanner() {
             Book Free Demo Class
           </Link>
           <a
-            href="tel:+919876543210"
+            href={CONTACT.telHref}
             className="inline-flex items-center justify-center gap-2 px-10 py-4 rounded-lg border-2 border-white/40 text-white font-semibold text-base hover:bg-white hover:text-[var(--color-navy)] transition-all"
           >
             <Phone size={18} />
-            Call +91 98765 43210
+            Call {CONTACT.phone}
           </a>
         </div>
         <div className="flex items-center justify-center gap-4 mt-8 flex-wrap">
           {[
-            "Plot No. 45, Knowledge Park II, Greater Noida",
-            "Mon–Sat: 9 AM – 8 PM",
-            "info@pinnacleacademic.in",
+            CONTACT.addressShort,
+            CONTACT.hours,
+            CONTACT.email,
           ].map((info) => (
             <div key={info} className="flex items-center gap-2 text-white/60 text-sm">
               <MapPin size={12} className="text-[var(--color-gold)]" />

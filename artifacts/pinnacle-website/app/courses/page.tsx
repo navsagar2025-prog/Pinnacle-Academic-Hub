@@ -4,6 +4,7 @@ import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { db } from "@workspace/db";
 import { courses, batches } from "@workspace/db/schema";
 import { eq, asc } from "drizzle-orm";
+import { CONTACT } from "@/lib/contact";
 import { CheckCircle, Clock, Users, BookOpen, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Courses — JEE, NEET, Class 10-12 | Pinnacle Academic Classes",
     description: "Explore Pinnacle's courses: JEE Main & Advanced, NEET UG, Class 11-12 Board, Class 9-10, and Foundation. Expert faculty, proven results.",
-    url: "https://pinnacleacademic.in/courses",
+    url: "https://paconline.in/courses",
     siteName: "Pinnacle Academic Classes",
     type: "website",
   },
@@ -142,7 +143,7 @@ export default async function CoursesPage() {
             <p className="text-white/70 mb-6">Our counsellors will help you find the perfect programme based on your goals, syllabus, and schedule.</p>
             <div className="flex gap-4 justify-center flex-wrap">
               <Link href="/admissions" className="btn-gold px-8 py-3">Book Free Counselling</Link>
-              <a href="tel:+919876543210" className="inline-flex items-center gap-2 px-8 py-3 rounded-lg border-2 border-white/40 text-white font-semibold hover:bg-white hover:text-[var(--color-navy)] transition-all">Call Now</a>
+              <a href={CONTACT.telHref} className="inline-flex items-center gap-2 px-8 py-3 rounded-lg border-2 border-white/40 text-white font-semibold hover:bg-white hover:text-[var(--color-navy)] transition-all">Call Now</a>
             </div>
           </div>
         </section>

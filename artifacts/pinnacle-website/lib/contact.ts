@@ -1,0 +1,15 @@
+export const CONTACT = {
+  businessName: "PINNACLE ACADEMIC CLASSES",
+  legalName: "KCK CORPORATE SERVICES Pvt. Ltd.",
+  address: "Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C, Gaur City 2, ArcCity, Greater Noida, Uttar Pradesh — 201009",
+  addressShort: "Gaur City 2, Sec. 16C, Greater Noida, UP — 201009",
+  phone: "+91 99718 62138",
+  phonePlain: "919971862138",
+  telHref: "tel:+919971862138",
+  whatsappHref: "https://wa.me/919971862138",
+  email: "care@paconline.in",
+  emailHref: "mailto:care@paconline.in",
+  mapsHref: "https://maps.google.com/?q=JC8G%2BC4+Gaur+City+2+Ghaziabad+Uttar+Pradesh",
+  mapsEmbed: "https://maps.google.com/maps?q=JC8G%2BC4+Gaur+City+2+Ghaziabad+Uttar+Pradesh&output=embed",
+  hours: "Mon–Sat: 9:00 AM – 8:00 PM",
+};

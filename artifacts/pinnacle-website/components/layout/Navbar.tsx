@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Menu, X, BookOpen, Phone, ChevronDown, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CONTACT } from "@/lib/contact";
 
 const NAV_LINKS = [
   { label: "Home", href: "/" },
@@ -50,9 +51,9 @@ export default function Navbar() {
       <div className="bg-[var(--color-navy)] text-white text-xs">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between py-1.5">
           <div className="flex items-center gap-4">
-            <a href="tel:+919876543210" className="flex items-center gap-1 hover:text-[var(--color-gold)] transition-colors">
+            <a href={CONTACT.telHref} className="flex items-center gap-1 hover:text-[var(--color-gold)] transition-colors">
               <Phone size={12} />
-              <span>+91 98765 43210</span>
+              <span>{CONTACT.phone}</span>
             </a>
             <span className="hidden md:inline text-white/40">·</span>
             <span className="hidden md:inline">Unit of KCK Corporate Services Pvt. Ltd.</span>

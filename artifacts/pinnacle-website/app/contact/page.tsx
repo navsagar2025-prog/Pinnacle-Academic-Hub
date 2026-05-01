@@ -34,7 +34,7 @@ export default async function ContactPage() {
               Contact Us
             </h1>
             <p className="text-white/70 text-lg mt-4">
-              Have questions? We're here to help. Call, email, or visit our campus.
+              Have questions? We&apos;re here to help. Call, email, or visit our campus.
             </p>
           </div>
         </section>

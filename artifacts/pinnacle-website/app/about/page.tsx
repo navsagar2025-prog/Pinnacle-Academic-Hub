@@ -2,6 +2,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { FACULTY, STATS } from "@/lib/data";
+import { CONTACT } from "@/lib/contact";
 import { CheckCircle, Award, Users, MapPin, Phone, Mail } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About Us — Pinnacle Academic Classes",
     description: "Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.",
-    url: "https://pinnacleacademic.in/about",
+    url: "https://paconline.in/about",
     siteName: "Pinnacle Academic Classes",
     type: "website",
   },
@@ -76,7 +77,7 @@ export default function AboutPage() {
                 {[
                   { year: "2012", event: "Founded in Greater Noida with 2 batches and 12 students." },
                   { year: "2015", event: "Expanded to 5 course programmes. First IIT selection." },
-                  { year: "2018", event: "500+ students trained. Moved to current Knowledge Park campus." },
+                  { year: "2018", event: "500+ students trained. Moved to current Gaur City 2 campus." },
                   { year: "2021", event: "Launched digital student portal. Online classes during COVID." },
                   { year: "2024", event: "85+ IIT/AIIMS selections. 2,000+ students trained." },
                 ].map((m) => (
@@ -145,21 +146,21 @@ export default function AboutPage() {
                   <MapPin size={18} className="text-[var(--color-teal)] flex-shrink-0 mt-1" />
                   <div>
                     <div className="font-semibold text-[var(--color-navy)] mb-1">Address</div>
-                    <p className="text-slate-600 text-sm">Plot No. 45, Knowledge Park II, Greater Noida, Uttar Pradesh — 201306</p>
+                    <p className="text-slate-600 text-sm">{CONTACT.address}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <Phone size={18} className="text-[var(--color-teal)] flex-shrink-0 mt-1" />
                   <div>
                     <div className="font-semibold text-[var(--color-navy)] mb-1">Phone</div>
-                    <a href="tel:+919876543210" className="text-slate-600 text-sm hover:text-[var(--color-teal)] transition-colors">+91 98765 43210</a>
+                    <a href={CONTACT.telHref} className="text-slate-600 text-sm hover:text-[var(--color-teal)] transition-colors">{CONTACT.phone}</a>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <Mail size={18} className="text-[var(--color-teal)] flex-shrink-0 mt-1" />
                   <div>
                     <div className="font-semibold text-[var(--color-navy)] mb-1">Email</div>
-                    <a href="mailto:info@pinnacleacademic.in" className="text-slate-600 text-sm hover:text-[var(--color-teal)] transition-colors">info@pinnacleacademic.in</a>
+                    <a href={CONTACT.emailHref} className="text-slate-600 text-sm hover:text-[var(--color-teal)] transition-colors">{CONTACT.email}</a>
                   </div>
                 </div>
               </div>

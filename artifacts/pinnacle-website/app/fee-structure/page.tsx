@@ -6,6 +6,7 @@ import { courses } from "@workspace/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { CheckCircle, Phone, Mail } from "lucide-react";
 import Link from "next/link";
+import { CONTACT } from "@/lib/contact";
 
 export const metadata = {
   title: "Fee Structure 2026–27 — Pinnacle Academic Classes",
@@ -157,8 +158,8 @@ export default async function FeeStructurePage() {
           <div className="max-w-2xl mx-auto px-4">
             <h2 className="font-[family-name:var(--font-playfair)] text-white text-2xl font-bold mb-4">Questions about Fees?</h2>
             <div className="flex items-center justify-center gap-6 text-white/80 mb-6 flex-wrap">
-              <span className="flex items-center gap-2"><Phone size={15} /> +91 9999 000 111</span>
-              <span className="flex items-center gap-2"><Mail size={15} /> accounts@pinnacleacademic.in</span>
+              <a href={CONTACT.telHref} className="flex items-center gap-2 hover:text-white transition-colors"><Phone size={15} /> {CONTACT.phone}</a>
+              <a href={CONTACT.emailHref} className="flex items-center gap-2 hover:text-white transition-colors"><Mail size={15} /> {CONTACT.email}</a>
             </div>
             <Link href="/admissions" className="btn-primary py-3 px-8">Start Admission Process</Link>
           </div>

@@ -182,7 +182,7 @@ export default async function FeesPage() {
 
       <div className="card bg-[var(--color-slate-light)] border-slate-200">
         <p className="text-xs text-slate-500 text-center">
-          For receipt queries, contact accounts: <strong>accounts@pinnacleacademic.in</strong> · +91 9999 000 111
+          For receipts or queries, contact accounts: <strong>care@paconline.in</strong> · +91 99718 62138
         </p>
       </div>
     </div>

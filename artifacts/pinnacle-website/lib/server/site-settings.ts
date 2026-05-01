@@ -27,12 +27,12 @@ export type ContactSettings = {
 };
 
 const DEFAULTS: ContactSettings = {
-  contact_phone: "+91 98765 43210",
-  contact_email: "info@pinnacleacademic.in",
-  whatsapp_number: "+919876543210",
-  address_line1: "Plot No. 45, Knowledge Park II, Greater Noida",
-  address_city: "Uttar Pradesh — 201306",
-  maps_url: "https://maps.google.com/?q=Greater+Noida+UP",
+  contact_phone: "+91 99718 62138",
+  contact_email: "care@paconline.in",
+  whatsapp_number: "+919971862138",
+  address_line1: "Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C, Gaur City 2, ArcCity, Greater Noida",
+  address_city: "Uttar Pradesh — 201009",
+  maps_url: "https://maps.google.com/?q=JC8G%2BC4+Gaur+City+2+Ghaziabad+Uttar+Pradesh",
   facebook_url: "https://facebook.com",
   youtube_url: "https://youtube.com",
   instagram_url: "https://instagram.com",

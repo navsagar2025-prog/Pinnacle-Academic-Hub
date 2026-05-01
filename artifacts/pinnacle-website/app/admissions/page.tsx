@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { COURSES } from "@/lib/data";
+import { CONTACT } from "@/lib/contact";
 import { CheckCircle, Send, Phone, Mail, Download, AlertCircle } from "lucide-react";
 
 const ADMISSION_STEPS = [
@@ -139,8 +140,8 @@ export default function AdmissionsPage() {
                 <div className="card">
                   <h3 className="font-bold text-[var(--color-navy)] mb-3">Contact Admissions Office</h3>
                   <div className="space-y-3 text-sm text-slate-600">
-                    <div className="flex items-center gap-2"><Phone size={14} className="text-[var(--color-teal)]" /> +91 9999 000 111</div>
-                    <div className="flex items-center gap-2"><Mail size={14} className="text-[var(--color-teal)]" /> admissions@pinnacleacademic.in</div>
+                    <div className="flex items-center gap-2"><Phone size={14} className="text-[var(--color-teal)]" /><a href={CONTACT.telHref} className="hover:text-[var(--color-teal)] transition-colors">{CONTACT.phone}</a></div>
+                    <div className="flex items-center gap-2"><Mail size={14} className="text-[var(--color-teal)]" /><a href={CONTACT.emailHref} className="hover:text-[var(--color-teal)] transition-colors">{CONTACT.email}</a></div>
                   </div>
                 </div>
                 <div className="card">
