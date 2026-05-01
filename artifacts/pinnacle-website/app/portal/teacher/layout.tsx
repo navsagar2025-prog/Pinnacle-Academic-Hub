@@ -1,12 +1,15 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
-import { LayoutDashboard, Calendar, BookOpen, Bell, Video, Bot, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Calendar, BookOpen, Bell, Video, Bot, ClipboardList, Layers, CheckSquare, TrendingUp } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/portal/teacher", Icon: LayoutDashboard },
+  { label: "My Batches", href: "/portal/teacher/batches", Icon: Layers },
   { label: "Schedule", href: "/portal/teacher/schedule", Icon: Calendar },
-  { label: "Materials", href: "/portal/teacher/materials", Icon: BookOpen },
+  { label: "Attendance", href: "/portal/teacher/attendance", Icon: CheckSquare },
   { label: "Assignments", href: "/portal/teacher/assignments", Icon: ClipboardList },
+  { label: "Performance", href: "/portal/teacher/performance", Icon: TrendingUp },
+  { label: "Materials", href: "/portal/teacher/materials", Icon: BookOpen },
   { label: "Notices", href: "/portal/teacher/notices", Icon: Bell },
   { label: "Live Classes", href: "/portal/teacher/live", Icon: Video },
   { label: "Tools", href: "#", Icon: Bot, divider: true },
