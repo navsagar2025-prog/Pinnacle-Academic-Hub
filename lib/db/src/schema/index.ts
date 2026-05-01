@@ -261,6 +261,47 @@ export const results = pgTable("results", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const assignments = pgTable("assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").references(() => batches.id, { onDelete: "cascade" }),
+  postedBy: uuid("posted_by").references(() => users.id),
+  title: text("title").notNull(),
+  subject: text("subject").notNull(),
+  description: text("description"),
+  fileUrl: text("file_url"),
+  dueDate: timestamp("due_date").notNull(),
+  maxMarks: integer("max_marks"),
+  isVisible: boolean("is_visible").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const attendanceStatusEnum = pgEnum("attendance_status", ["present", "absent", "late"]);
+
+export const attendance = pgTable("attendance", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
+  date: timestamp("date").notNull(),
+  subject: text("subject").notNull(),
+  status: attendanceStatusEnum("status").notNull().default("present"),
+  note: text("note"),
+  markedBy: uuid("marked_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const studentTestResults = pgTable("student_test_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
+  batchId: uuid("batch_id").references(() => batches.id),
+  examName: text("exam_name").notNull(),
+  subject: text("subject").notNull(),
+  totalMarks: integer("total_marks").notNull(),
+  marksObtained: integer("marks_obtained").notNull(),
+  rank: text("rank"),
+  examDate: timestamp("exam_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const siteSettings = pgTable("site_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   key: text("key").unique().notNull(),
