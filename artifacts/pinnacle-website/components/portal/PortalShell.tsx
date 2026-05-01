@@ -30,6 +30,8 @@ import {
   CheckSquare,
   Radio,
   UserCheck,
+  Images,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   CheckSquare,
   Radio,
   UserCheck,
+  Images,
+  ScrollText,
 };
 
 export interface NavItem {

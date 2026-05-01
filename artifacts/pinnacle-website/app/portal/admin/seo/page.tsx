@@ -3,6 +3,9 @@ import { CheckCircle, AlertTriangle, XCircle, ExternalLink, Globe, FileText, Sea
 import Link from "next/link";
 import type { SeoStatus } from "@/lib/seo/page-registry";
 import { apiUrl } from "@/lib/utils";
+import { db } from "@workspace/db";
+import { seoOverrides } from "@workspace/db/schema";
+import { SeoOverridesTable } from "./SeoOverridesEditor";
 
 export const metadata = { title: "SEO Health Dashboard — Admin" };
 
@@ -66,8 +69,11 @@ function DescLengthCell({ desc }: { desc: string }) {
   );
 }
 
-export default function SeoAuditPage() {
-  const auditResults = runAudit();
+export default async function SeoAuditPage() {
+  const [auditResults, overrideRows] = await Promise.all([
+    Promise.resolve(runAudit()),
+    db.select().from(seoOverrides),
+  ]);
 
   const passCount = auditResults.filter((r) => r.status === "pass").length;
   const warnCount = auditResults.filter((r) => r.status === "warn").length;
@@ -296,6 +302,10 @@ export default function SeoAuditPage() {
         </div>
       )}
 
+      <div className="card">
+        <SeoOverridesTable rows={overrideRows} />
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card">
           <h2 className="font-semibold text-[var(--color-navy)] mb-3 font-[family-name:var(--font-playfair)] text-sm">
@@ -331,7 +341,7 @@ export default function SeoAuditPage() {
           <ul className="space-y-2">
             {[
               "Add og:image for all pages (1200×630px recommended)",
-              "Add JSON-LD structured data (LocalBusiness / Course schema)",
+              "JSON-LD structured data added: LocalBusiness + Course schemas ✓",
               "Add <link rel=\"canonical\"> tags to all pages (prevents duplicate-content penalties)",
               "Submit sitemap to Google Search Console",
               "Add hreflang tags when multilingual support is added",

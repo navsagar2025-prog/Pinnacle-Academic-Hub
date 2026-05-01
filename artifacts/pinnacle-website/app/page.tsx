@@ -27,15 +27,63 @@ export const metadata = {
   openGraph: {
     title: "Pinnacle Academic Classes — JEE & NEET Coaching, Greater Noida",
     description: "Greater Noida's premier coaching institute for JEE Main, JEE Advanced, and NEET UG. Expert faculty, 2,000+ students, proven results since 2012.",
-    url: "https://pinnacleacademic.in/",
+    url: "https://paconline.in/",
     siteName: "Pinnacle Academic Classes",
     type: "website",
   },
 };
 
+const LOCAL_BUSINESS_JSONLD = {
+  "@context": "https://schema.org",
+  "@type": "EducationalOrganization",
+  "name": "Pinnacle Academic Classes",
+  "alternateName": "Pinnacle Academic Classes — KCK Corporate Services Pvt. Ltd.",
+  "url": "https://paconline.in",
+  "logo": "https://paconline.in/pinnacle-website/logo.png",
+  "description": "Greater Noida's premier coaching institute for JEE Main, JEE Advanced, and NEET UG. Expert faculty, 2,000+ students, proven results since 2012.",
+  "telephone": "+919971862138",
+  "email": "care@paconline.in",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C, Gaur City 2, ArcCity",
+    "addressLocality": "Greater Noida",
+    "addressRegion": "Uttar Pradesh",
+    "postalCode": "201009",
+    "addressCountry": "IN"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 28.6139,
+    "longitude": 77.3910
+  },
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+      "opens": "09:00",
+      "closes": "20:00"
+    }
+  ],
+  "sameAs": [],
+  "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "name": "Coaching Programmes",
+    "itemListElement": [
+      { "@type": "Offer", "itemOffered": { "@type": "Course", "name": "JEE Main & Advanced" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Course", "name": "NEET UG" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Course", "name": "Class 11-12 Boards" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Course", "name": "Foundation (Class 9-10)" } }
+    ]
+  }
+};
+
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(LOCAL_BUSINESS_JSONLD) }}
+      />
       <Navbar />
       <main>
         <HeroSection />

@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { enquiries } from "@workspace/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
-import { MessageSquare, CheckCircle, Clock, Phone, Mail } from "lucide-react";
+import { MessageSquare, CheckCircle, Clock, Phone, Mail, Download } from "lucide-react";
+import { apiUrl } from "@/lib/utils";
 
 export const metadata = { title: "Enquiries — Admin Panel" };
 
@@ -19,6 +20,13 @@ export default async function AdminEnquiriesPage() {
           <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Enquiries</h1>
           <p className="text-slate-500 text-sm mt-1">{total} total · {pending} pending follow-up</p>
         </div>
+        <a
+          href={apiUrl("/api/v1/enquiries/export")}
+          download
+          className="inline-flex items-center gap-2 btn-secondary py-2.5 px-4 text-sm"
+        >
+          <Download size={14} /> Export CSV
+        </a>
       </div>
 
       <div className="grid grid-cols-3 gap-4">

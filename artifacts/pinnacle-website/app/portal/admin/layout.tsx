@@ -15,14 +15,16 @@ const NAV_ITEMS = [
   { label: "Results & Toppers", href: "/portal/admin/results", icon: "Trophy" },
   { label: "Test Scores", href: "/portal/admin/test-scores", icon: "ClipboardList" },
   { label: "Blog CMS", href: "/portal/admin/blog", icon: "FileText" },
+  { label: "Gallery", href: "/portal/admin/gallery", icon: "Images" },
   { label: "Analytics", href: "#", icon: "FileBarChart", divider: true },
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", icon: "TrendingUp" },
   { label: "Fee Collection", href: "/portal/admin/analytics/fees", icon: "CreditCard" },
   { label: "Content Engagement", href: "/portal/admin/analytics/content", icon: "BookOpen" },
   { label: "Tools", href: "#", icon: "Bot", divider: true },
   { label: "AI Assistant", href: "/portal/admin/ai", icon: "Bot" },
+  { label: "User Management", href: "/portal/admin/users", icon: "ShieldCheck" },
   { label: "SEO Health", href: "/portal/admin/seo", icon: "Search" },
-  { label: "Audit Logs", href: "/portal/admin/audit-logs", icon: "ShieldCheck" },
+  { label: "Audit Logs", href: "/portal/admin/audit-logs", icon: "ScrollText" },
   { label: "Settings", href: "/portal/admin/settings", icon: "Settings" },
 ];
 

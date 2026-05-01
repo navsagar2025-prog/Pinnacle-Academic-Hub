@@ -50,8 +50,37 @@ export default async function CoursesPage() {
     batchesByCourse[b.courseId].push(b.timingLabel ?? "Flexible");
   }
 
+  const coursesJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "Courses at Pinnacle Academic Classes",
+    "description": "JEE, NEET, and board coaching programmes at Pinnacle Academic Classes, Greater Noida.",
+    "url": "https://paconline.in/courses",
+    "itemListElement": allCourses.map((c, i) => ({
+      "@type": "ListItem",
+      "position": i + 1,
+      "item": {
+        "@type": "Course",
+        "name": c.title,
+        "description": c.description ?? `${c.title} coaching at Pinnacle Academic Classes, Greater Noida`,
+        "provider": {
+          "@type": "EducationalOrganization",
+          "name": "Pinnacle Academic Classes",
+          "url": "https://paconline.in"
+        },
+        "url": "https://paconline.in/courses",
+        "educationalLevel": c.category ?? "Secondary",
+        "inLanguage": "en-IN",
+      }
+    })),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(coursesJsonLd) }}
+      />
       <Navbar />
       <main>
         <section className="bg-[var(--color-navy)] py-16">

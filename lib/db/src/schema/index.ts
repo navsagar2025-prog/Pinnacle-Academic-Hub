@@ -304,6 +304,28 @@ export const studentTestResults = pgTable("student_test_results", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const galleryItems = pgTable("gallery_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  caption: text("caption"),
+  category: text("category").notNull().default("General"),
+  imageUrl: text("image_url").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isVisible: boolean("is_visible").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const seoOverrides = pgTable("seo_overrides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  route: text("route").unique().notNull(),
+  title: text("title"),
+  description: text("description"),
+  focusKeyword: text("focus_keyword"),
+  noIndex: boolean("no_index").default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const siteSettings = pgTable("site_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   key: text("key").unique().notNull(),
@@ -349,3 +371,6 @@ export type Result = typeof results.$inferSelect;
 export type InsertResult = typeof results.$inferInsert;
 export type SiteSetting = typeof siteSettings.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type GalleryItem = typeof galleryItems.$inferSelect;
+export type InsertGalleryItem = typeof galleryItems.$inferInsert;
+export type SeoOverride = typeof seoOverrides.$inferSelect;

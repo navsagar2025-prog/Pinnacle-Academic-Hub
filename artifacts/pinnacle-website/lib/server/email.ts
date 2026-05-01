@@ -192,6 +192,63 @@ function adminEnquiryHtml(p: { name: string; phone: string; email?: string; cour
   `);
 }
 
+export async function sendAdmissionStatusEmail(params: {
+  to: string;
+  name: string;
+  status: string;
+  courseName?: string | null;
+}): Promise<SendResult> {
+  const { to, name, status, courseName } = params;
+  const msgs: Record<string, { subject: string; headline: string; body: string }> = {
+    contacted: {
+      subject: "We'll be in touch soon — Pinnacle Academic Classes",
+      headline: "Our team will contact you shortly",
+      body: "Our admissions counsellor has noted your interest and will be reaching out within 24 hours to discuss next steps.",
+    },
+    interested: {
+      subject: "Your application is progressing — Pinnacle Academic Classes",
+      headline: "Application progressing!",
+      body: "We are pleased to inform you that your application is under active review. Our team will contact you to schedule a visit or free demo class.",
+    },
+    converted: {
+      subject: `Welcome to Pinnacle! — Admission Confirmed 🎉`,
+      headline: "Admission Confirmed!",
+      body: `Congratulations! Your admission to <strong>${escHtml(courseName ?? "Pinnacle Academic Classes")}</strong> is confirmed. Please visit the centre with your original documents to complete enrolment and meet your batch coordinator.`,
+    },
+    declined: {
+      subject: "Regarding your enquiry — Pinnacle Academic Classes",
+      headline: "Thank you for your interest",
+      body: "Thank you for considering Pinnacle Academic Classes. Unfortunately, we are unable to offer admission at this time. Please do not hesitate to contact us about future batches.",
+    },
+  };
+  const msg = msgs[status];
+  if (!msg) return { ok: true };
+  return send({
+    to,
+    subject: msg.subject,
+    html: emailLayout(`
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0A1F5C;">${msg.headline}</h1>
+      <p style="margin:0 0 16px;color:#475569;font-size:15px;">Dear ${escHtml(name)},</p>
+      <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">${msg.body}</p>
+      <p style="margin:0;font-size:14px;color:#94a3b8;">Questions? WhatsApp us at <a href="https://wa.me/919971862138" style="color:#0D7377;">+91 99718 62138</a> or email <a href="mailto:care@paconline.in" style="color:#0D7377;">care@paconline.in</a>.</p>
+    `),
+  });
+}
+
+export async function sendTestEmail(to: string): Promise<SendResult> {
+  return send({
+    to,
+    subject: "Test Email — Pinnacle Academic Classes",
+    html: emailLayout(`
+      <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0A1F5C;">Test Email ✓</h1>
+      <p style="color:#475569;font-size:15px;line-height:1.6;">
+        This is a test email sent from the Pinnacle Academic Classes admin panel to verify that email delivery is configured correctly.
+      </p>
+      <p style="font-size:13px;color:#94a3b8;">Sent: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>
+    `),
+  });
+}
+
 function paymentConfirmHtml(p: { name: string; period: string; amount: number; paymentId: string; orderId?: string; paidDate: Date; receiptPath: string }): string {
   const name = escHtml(p.name);
   const period = escHtml(p.period);

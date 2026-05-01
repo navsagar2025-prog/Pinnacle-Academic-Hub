@@ -81,7 +81,12 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - **AI Assistant** (`/portal/admin/ai`, `/portal/teacher/ai`): Multi-model AI workspace powered by Replit AI Integrations (OpenAI, Gemini, Anthropic, OpenRouter); 5 tools: Notice Writer, Enquiry Responder, Study Summariser, Batch Performance Insight, Fee Reminder Composer; SSE streaming; model selector persisted in localStorage; teachers see 3 tools (no enquiry responder or fee reminder)
 - **Object Storage**: GCS-backed file storage via Replit sidecar auth (`lib/server/object-storage.ts`); bucket provisioned; `POST /api/v1/upload` returns presigned PUT URL; uploaded files served via `GET /api/v1/storage/[...path]`; reusable `<FileUpload>` component at `components/upload/FileUpload.tsx`; supports PDFs (max 20 MB) and images (max 5 MB)
 - **File uploads integrated**: Teacher materials (PDF upload replaces URL field), Teacher assignments (new page at `/portal/teacher/assignments` with question paper PDF upload), Admin blog featured image upload, Admin course banner image upload, Admin faculty photo upload
-- **API routes** (`/api/v1/`): health (with `error:null` envelope), courses, notices, enquiries, materials (auth-protected), assignments (GET+POST), teachers (GET+POST+PUT via `[id]`), upload (presigned URL), storage serving, `POST /api/v1/ai/generate` (SSE streaming, auth-gated to admin+teacher)
+- **API routes** (`/api/v1/`): health, courses, notices, enquiries (+ `GET /enquiries/export` → CSV download, `PATCH /enquiries/[id]` → admission status + triggers Resend email), materials, assignments, teachers, upload, storage, `POST /api/v1/ai/generate` (SSE streaming), `GET /api/v1/gallery` + `POST` + `PUT/DELETE /gallery/[id]`, `GET+PUT+DELETE /api/v1/seo`, `GET+PUT /api/v1/users` + `PUT /users/[id]` (role change), `POST /api/v1/email/test`
+- **Transactional email** (`lib/server/email.ts`): Resend (`RESEND_API_KEY` secret) — `sendEnquiryAcknowledgement`, `sendAdminEnquiryAlert`, `sendPaymentConfirmation`, `sendAdmissionStatusEmail` (auto-fires on admission status PATCH), `sendTestEmail`; FROM: `noreply@paconline.in`; ADMIN_EMAIL env: `care@paconline.in`
+- **Gallery**: `galleryItems` DB table (title, caption, category, imageUrl, sortOrder, isVisible); admin CRUD at `/portal/admin/gallery`; public `/gallery` page reads from DB with category filter client component (`GalleryGrid.tsx`)
+- **SEO overrides**: `seoOverrides` DB table (route, title, description, focusKeyword, noIndex); admin editor embedded in `/portal/admin/seo` page via `SeoOverridesEditor.tsx` + `PUT /api/v1/seo`
+- **User management**: `/portal/admin/users` page lists all users with inline role-change dropdown; `ChangeRoleButton` + `RoleBadge` in `UserRoleModal.tsx`
+- **JSON-LD structured data**: `EducationalOrganization` + `LocalBusiness` schema on homepage; `ItemList`+`Course` schema on `/courses` page (dynamic, from DB)
 - **Navbar**: "Courses" dropdown (JEE, NEET, 11-12, 9-10, Fee Structure); "More" dropdown (Results, Achievements, Gallery, Blog, Notices, About)
 - **All portal pages** use `requirePortalRole()` which auto-provisions DB user on first Clerk sign-in
 - Seed command: `pnpm --filter @workspace/db run seed`
@@ -91,7 +96,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `artifacts/pinnacle-website/middleware.ts` — Clerk route protection for /portal/*
   - `artifacts/pinnacle-website/lib/data.ts` — All demo/static data (courses, faculty, toppers, testimonials)
   - `artifacts/pinnacle-website/next.config.ts` — basePath=/pinnacle-website, assetPrefix set
-  - `lib/db/src/schema/index.ts` — Full Drizzle schema (16 tables: users, courses [+featuredImageUrl], batches, students, parents, teachers [+photoUrl], studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries, assignments, attendance, studentTestResults)
+  - `lib/db/src/schema/index.ts` — Full Drizzle schema (18 tables: users, courses, batches, students, parents, teachers, studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries, assignments, attendance, studentTestResults, **galleryItems**, **seoOverrides**, siteSettings, auditLogs, blogPosts, results)
 
 ### 6. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
 - Expo React Native app (iOS + Android + Web) for Pinnacle Academic Classes

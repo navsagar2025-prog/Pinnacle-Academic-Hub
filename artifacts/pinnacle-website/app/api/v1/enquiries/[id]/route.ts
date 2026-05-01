@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { logAudit } from "@/lib/server/audit";
+import { sendAdmissionStatusEmail } from "@/lib/server/email";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getDbUser();
@@ -25,6 +26,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (!row) return err("Enquiry not found", 404);
     await logAudit(actor.id, actor.name, "enquiry.update", "enquiry", id, { admissionStatus });
+
+    if (admissionStatus && row.email) {
+      sendAdmissionStatusEmail({
+        to: row.email,
+        name: row.name,
+        status: admissionStatus,
+        courseName: row.courseInterest,
+      }).catch((e) => console.warn("[email] admission status email failed:", e));
+    }
+
     return ok(row);
   } catch (e) {
     console.error("PATCH /api/v1/enquiries/[id] error:", e);
