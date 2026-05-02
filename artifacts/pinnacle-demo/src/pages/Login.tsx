@@ -48,9 +48,7 @@ export default function Login() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="h-16 border-b border-border flex items-center px-6">
         <a href="/" className="font-serif text-2xl font-bold text-primary">PINNACLE</a>
-        <span className="ml-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground border border-border rounded-full px-3 py-1">
-          Demo Mode
-        </span>
+        <span className="ml-3 text-xs text-muted-foreground">Academic Classes</span>
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
@@ -59,7 +57,7 @@ export default function Login() {
             Welcome Back
           </h1>
           <p className="text-muted-foreground max-w-sm mx-auto">
-            Select your role to enter the demo portal. No password required in demo mode.
+            Select your role to access the portal.
           </p>
         </div>
 

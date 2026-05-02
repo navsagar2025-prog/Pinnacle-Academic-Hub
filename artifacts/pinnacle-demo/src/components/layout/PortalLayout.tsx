@@ -120,8 +120,8 @@ export function PortalLayout({ children, role, navItems, userName = "Demo User",
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1" />
-          <div className={`text-xs font-semibold uppercase tracking-widest text-white ${cfg.color} px-3 py-1 rounded-full`}>
-            Demo Mode
+          <div className="text-xs text-muted-foreground font-medium">
+            Pinnacle Academic Classes
           </div>
         </header>
         <main className="flex-1 p-4 md:p-8">{children}</main>
