@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, AlertCircle, Save, Users, Clock,
-  History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X, BarChart2,
+  History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X, BarChart2, Download,
   AlertTriangle,
 } from "lucide-react";
 import {
@@ -262,6 +262,39 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
 
   function sessionKey(s: Session) {
     return `${s.date}__${s.subject}__${s.batchId}`;
+  }
+
+  function handleExportCSV() {
+    const header = ["Date", "Subject", "Batch", "Student Name", "Roll No.", "Status"];
+    const rows: string[][] = [];
+    for (const session of sessions) {
+      const sorted = [...session.records].sort((a, b) =>
+        a.rollNumber.localeCompare(b.rollNumber, undefined, { numeric: true })
+      );
+      for (const r of sorted) {
+        rows.push([
+          session.date,
+          session.subject,
+          session.batchName,
+          r.studentName,
+          r.rollNumber,
+          r.status,
+        ]);
+      }
+    }
+    const csvContent = [header, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const fromLabel = historyFrom || "start";
+    const toLabel = historyTo || "end";
+    a.href = url;
+    a.download = `attendance_${fromLabel}_to_${toLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function formatDate(dateStr: string) {
@@ -835,9 +868,18 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-slate-400 px-1">
-                {sessions.length} session{sessions.length !== 1 ? "s" : ""} found
-              </p>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs text-slate-400">
+                  {sessions.length} session{sessions.length !== 1 ? "s" : ""} found
+                </p>
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--color-navy)]/8 text-[var(--color-navy)] hover:bg-[var(--color-navy)]/15 transition-colors"
+                >
+                  <Download size={13} />
+                  Download CSV
+                </button>
+              </div>
               {sessions.map((session) => {
                 const key = sessionKey(session);
                 const isExpanded = expandedKey === key;
