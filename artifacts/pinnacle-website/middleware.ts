@@ -34,11 +34,13 @@ const isProtectedRoute = createRouteMatcher([
   "/portal/admin(.*)",
 ]);
 
+const base = process.env.BASE_PATH?.replace(/\/$/, "") ?? "/pinnacle-website";
+
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
-});
+}, { signInUrl: `${base}/sign-in`, signUpUrl: `${base}/sign-up` });
 
 export const config = {
   matcher: [

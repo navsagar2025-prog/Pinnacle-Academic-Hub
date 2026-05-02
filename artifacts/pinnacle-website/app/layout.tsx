@@ -53,6 +53,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
 export default function RootLayout({
   children,
 }: {
@@ -60,8 +62,10 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider
-      afterSignInUrl="/portal"
-      afterSignUpUrl="/portal"
+      signInUrl={`${base}/sign-in`}
+      signUpUrl={`${base}/sign-up`}
+      signInFallbackRedirectUrl={`${base}/portal`}
+      signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
         <body className="font-[family-name:var(--font-jakarta)]">{children}</body>
