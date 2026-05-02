@@ -726,12 +726,6 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                         ? Math.round((s.late / s.total) * 100)
                         : 0;
                     const isAtRisk = presentPct < 75;
-                    const barColor =
-                      presentPct >= 85
-                        ? "#22c55e"
-                        : presentPct >= 75
-                        ? "#f59e0b"
-                        : "#b91c1c";
                     return (
                       <div
                         key={s.studentId}
@@ -801,22 +795,18 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                               {presentPct}%
                             </span>
                           </div>
-                          {absentPct > 0 && (
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-[10px] text-[var(--color-maroon)] font-medium">A</span>
-                              <span className="text-xs font-semibold text-[var(--color-maroon)]">
-                                {absentPct}%
-                              </span>
-                            </div>
-                          )}
-                          {latePct > 0 && (
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-[10px] text-amber-600 font-medium">L</span>
-                              <span className="text-xs font-semibold text-amber-600">
-                                {latePct}%
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] text-[var(--color-maroon)] font-medium">A</span>
+                            <span className="text-xs font-semibold text-[var(--color-maroon)]">
+                              {absentPct}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] text-amber-600 font-medium">L</span>
+                            <span className="text-xs font-semibold text-amber-600">
+                              {latePct}%
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
