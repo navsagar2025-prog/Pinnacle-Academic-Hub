@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, AlertCircle, Save, Users, Clock,
   History, ChevronDown, ChevronUp, Filter, Loader2, Pencil, X, BarChart2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -636,6 +637,171 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                     <Bar dataKey="absent" name="Absent" stackId="a" fill="#b91c1c" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
+          {/* Student Breakdown */}
+          {!historyLoading && !historyError && sessions.length > 0 && (() => {
+            // Aggregate per-student across all sessions in the filtered period
+            const studentAggMap = new Map<string, {
+              studentId: string;
+              studentName: string;
+              rollNumber: string;
+              total: number;
+              present: number;
+              absent: number;
+              late: number;
+            }>();
+
+            for (const session of sessions) {
+              for (const r of session.records) {
+                if (!studentAggMap.has(r.studentId)) {
+                  studentAggMap.set(r.studentId, {
+                    studentId: r.studentId,
+                    studentName: r.studentName,
+                    rollNumber: r.rollNumber,
+                    total: 0,
+                    present: 0,
+                    absent: 0,
+                    late: 0,
+                  });
+                }
+                const entry = studentAggMap.get(r.studentId)!;
+                entry.total += 1;
+                if (r.status === "present") entry.present += 1;
+                else if (r.status === "absent") entry.absent += 1;
+                else if (r.status === "late") entry.late += 1;
+              }
+            }
+
+            // Sort ascending by present % — lowest (most at-risk) first
+            const breakdown = Array.from(studentAggMap.values()).sort(
+              (a, b) =>
+                a.total === 0 ? 1 : b.total === 0 ? -1 :
+                a.present / a.total - b.present / b.total
+            );
+
+            const atRiskCount = breakdown.filter(
+              (s) => s.total > 0 && s.present / s.total < 0.75
+            ).length;
+
+            return (
+              <div className="card">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <Users size={15} className="text-[var(--color-navy)]" />
+                  <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
+                    Student Breakdown
+                  </h2>
+                  {atRiskCount > 0 && (
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-[var(--color-maroon)]">
+                      <AlertTriangle size={10} />
+                      {atRiskCount} below 75%
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-400 ml-auto">
+                    sorted: lowest first
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mb-4">
+                  Individual attendance across {sessions.length} session
+                  {sessions.length !== 1 ? "s" : ""} in the selected period
+                </p>
+
+                <div className="divide-y divide-slate-50">
+                  {breakdown.map((s) => {
+                    const pct =
+                      s.total > 0
+                        ? Math.round((s.present / s.total) * 100)
+                        : 0;
+                    const isAtRisk = pct < 75;
+                    const barColor =
+                      pct >= 85
+                        ? "#22c55e"
+                        : pct >= 75
+                        ? "#f59e0b"
+                        : "#b91c1c";
+                    return (
+                      <div
+                        key={s.studentId}
+                        className="py-3 flex items-center gap-3"
+                      >
+                        {/* Avatar */}
+                        <div
+                          className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                            isAtRisk
+                              ? "bg-red-100 text-[var(--color-maroon)]"
+                              : pct >= 85
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {s.studentName.charAt(0).toUpperCase()}
+                        </div>
+
+                        {/* Name + progress */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-sm font-semibold text-[var(--color-navy)] truncate">
+                              {s.studentName}
+                            </span>
+                            {isAtRisk && (
+                              <AlertTriangle
+                                size={12}
+                                className="text-[var(--color-maroon)] flex-shrink-0"
+                              />
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-400 mb-1.5">
+                            Roll #{s.rollNumber} ·{" "}
+                            <span className="text-green-600 font-medium">
+                              {s.present}P
+                            </span>{" "}
+                            /{" "}
+                            <span className="text-[var(--color-maroon)] font-medium">
+                              {s.absent}A
+                            </span>
+                            {s.late > 0 && (
+                              <>
+                                {" "}
+                                /{" "}
+                                <span className="text-amber-600 font-medium">
+                                  {s.late}L
+                                </span>
+                              </>
+                            )}{" "}
+                            of {s.total}
+                          </div>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: barColor,
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Percentage */}
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <span
+                            className={`text-sm font-bold ${
+                              pct >= 85
+                                ? "text-green-600"
+                                : pct >= 75
+                                ? "text-amber-600"
+                                : "text-[var(--color-maroon)]"
+                            }`}
+                          >
+                            {pct}%
+                          </span>
+                          <div className="text-xs text-slate-400">present</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
