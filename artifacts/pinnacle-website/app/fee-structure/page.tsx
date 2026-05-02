@@ -24,6 +24,7 @@ const PAYMENT_OPTIONS = [
   { label: "Full Payment", description: "Pay full annual fee upfront and receive a 3% early-bird discount.", tag: "Best Value" },
   { label: "2 Instalments", description: "50% at admission, 50% at the start of second term (November).", tag: "Popular" },
   { label: "4 Instalments", description: "Quarterly instalments — admission, June, September, December.", tag: "Flexible" },
+  { label: "Monthly Instalments", description: "Pay in 12 equal monthly instalments. Ideal for steady, manageable payments throughout the year.", tag: "Easy EMI" },
 ];
 
 const SCHOLARSHIPS = [
@@ -77,6 +78,10 @@ export default async function FeeStructurePage() {
                         ₹{c.annualFee.toLocaleString("en-IN")}
                       </span>
                     </div>
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-slate-400">Monthly (÷12)</span>
+                      <span className="font-semibold text-[var(--color-teal)]">₹{Math.ceil(c.annualFee / 12).toLocaleString("en-IN")}/mo</span>
+                    </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-400">Admission Fee (one-time)</span>
                       <span className="font-semibold text-slate-600">₹{(c.admissionFee ?? 2000).toLocaleString("en-IN")}</span>
@@ -114,7 +119,7 @@ export default async function FeeStructurePage() {
         <section className="py-14 bg-[var(--color-slate-light)]">
           <div className="max-w-5xl mx-auto px-4">
             <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] text-center mb-8">Instalment Options</h2>
-            <div className="grid md:grid-cols-3 gap-5">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
               {PAYMENT_OPTIONS.map((p) => (
                 <div key={p.label} className="card text-center hover:shadow-elevated transition-all">
                   <div className="badge bg-[var(--color-gold)]/20 text-[var(--color-navy)] font-semibold text-xs mb-3 inline-block">{p.tag}</div>

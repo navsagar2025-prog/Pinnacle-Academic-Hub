@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   try {
     const body = await request.json();
-    const { paymentAmount, transactionRef, notes, waive } = body;
+    const { paymentAmount, transactionRef, paymentMethod, notes, waive } = body;
 
     const [existing] = await db.select().from(feeRecords).where(eq(feeRecords.id, id)).limit(1);
     if (!existing) return err("Fee record not found", 404);
@@ -40,6 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         paidAmount: newPaidAmount,
         status: newStatus,
         ...(isPaid && { paidDate: new Date() }),
+        ...(paymentMethod !== undefined && { paymentMethod }),
         ...(transactionRef !== undefined && { transactionRef }),
         ...(notes !== undefined && { notes }),
         updatedAt: new Date(),

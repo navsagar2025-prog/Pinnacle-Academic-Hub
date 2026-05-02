@@ -14,6 +14,22 @@ type Props = {
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
+const PAYMENT_METHODS = [
+  { value: "Cash", label: "Cash" },
+  { value: "UPI", label: "UPI" },
+  { value: "Cheque", label: "Cheque" },
+  { value: "Bank Transfer", label: "Bank Transfer (NEFT/IMPS/RTGS)" },
+  { value: "Online", label: "Online (Razorpay)" },
+];
+
+const REF_PLACEHOLDER: Record<string, string> = {
+  Cash: "Cash receipt number (optional)",
+  UPI: "UPI transaction ID",
+  Cheque: "Cheque number",
+  "Bank Transfer": "UTR / reference number",
+  Online: "Razorpay payment ID",
+};
+
 export function RecordPaymentButton({ feeId, amount, paidAmount, studentName, period, status }: Props) {
   const [open, setOpen] = useState(false);
   if (status === "paid" || status === "waived") return null;
@@ -46,6 +62,7 @@ function RecordPaymentModal({ feeId, amount, paidAmount, studentName, period, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paymentAmount, setPaymentAmount] = useState(balance.toString());
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [transactionRef, setTransactionRef] = useState("");
   const [notes, setNotes] = useState("");
   const [waive, setWaive] = useState(false);
@@ -56,7 +73,7 @@ function RecordPaymentModal({ feeId, amount, paidAmount, studentName, period, on
     setError("");
     const body = waive
       ? { waive: true, notes }
-      : { paymentAmount: Number(paymentAmount), transactionRef, notes };
+      : { paymentAmount: Number(paymentAmount), paymentMethod, transactionRef: transactionRef || undefined, notes: notes || undefined };
     const res = await fetch(`${BASE}/api/v1/fees/${feeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -118,16 +135,39 @@ function RecordPaymentModal({ feeId, amount, paidAmount, studentName, period, on
                 />
                 <p className="text-xs text-slate-400 mt-1">Enter partial or full amount. Max: ₹{balance.toLocaleString("en-IN")}</p>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Transaction Reference</label>
-                <input
-                  type="text"
-                  value={transactionRef}
-                  onChange={(e) => setTransactionRef(e.target.value)}
-                  placeholder="UPI ref / Cheque no. / Cash"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
-                />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Payment Method *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {PAYMENT_METHODS.map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => { setPaymentMethod(m.value); setTransactionRef(""); }}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                        paymentMethod === m.value
+                          ? "bg-[var(--color-navy)] text-white border-[var(--color-navy)]"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-[var(--color-navy)]/40"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {paymentMethod !== "Cash" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Transaction Reference</label>
+                  <input
+                    type="text"
+                    value={transactionRef}
+                    onChange={(e) => setTransactionRef(e.target.value)}
+                    placeholder={REF_PLACEHOLDER[paymentMethod] ?? "Reference number"}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+                  />
+                </div>
+              )}
             </>
           )}
 
@@ -137,6 +177,7 @@ function RecordPaymentModal({ feeId, amount, paidAmount, studentName, period, on
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
+              placeholder="Any additional remarks (optional)"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
             />
           </div>

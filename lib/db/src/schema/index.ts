@@ -144,6 +144,7 @@ export const feeRecords = pgTable("fee_records", {
   dueDate: timestamp("due_date").notNull(),
   paidDate: timestamp("paid_date"),
   status: feeStatusEnum("status").notNull().default("due"),
+  paymentMethod: text("payment_method"),
   transactionRef: text("transaction_ref"),
   razorpayOrderId: text("razorpay_order_id"),
   razorpayPaymentId: text("razorpay_payment_id"),

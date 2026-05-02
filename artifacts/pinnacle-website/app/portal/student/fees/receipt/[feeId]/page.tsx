@@ -43,7 +43,10 @@ export default async function ReceiptPage({ params }: { params: Promise<{ feeId:
   const paidOn = fee.paidDate
     ? new Date(fee.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
     : "—";
-  const paymentMethod = fee.razorpayPaymentId ? "Online (Razorpay)" : fee.transactionRef ? "NEFT / Manual" : "Cash";
+  const paymentMethod = fee.razorpayPaymentId
+    ? "Online (Razorpay)"
+    : (fee as typeof fee & { paymentMethod?: string | null }).paymentMethod
+      ?? (fee.transactionRef ? "Manual Transfer" : "Cash");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
