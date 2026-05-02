@@ -1,8 +1,9 @@
 import { authUserId } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { attendance, students, teachers, schedules, users, batches, courses } from "@workspace/db/schema";
-import { eq, and, inArray, sql, gte, lte, desc } from "drizzle-orm";
+import { attendance, students, teachers, schedules, users, batches, courses, parents, attendanceLowAlerts } from "@workspace/db/schema";
+import { eq, and, inArray, sql, gte, lte, desc, count } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
+import { sendLowAttendanceAlert } from "@/lib/server/email";
 
 export async function GET(request: Request) {
   const userId = await authUserId();
@@ -238,9 +239,175 @@ export async function POST(request: Request) {
 
     await db.insert(attendance).values(rows);
 
+    // Fire-and-forget: check attendance thresholds and notify parents if needed
+    checkAndNotifyLowAttendance(validStudentIds).catch((e) =>
+      console.error("[attendance-alert] background check failed:", e)
+    );
+
     return ok({ saved: rows.length });
   } catch (e) {
     console.error("POST /api/v1/attendance error:", e);
     return err("Failed to save attendance");
+  }
+}
+
+async function checkAndNotifyLowAttendance(studentIds: string[]): Promise<void> {
+  if (studentIds.length === 0) return;
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+  // Compute rolling 30-day attendance pct for each student
+  const totalRows = await db
+    .select({
+      studentId: attendance.studentId,
+      total: count(),
+    })
+    .from(attendance)
+    .where(
+      and(
+        inArray(attendance.studentId, studentIds),
+        gte(attendance.date, thirtyDaysAgo)
+      )
+    )
+    .groupBy(attendance.studentId);
+
+  const presentRows = await db
+    .select({
+      studentId: attendance.studentId,
+      present: count(),
+    })
+    .from(attendance)
+    .where(
+      and(
+        inArray(attendance.studentId, studentIds),
+        gte(attendance.date, thirtyDaysAgo),
+        sql`${attendance.status} IN ('present', 'late')`
+      )
+    )
+    .groupBy(attendance.studentId);
+
+  const totalMap = new Map(totalRows.map((r) => [r.studentId, Number(r.total)]));
+  const presentMap = new Map(presentRows.map((r) => [r.studentId, Number(r.present)]));
+
+  // Fetch existing alert records for these students
+  const alertRecords = await db
+    .select()
+    .from(attendanceLowAlerts)
+    .where(inArray(attendanceLowAlerts.studentId, studentIds));
+  const alertMap = new Map(alertRecords.map((a) => [a.studentId, a]));
+
+  const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+  const SITE_URL = `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacleacademic.in"}${BASE_PATH}`;
+  const parentPortalUrl = `${SITE_URL}/portal/parent`;
+
+  for (const studentId of studentIds) {
+    const total = totalMap.get(studentId) ?? 0;
+    if (total === 0) continue;
+
+    const present = presentMap.get(studentId) ?? 0;
+    const pct = Math.round((present / total) * 100);
+    const isBelow = pct < 75;
+    const alert = alertMap.get(studentId);
+
+    if (!isBelow) {
+      // Student is at or above 75% — mark as recovered if they had an unrecovered alert
+      if (alert && !alert.hasRecovered) {
+        await db
+          .update(attendanceLowAlerts)
+          .set({ hasRecovered: true, updatedAt: new Date() })
+          .where(eq(attendanceLowAlerts.studentId, studentId));
+      }
+      continue;
+    }
+
+    // Student is below 75%.
+    // Atomically claim this crossing before doing any work:
+    //   - INSERT succeeds (new row)           → RETURNING gives a row → we claimed it
+    //   - conflict + hasRecovered=true         → UPDATE fires → RETURNING gives a row → we claimed it
+    //   - conflict + hasRecovered=false        → UPDATE skipped by setWhere → RETURNING gives nothing → skip
+    // This guarantees at-most-one email per crossing even under concurrent attendance saves.
+    const now = new Date();
+    const claimed = await db
+      .insert(attendanceLowAlerts)
+      .values({
+        studentId,
+        notifiedAt: now,
+        notifiedPct: pct,
+        hasRecovered: false,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: attendanceLowAlerts.studentId,
+        set: {
+          notifiedAt: now,
+          notifiedPct: pct,
+          hasRecovered: false,
+          updatedAt: now,
+        },
+        setWhere: eq(attendanceLowAlerts.hasRecovered, true),
+      })
+      .returning({ id: attendanceLowAlerts.id });
+
+    if (claimed.length === 0) {
+      // Another process already claimed this crossing, or student is still in unrecovered state
+      continue;
+    }
+
+    // We claimed the crossing — look up the parent's email on record
+    const parentRows = await db
+      .select({
+        parentEmail: users.email,
+        parentName: users.name,
+      })
+      .from(parents)
+      .leftJoin(users, eq(parents.userId, users.id))
+      .where(eq(parents.studentId, studentId))
+      .limit(1);
+
+    if (parentRows.length === 0 || !parentRows[0].parentEmail) {
+      console.warn(
+        `[attendance-alert] No parent record found for student ${studentId} — alert claimed but no email sent. ` +
+        `Link a parent account in the admin portal to enable notifications.`
+      );
+      // Roll back the claim so the alert can fire once a parent is linked
+      await db
+        .delete(attendanceLowAlerts)
+        .where(eq(attendanceLowAlerts.studentId, studentId));
+      continue;
+    }
+
+    const recipientEmail = parentRows[0].parentEmail;
+    const recipientName = parentRows[0].parentName ?? "Parent/Guardian";
+
+    // Fetch student name for the email body
+    const [studentRow] = await db
+      .select({ name: users.name })
+      .from(students)
+      .leftJoin(users, eq(students.userId, users.id))
+      .where(eq(students.id, studentId))
+      .limit(1);
+
+    const studentName = studentRow?.name ?? "your child";
+
+    const result = await sendLowAttendanceAlert({
+      to: recipientEmail,
+      parentName: recipientName,
+      studentName,
+      attendancePct: pct,
+      parentPortalUrl,
+    });
+
+    if (!result.ok) {
+      console.error(`[attendance-alert] Failed to send alert for student ${studentId}: ${result.error}`);
+      // Roll back the claim so we retry on the next attendance save
+      await db
+        .delete(attendanceLowAlerts)
+        .where(eq(attendanceLowAlerts.studentId, studentId));
+      continue;
+    }
+
+    console.log(`[attendance-alert] Sent low-attendance alert for student ${studentId} (${pct}%) to ${recipientEmail}`);
   }
 }

@@ -334,6 +334,15 @@ export const siteSettings = pgTable("site_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const attendanceLowAlerts = pgTable("attendance_low_alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull().unique(),
+  notifiedAt: timestamp("notified_at").defaultNow().notNull(),
+  notifiedPct: integer("notified_pct").notNull(),
+  hasRecovered: boolean("has_recovered").default(false).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),

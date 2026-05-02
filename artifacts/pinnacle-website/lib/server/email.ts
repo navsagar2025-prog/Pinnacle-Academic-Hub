@@ -235,6 +235,47 @@ export async function sendAdmissionStatusEmail(params: {
   });
 }
 
+export async function sendLowAttendanceAlert(params: {
+  to: string;
+  parentName: string;
+  studentName: string;
+  attendancePct: number;
+  parentPortalUrl: string;
+}): Promise<SendResult> {
+  const { to, parentName, studentName, attendancePct, parentPortalUrl } = params;
+  const pct = Math.round(attendancePct);
+  return send({
+    to,
+    subject: `Attendance Alert: ${escHtml(studentName)}'s attendance has dropped below 75% — Pinnacle Academic Classes`,
+    html: emailLayout(`
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="display:inline-block;background:#fff7ed;border:2px solid #fdba74;border-radius:50%;width:60px;height:60px;line-height:60px;font-size:28px;text-align:center;">⚠️</div>
+      </div>
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0A1F5C;text-align:center;">Attendance Alert</h1>
+      <p style="margin:0 0 20px;color:#475569;font-size:15px;">Dear ${escHtml(parentName)},</p>
+      <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6;">
+        We want to bring to your attention that <strong>${escHtml(studentName)}</strong>'s attendance over the past 30 days has fallen below the required 75% threshold.
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+        <tr>
+          <td style="padding:16px 20px;text-align:center;">
+            <span style="font-size:12px;color:#92400e;font-weight:600;display:block;margin-bottom:4px;">CURRENT ATTENDANCE (LAST 30 DAYS)</span>
+            <span style="font-size:36px;font-weight:800;color:#b45309;">${pct}%</span>
+            <span style="display:block;font-size:12px;color:#92400e;margin-top:4px;">Minimum required: 75%</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.6;">
+        Regular attendance is essential for academic progress. We encourage you to speak with your child and help them attend classes consistently. If there are any circumstances affecting attendance, please contact us so we can assist.
+      </p>
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${escHtml(parentPortalUrl)}" style="display:inline-block;background:#0A1F5C;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:8px;">View Parent Portal</a>
+      </div>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Questions? Contact us at <a href="mailto:care@paconline.in" style="color:#0D7377;">care@paconline.in</a> or WhatsApp <a href="https://wa.me/919971862138" style="color:#0D7377;">+91 99718 62138</a>.</p>
+    `),
+  });
+}
+
 export async function sendTestEmail(to: string): Promise<SendResult> {
   return send({
     to,
