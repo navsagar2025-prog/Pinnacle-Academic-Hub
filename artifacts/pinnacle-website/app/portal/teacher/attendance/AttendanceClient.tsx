@@ -710,15 +710,26 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
 
                 <div className="divide-y divide-slate-50">
                   {breakdown.map((s) => {
-                    const pct =
+                    // Percentages are computed over the student's own recorded
+                    // sessions (s.total), so the denominator is consistent per
+                    // student even if some sessions had no record for them.
+                    const presentPct =
                       s.total > 0
                         ? Math.round((s.present / s.total) * 100)
                         : 0;
-                    const isAtRisk = pct < 75;
+                    const absentPct =
+                      s.total > 0
+                        ? Math.round((s.absent / s.total) * 100)
+                        : 0;
+                    const latePct =
+                      s.total > 0
+                        ? Math.round((s.late / s.total) * 100)
+                        : 0;
+                    const isAtRisk = presentPct < 75;
                     const barColor =
-                      pct >= 85
+                      presentPct >= 85
                         ? "#22c55e"
-                        : pct >= 75
+                        : presentPct >= 75
                         ? "#f59e0b"
                         : "#b91c1c";
                     return (
@@ -731,7 +742,7 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                           className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                             isAtRisk
                               ? "bg-red-100 text-[var(--color-maroon)]"
-                              : pct >= 85
+                              : presentPct >= 85
                               ? "bg-green-100 text-green-700"
                               : "bg-amber-100 text-amber-700"
                           }`}
@@ -739,7 +750,7 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                           {s.studentName.charAt(0).toUpperCase()}
                         </div>
 
-                        {/* Name + progress */}
+                        {/* Name + progress bar */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <span className="text-sm font-semibold text-[var(--color-navy)] truncate">
@@ -753,50 +764,59 @@ export default function AttendanceClient({ batches, studentsByBatch }: Props) {
                             )}
                           </div>
                           <div className="text-xs text-slate-400 mb-1.5">
-                            Roll #{s.rollNumber} ·{" "}
-                            <span className="text-green-600 font-medium">
-                              {s.present}P
-                            </span>{" "}
-                            /{" "}
-                            <span className="text-[var(--color-maroon)] font-medium">
-                              {s.absent}A
-                            </span>
-                            {s.late > 0 && (
-                              <>
-                                {" "}
-                                /{" "}
-                                <span className="text-amber-600 font-medium">
-                                  {s.late}L
-                                </span>
-                              </>
-                            )}{" "}
-                            of {s.total}
+                            Roll #{s.rollNumber} · {s.total} session{s.total !== 1 ? "s" : ""}
                           </div>
-                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          {/* Stacked percentage bar: present | late | absent */}
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
                             <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${pct}%`,
-                                backgroundColor: barColor,
-                              }}
+                              className="h-full transition-all duration-500"
+                              style={{ width: `${presentPct}%`, backgroundColor: "#22c55e" }}
+                            />
+                            {latePct > 0 && (
+                              <div
+                                className="h-full transition-all duration-500"
+                                style={{ width: `${latePct}%`, backgroundColor: "#f59e0b" }}
+                              />
+                            )}
+                            <div
+                              className="h-full transition-all duration-500"
+                              style={{ width: `${absentPct}%`, backgroundColor: "#b91c1c" }}
                             />
                           </div>
                         </div>
 
-                        {/* Percentage */}
-                        <div className="text-right flex-shrink-0 ml-2">
-                          <span
-                            className={`text-sm font-bold ${
-                              pct >= 85
-                                ? "text-green-600"
-                                : pct >= 75
-                                ? "text-amber-600"
-                                : "text-[var(--color-maroon)]"
-                            }`}
-                          >
-                            {pct}%
-                          </span>
-                          <div className="text-xs text-slate-400">present</div>
+                        {/* All three percentages */}
+                        <div className="text-right flex-shrink-0 ml-3 space-y-0.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] text-green-600 font-medium">P</span>
+                            <span
+                              className={`text-sm font-bold ${
+                                presentPct >= 85
+                                  ? "text-green-600"
+                                  : presentPct >= 75
+                                  ? "text-amber-600"
+                                  : "text-[var(--color-maroon)]"
+                              }`}
+                            >
+                              {presentPct}%
+                            </span>
+                          </div>
+                          {absentPct > 0 && (
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-[10px] text-[var(--color-maroon)] font-medium">A</span>
+                              <span className="text-xs font-semibold text-[var(--color-maroon)]">
+                                {absentPct}%
+                              </span>
+                            </div>
+                          )}
+                          {latePct > 0 && (
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-[10px] text-amber-600 font-medium">L</span>
+                              <span className="text-xs font-semibold text-amber-600">
+                                {latePct}%
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
