@@ -13,39 +13,6 @@ const SUBJECT_COLORS: Record<string, string> = {
   Biology: "text-green-700",
 };
 
-const DEMO_ATTENDANCE = [
-  { subject: "Physics", records: [
-    { date: new Date("2026-04-28"), status: "present" },
-    { date: new Date("2026-04-26"), status: "present" },
-    { date: new Date("2026-04-24"), status: "absent" },
-    { date: new Date("2026-04-22"), status: "present" },
-    { date: new Date("2026-04-19"), status: "present" },
-    { date: new Date("2026-04-17"), status: "late" },
-    { date: new Date("2026-04-15"), status: "present" },
-    { date: new Date("2026-04-12"), status: "present" },
-  ]},
-  { subject: "Chemistry", records: [
-    { date: new Date("2026-04-28"), status: "present" },
-    { date: new Date("2026-04-26"), status: "absent" },
-    { date: new Date("2026-04-24"), status: "present" },
-    { date: new Date("2026-04-22"), status: "present" },
-    { date: new Date("2026-04-19"), status: "present" },
-    { date: new Date("2026-04-17"), status: "present" },
-    { date: new Date("2026-04-15"), status: "absent" },
-    { date: new Date("2026-04-12"), status: "present" },
-  ]},
-  { subject: "Mathematics", records: [
-    { date: new Date("2026-04-27"), status: "present" },
-    { date: new Date("2026-04-25"), status: "present" },
-    { date: new Date("2026-04-23"), status: "present" },
-    { date: new Date("2026-04-21"), status: "late" },
-    { date: new Date("2026-04-18"), status: "present" },
-    { date: new Date("2026-04-16"), status: "absent" },
-    { date: new Date("2026-04-14"), status: "present" },
-    { date: new Date("2026-04-11"), status: "present" },
-  ]},
-];
-
 function StatusBadge({ status }: { status: string }) {
   if (status === "present") {
     return (
@@ -101,8 +68,6 @@ export default async function AttendancePage() {
         .orderBy(desc(attendance.date))
     : [];
 
-  const isDemo = dbAttendance.length === 0 && enrollment !== undefined;
-
   const grouped: { subject: string; records: { date: Date; status: string }[] }[] =
     dbAttendance.length > 0
       ? Object.entries(
@@ -112,8 +77,6 @@ export default async function AttendancePage() {
             return acc;
           }, {})
         ).map(([subject, records]) => ({ subject, records }))
-      : enrollment
-      ? DEMO_ATTENDANCE
       : [];
 
   const overallPct = grouped.length === 0
@@ -135,13 +98,6 @@ export default async function AttendancePage() {
         <div className="card bg-amber-50 border border-amber-100 flex items-start gap-3">
           <AlertCircle size={17} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-amber-800 text-sm">Your batch enrollment is pending. Attendance records will appear here once assigned to a batch.</p>
-        </div>
-      )}
-
-      {isDemo && (
-        <div className="card bg-blue-50 border border-blue-100 flex items-start gap-3">
-          <AlertCircle size={17} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-blue-800 text-sm">No attendance records yet — showing sample data for reference.</p>
         </div>
       )}
 
@@ -221,7 +177,7 @@ export default async function AttendancePage() {
         </>
       )}
 
-      {enrollment && grouped.length === 0 && !isDemo && (
+      {enrollment && grouped.length === 0 && (
         <div className="card text-center py-12">
           <UserCheck size={36} className="text-slate-300 mx-auto mb-3" />
           <p className="text-slate-500">No attendance records yet.</p>

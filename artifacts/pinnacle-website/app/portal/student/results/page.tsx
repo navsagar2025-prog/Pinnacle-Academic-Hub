@@ -14,18 +14,6 @@ const SUBJECT_COLORS: Record<string, string> = {
   Biology: "bg-green-100 text-green-700",
 };
 
-const DEMO_RESULTS = [
-  { id: "d1", examName: "Unit Test 1", subject: "Physics", totalMarks: 100, marksObtained: 72, rank: "5th", examDate: new Date("2026-03-10") },
-  { id: "d2", examName: "Unit Test 1", subject: "Chemistry", totalMarks: 100, marksObtained: 65, rank: "8th", examDate: new Date("2026-03-10") },
-  { id: "d3", examName: "Unit Test 1", subject: "Mathematics", totalMarks: 100, marksObtained: 85, rank: "2nd", examDate: new Date("2026-03-11") },
-  { id: "d4", examName: "Unit Test 2", subject: "Physics", totalMarks: 100, marksObtained: 78, rank: "4th", examDate: new Date("2026-04-05") },
-  { id: "d5", examName: "Unit Test 2", subject: "Chemistry", totalMarks: 100, marksObtained: 70, rank: "6th", examDate: new Date("2026-04-05") },
-  { id: "d6", examName: "Unit Test 2", subject: "Mathematics", totalMarks: 100, marksObtained: 91, rank: "1st", examDate: new Date("2026-04-06") },
-  { id: "d7", examName: "Monthly Test — April", subject: "Physics", totalMarks: 150, marksObtained: 119, rank: "3rd", examDate: new Date("2026-04-20") },
-  { id: "d8", examName: "Monthly Test — April", subject: "Chemistry", totalMarks: 150, marksObtained: 105, rank: "7th", examDate: new Date("2026-04-20") },
-  { id: "d9", examName: "Monthly Test — April", subject: "Mathematics", totalMarks: 150, marksObtained: 136, rank: "1st", examDate: new Date("2026-04-21") },
-];
-
 function PassBadge({ pct }: { pct: number }) {
   const pass = pct >= 33;
   return (
@@ -35,7 +23,6 @@ function PassBadge({ pct }: { pct: number }) {
     </span>
   );
 }
-
 
 export default async function ResultsPage() {
   const dbUser = await requirePortalRole("student");
@@ -50,7 +37,7 @@ export default async function ResultsPage() {
     ? await db.select({ name: batches.name }).from(batches).where(eq(batches.id, enrollment.batchId)).limit(1).then((r) => r[0]?.name ?? null)
     : null;
 
-  const dbResults = enrollment?.studentId
+  const data = enrollment?.studentId
     ? await db
         .select({
           id: studentTestResults.id,
@@ -65,9 +52,6 @@ export default async function ResultsPage() {
         .where(eq(studentTestResults.studentId, enrollment.studentId))
         .orderBy(asc(studentTestResults.examDate))
     : [];
-
-  const isDemo = dbResults.length === 0 && enrollment !== undefined;
-  const data = dbResults.length > 0 ? dbResults : (enrollment ? DEMO_RESULTS : []);
 
   const groupedByExam = data.reduce<Record<string, typeof data>>((acc, r) => {
     acc[r.examName] = acc[r.examName] ?? [];
@@ -109,13 +93,6 @@ export default async function ResultsPage() {
         <div className="card bg-amber-50 border border-amber-100 flex items-start gap-3">
           <AlertCircle size={17} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-amber-800 text-sm">Your batch enrollment is pending. Results will appear here once assigned to a batch.</p>
-        </div>
-      )}
-
-      {isDemo && (
-        <div className="card bg-blue-50 border border-blue-100 flex items-start gap-3">
-          <AlertCircle size={17} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-blue-800 text-sm">No results posted yet — showing sample data for reference.</p>
         </div>
       )}
 
@@ -201,7 +178,7 @@ export default async function ResultsPage() {
         </>
       )}
 
-      {enrollment && data.length === 0 && !isDemo && (
+      {enrollment && data.length === 0 && (
         <div className="card text-center py-12">
           <TrendingUp size={36} className="text-slate-300 mx-auto mb-3" />
           <p className="text-slate-500">No results published yet. Check back after your next test.</p>

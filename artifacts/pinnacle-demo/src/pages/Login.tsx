@@ -93,7 +93,7 @@ export default function Login() {
       </main>
 
       <footer className="py-6 text-center text-xs text-muted-foreground border-t border-border">
-        © {new Date().getFullYear()} Pinnacle Academic Classes · Demo Platform
+        © {new Date().getFullYear()} Pinnacle Academic Classes · KCK Corporate Services Pvt. Ltd.
       </footer>
     </div>
   );
