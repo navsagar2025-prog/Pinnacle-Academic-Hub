@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { label: "Study Material", href: "/portal/student/materials", icon: "BookOpen" },
   { label: "Practice Papers", href: "/portal/student/papers", icon: "FileText" },
   { label: "Mock Tests", href: "/portal/student/mock-tests", icon: "Sparkles" },
+  { label: "Practice History", href: "/portal/student/practice-history", icon: "History" },
+  { label: "Question Bank", href: "/portal/student/question-bank", icon: "Library" },
   { label: "Ask a Doubt", href: "/portal/student/doubts", icon: "MessageCircleQuestion" },
   { label: "Attendance", href: "/portal/student/attendance", icon: "UserCheck" },
   { label: "Results", href: "/portal/student/results", icon: "TrendingUp" },

@@ -1,5 +1,6 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import ClassRow from "@/components/ClassRow";
 import NoticeRow from "@/components/NoticeRow";
 import RoleHeader from "@/components/RoleHeader";
@@ -7,6 +8,7 @@ import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import StatCard from "@/components/StatCard";
 import { useColors } from "@/hooks/useColors";
+import { fetchPublicNotices, formatNoticeDate } from "@/lib/api";
 
 const upcomingClasses = [
   {
@@ -32,7 +34,7 @@ const upcomingClasses = [
   },
 ];
 
-const notices = [
+const fallbackNotices = [
   { date: "20 Apr", title: "Mock Test: JEE Mains Full Syllabus on May 1" },
   { date: "18 Apr", title: "Physics Notes Updated – Thermodynamics Module" },
   { date: "15 Apr", title: "Holiday: April 25 — Institute Closed" },
@@ -40,6 +42,17 @@ const notices = [
 
 export default function StudentDashboard() {
   const colors = useColors();
+  const noticesQuery = useQuery({
+    queryKey: ["public-notices", 5],
+    queryFn: () => fetchPublicNotices(5),
+    staleTime: 60_000,
+  });
+
+  const liveNotices = (noticesQuery.data ?? []).map((n) => ({
+    date: formatNoticeDate(n.publishedAt ?? n.updatedAt),
+    title: n.title,
+  }));
+  const noticesToShow = liveNotices.length > 0 ? liveNotices : fallbackNotices;
   return (
     <>
       <RoleHeader
@@ -64,9 +77,11 @@ export default function StudentDashboard() {
 
         <View style={{ marginTop: 8 }}>
           <SectionHeader title="Notices" />
-          {notices.map((n, i) => (
-            <NoticeRow key={i} {...n} />
-          ))}
+          {noticesQuery.isLoading && liveNotices.length === 0 ? (
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />
+          ) : (
+            noticesToShow.map((n, i) => <NoticeRow key={i} {...n} />)
+          )}
         </View>
 
         <View
