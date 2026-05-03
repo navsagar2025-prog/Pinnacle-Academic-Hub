@@ -9,7 +9,16 @@ import {
   pgEnum,
   jsonb,
   index,
+  customType,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+// Postgres `tsvector` for full-text search columns.
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const roleEnum = pgEnum("role", ["student", "parent", "teacher", "admin"]);
 export const feeStatusEnum = pgEnum("fee_status", ["paid", "partial", "due", "overdue", "waived"]);
@@ -471,10 +480,16 @@ export const questionBank = qbSchema.table("question_bank", {
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Generated tsvector for full-text search: question_text (A) > topic (B) > solution (C).
+  // Stored generated column — Postgres only supports STORED, which Drizzle emits by default.
+  searchVector: tsvector("search_vector").generatedAlwaysAs(
+    sql`setweight(to_tsvector('english', coalesce(question_text, '')), 'A') || setweight(to_tsvector('english', coalesce(topic, '')), 'B') || setweight(to_tsvector('english', coalesce(solution, '')), 'C')`,
+  ),
 }, (t) => [
   index("question_bank_subject_idx").on(t.subject),
   index("question_bank_topic_idx").on(t.topic),
   index("question_bank_year_idx").on(t.year),
+  index("question_bank_search_vector_idx").using("gin", t.searchVector),
 ]);
 
 export const questionBookmarks = qbSchema.table("question_bookmarks", {
