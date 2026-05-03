@@ -13,10 +13,24 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const [test] = await db.select().from(mockTests).where(eq(mockTests.id, testId)).limit(1);
   if (!test || !test.isPublished) return NextResponse.json({ error: "Test not available" }, { status: 404 });
 
-  const [student] = await db.select({ id: students.id })
+  const [student] = await db.select({ id: students.id, batchId: students.batchId })
     .from(students)
     .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
     .limit(1);
+
+  // Audience check: student must belong to the test's batch (or test must be batch-less).
+  if (test.batchId && (!student || student.batchId !== test.batchId)) {
+    return NextResponse.json({ error: "Test not available" }, { status: 403 });
+  }
+
+  // Schedule check: enforce window before creating an attempt.
+  const now = Date.now();
+  if (test.scheduledStart && new Date(test.scheduledStart).getTime() > now) {
+    return NextResponse.json({ error: "Test has not started yet" }, { status: 403 });
+  }
+  if (test.scheduledEnd && new Date(test.scheduledEnd).getTime() < now) {
+    return NextResponse.json({ error: "Test window has closed" }, { status: 403 });
+  }
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
     .from(mockTestQuestions).where(eq(mockTestQuestions.testId, testId));

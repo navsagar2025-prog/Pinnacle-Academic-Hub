@@ -1,50 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useColors } from "@/hooks/useColors";
-
-type Question = {
-  id: string;
-  subject: string;
-  topic: string;
-  difficulty: "easy" | "medium" | "hard";
-  year?: number;
-  text: string;
-  options: { A: string; B: string; C: string; D: string };
-  correct: "A" | "B" | "C" | "D";
-  solution: string;
-  bookmarked?: boolean;
-};
-
-const QUESTIONS: Question[] = [
-  {
-    id: "q1", subject: "Physics", topic: "Kinematics", difficulty: "medium", year: 2023,
-    text: "A particle moves in a straight line with velocity v = 3t² − 6t + 2 m/s. Its acceleration at t = 2 s is:",
-    options: { A: "2 m/s²", B: "4 m/s²", C: "6 m/s²", D: "8 m/s²" }, correct: "C",
-    solution: "a = dv/dt = 6t − 6. At t = 2 s, a = 6(2) − 6 = 6 m/s².",
-    bookmarked: true,
-  },
-  {
-    id: "q2", subject: "Chemistry", topic: "Atomic Structure", difficulty: "easy", year: 2022,
-    text: "Number of unpaired electrons in Fe³⁺ (Z = 26) is:",
-    options: { A: "3", B: "4", C: "5", D: "6" }, correct: "C",
-    solution: "Fe³⁺: [Ar] 3d⁵ — five unpaired electrons in the half-filled d-subshell.",
-  },
-  {
-    id: "q3", subject: "Mathematics", topic: "Calculus", difficulty: "hard", year: 2024,
-    text: "If f(x) = ∫₀ˣ (t² + 1) dt, then f'(2) is:",
-    options: { A: "3", B: "4", C: "5", D: "6" }, correct: "C",
-    solution: "By FTC, f'(x) = x² + 1, so f'(2) = 5.",
-  },
-  {
-    id: "q4", subject: "Physics", topic: "Optics", difficulty: "medium", year: 2021,
-    text: "The refractive index of glass with respect to air is 1.5. The speed of light in glass is:",
-    options: { A: "1.5 × 10⁸ m/s", B: "2.0 × 10⁸ m/s", C: "2.5 × 10⁸ m/s", D: "3.0 × 10⁸ m/s" }, correct: "B",
-    solution: "v = c / n = (3 × 10⁸) / 1.5 = 2 × 10⁸ m/s.",
-  },
-];
+import { fetchQuestionBank, hasWebsiteBase, toggleQuestionBookmark, type QBQuestion } from "@/lib/api";
 
 const SUBJECTS = ["All", "Physics", "Chemistry", "Mathematics"];
 
@@ -54,26 +14,51 @@ const DIFF_COLOR: Record<string, string> = {
   hard: "#8B1A1A",
 };
 
+type Pick = "A" | "B" | "C" | "D";
+
 export default function QuestionBank() {
   const colors = useColors();
   const [subject, setSubject] = useState("All");
   const [bookmarksOnly, setBookmarksOnly] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [picked, setPicked] = useState<Record<string, "A" | "B" | "C" | "D">>({});
+  const [picked, setPicked] = useState<Record<string, Pick>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
-  const [bookmarks, setBookmarks] = useState<Record<string, boolean>>(
-    Object.fromEntries(QUESTIONS.filter((q) => q.bookmarked).map((q) => [q.id, true]))
-  );
+  const [bookmarks, setBookmarks] = useState<Record<string, boolean>>({});
+  const [questions, setQuestions] = useState<QBQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  let filtered = QUESTIONS.filter((q) => subject === "All" || q.subject === subject);
-  if (bookmarksOnly) filtered = filtered.filter((q) => bookmarks[q.id]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchQuestionBank({ subject, pageSize: 50 }).then(({ items, bookmarkedIds }) => {
+      if (cancelled) return;
+      setQuestions(items);
+      setBookmarks((prev) => {
+        const next = { ...prev };
+        for (const id of bookmarkedIds) next[id] = true;
+        return next;
+      });
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [subject]);
+
+  const filtered = useMemo(() => {
+    return bookmarksOnly ? questions.filter((q) => bookmarks[q.id]) : questions;
+  }, [questions, bookmarksOnly, bookmarks]);
+
+  const onToggleBookmark = async (id: string) => {
+    const next = !bookmarks[id];
+    setBookmarks((prev) => ({ ...prev, [id]: next }));
+    const ok = await toggleQuestionBookmark(id, next);
+    if (!ok) setBookmarks((prev) => ({ ...prev, [id]: !next }));
+  };
 
   return (
     <ScreenContainer>
-      <SectionHeader
-        title="Question Bank"
-        
-      />
+      <SectionHeader title="Question Bank" />
 
       <ScrollView
         horizontal
@@ -118,11 +103,22 @@ export default function QuestionBank() {
         </TouchableOpacity>
       </ScrollView>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 13 }}>
+            Loading questions…
+          </Text>
+        </View>
+      ) : filtered.length === 0 ? (
         <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
           <Feather name="inbox" size={28} color={colors.mutedForeground} />
-          <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 13 }}>
-            {bookmarksOnly ? "No bookmarks yet." : "No questions in this subject yet."}
+          <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 13, textAlign: "center" }}>
+            {!hasWebsiteBase()
+              ? "Connect to the web portal to load live questions."
+              : bookmarksOnly
+              ? "No bookmarks yet."
+              : "No questions in this subject yet."}
           </Text>
         </View>
       ) : (
@@ -131,7 +127,8 @@ export default function QuestionBank() {
           const userPick = picked[q.id];
           const isRevealed = revealed[q.id];
           const isBookmarked = !!bookmarks[q.id];
-          const correct = userPick === q.correct;
+          const isMcq = q.questionType === "mcq" && q.options;
+          const correct = isMcq && userPick === q.correctAnswer;
 
           return (
             <View
@@ -166,14 +163,11 @@ export default function QuestionBank() {
                     numberOfLines={isOpen ? undefined : 2}
                     style={[styles.qText, { color: colors.foreground, fontFamily: "PlusJakartaSans_600SemiBold" }]}
                   >
-                    {q.text}
+                    {q.questionText}
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setBookmarks((prev) => ({ ...prev, [q.id]: !prev[q.id] }));
-                  }}
+                  onPress={() => onToggleBookmark(q.id)}
                   hitSlop={8}
                   style={{ padding: 4 }}
                 >
@@ -187,57 +181,61 @@ export default function QuestionBank() {
 
               {isOpen && (
                 <View style={styles.body}>
-                  {(["A", "B", "C", "D"] as const).map((opt) => {
-                    const showCorrect = isRevealed && opt === q.correct;
-                    const showWrong = isRevealed && userPick === opt && opt !== q.correct;
-                    return (
-                      <TouchableOpacity
-                        key={opt}
-                        disabled={isRevealed}
-                        onPress={() => setPicked((p) => ({ ...p, [q.id]: opt }))}
-                        style={[
-                          styles.option,
-                          {
-                            borderColor: showCorrect
-                              ? "#0D7377"
-                              : showWrong
-                              ? "#8B1A1A"
-                              : userPick === opt
-                              ? colors.primary
-                              : colors.border,
-                            backgroundColor: showCorrect
-                              ? "#0D737710"
-                              : showWrong
-                              ? "#8B1A1A10"
-                              : userPick === opt
-                              ? colors.primary + "10"
-                              : "transparent",
-                            borderRadius: colors.radius - 4,
-                          },
-                        ]}
-                      >
-                        <Text style={[styles.optKey, { color: colors.mutedForeground }]}>{opt}.</Text>
-                        <Text style={[styles.optText, { color: colors.foreground, flex: 1 }]}>{q.options[opt]}</Text>
-                        {showCorrect && <Feather name="check" size={14} color="#0D7377" />}
-                        {showWrong && <Feather name="x" size={14} color="#8B1A1A" />}
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {isMcq ? (
+                    (["A", "B", "C", "D"] as const).map((opt) => {
+                      const text = q.options?.[opt];
+                      if (!text) return null;
+                      const showCorrect = isRevealed && opt === q.correctAnswer;
+                      const showWrong = isRevealed && userPick === opt && opt !== q.correctAnswer;
+                      return (
+                        <TouchableOpacity
+                          key={opt}
+                          disabled={isRevealed}
+                          onPress={() => setPicked((p) => ({ ...p, [q.id]: opt }))}
+                          style={[
+                            styles.option,
+                            {
+                              borderColor: showCorrect
+                                ? "#0D7377"
+                                : showWrong
+                                ? "#8B1A1A"
+                                : userPick === opt
+                                ? colors.primary
+                                : colors.border,
+                              backgroundColor: showCorrect
+                                ? "#0D737710"
+                                : showWrong
+                                ? "#8B1A1A10"
+                                : userPick === opt
+                                ? colors.primary + "10"
+                                : "transparent",
+                              borderRadius: colors.radius - 4,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.optKey, { color: colors.mutedForeground }]}>{opt}.</Text>
+                          <Text style={[styles.optText, { color: colors.foreground, flex: 1 }]}>{text}</Text>
+                          {showCorrect && <Feather name="check" size={14} color="#0D7377" />}
+                          {showWrong && <Feather name="x" size={14} color="#8B1A1A" />}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : null}
 
                   {!isRevealed ? (
                     <TouchableOpacity
-                      disabled={!userPick}
+                      disabled={isMcq ? !userPick : false}
                       onPress={() => setRevealed((r) => ({ ...r, [q.id]: true }))}
                       style={[
                         styles.revealBtn,
                         {
-                          backgroundColor: userPick ? "#C9A84C" : colors.muted,
+                          backgroundColor: !isMcq || userPick ? "#C9A84C" : colors.muted,
                           borderRadius: colors.radius - 4,
                         },
                       ]}
                     >
-                      <Feather name="eye" size={14} color={userPick ? "#fff" : colors.mutedForeground} />
-                      <Text style={[styles.revealText, { color: userPick ? "#fff" : colors.mutedForeground }]}>
+                      <Feather name="eye" size={14} color={!isMcq || userPick ? "#fff" : colors.mutedForeground} />
+                      <Text style={[styles.revealText, { color: !isMcq || userPick ? "#fff" : colors.mutedForeground }]}>
                         Reveal Solution
                       </Text>
                     </TouchableOpacity>
@@ -249,9 +247,19 @@ export default function QuestionBank() {
                       ]}
                     >
                       <Text style={[styles.solutionTitle, { color: colors.primary }]}>
-                        {correct ? "Correct! 🎉" : `Correct answer: ${q.correct}`}
+                        {isMcq
+                          ? correct
+                            ? "Correct! 🎉"
+                            : `Correct answer: ${q.correctAnswer}`
+                          : `Expected: ${q.correctAnswer}`}
                       </Text>
-                      <Text style={[styles.solutionText, { color: colors.foreground }]}>{q.solution}</Text>
+                      {q.solution ? (
+                        <Text style={[styles.solutionText, { color: colors.foreground }]}>{q.solution}</Text>
+                      ) : (
+                        <Text style={[styles.solutionText, { color: colors.mutedForeground, fontStyle: "italic" }]}>
+                          No detailed solution provided.
+                        </Text>
+                      )}
                       <TouchableOpacity
                         onPress={() => {
                           setRevealed((r) => ({ ...r, [q.id]: false }));

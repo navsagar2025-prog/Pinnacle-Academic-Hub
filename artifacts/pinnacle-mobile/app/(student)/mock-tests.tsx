@@ -1,43 +1,76 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useColors } from "@/hooks/useColors";
+import { fetchMockTests, hasWebsiteBase, startMockTestAttempt, type MockTest } from "@/lib/api";
 
-type Test = {
-  id: string;
-  title: string;
-  subject: string;
-  questions: number;
-  duration: number;
-  marks: number;
-  status: "available" | "completed" | "scheduled";
-  score?: number;
-  scheduledFor?: string;
+function statusFor(t: MockTest): "available" | "scheduled" {
+  if (t.scheduledStart) {
+    const start = new Date(t.scheduledStart).getTime();
+    if (!Number.isNaN(start) && start > Date.now()) return "scheduled";
+  }
+  return "available";
+}
+
+const STATUS_META = {
+  available: { color: "#0D7377", label: "Start now", icon: "play-circle" as const },
+  scheduled: { color: "#C9A84C", label: "Scheduled", icon: "clock" as const },
 };
 
-const TESTS: Test[] = [
-  { id: "t1", title: "JEE Main Mock #4 — Full Syllabus", subject: "Physics + Chem + Math", questions: 75, duration: 180, marks: 300, status: "available" },
-  { id: "t2", title: "Physics — Mechanics Sprint", subject: "Physics", questions: 25, duration: 45, marks: 100, status: "available" },
-  { id: "t3", title: "NEET Mock #3 — Bio Focus", subject: "Biology", questions: 90, duration: 180, marks: 360, status: "scheduled", scheduledFor: "Sun, 10 May · 6 PM" },
-  { id: "t4", title: "JEE Main Mock #3", subject: "PCM", questions: 75, duration: 180, marks: 300, status: "completed", score: 224 },
-  { id: "t5", title: "Chemistry — Organic Test", subject: "Chemistry", questions: 30, duration: 60, marks: 120, status: "completed", score: 95 },
-];
-
-const STATUS_META: Record<Test["status"], { color: string; label: string; icon: keyof typeof Feather.glyphMap }> = {
-  available: { color: "#0D7377", label: "Start now", icon: "play-circle" },
-  completed: { color: "#0A1F5C", label: "View report", icon: "bar-chart-2" },
-  scheduled: { color: "#C9A84C", label: "Scheduled", icon: "clock" },
-};
+function formatScheduled(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 export default function StudentMockTests() {
   const colors = useColors();
-  const demo = () => Alert.alert("Demo Mode", "Mock test taking is enabled in the full account.", [{ text: "OK" }]);
+  const [tests, setTests] = useState<MockTest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMockTests().then((items) => {
+      if (cancelled) return;
+      setTests(items);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onStart = async (t: MockTest) => {
+    const status = statusFor(t);
+    if (status !== "available") {
+      Alert.alert("Scheduled", `This test opens on ${formatScheduled(t.scheduledStart)}.`);
+      return;
+    }
+    const result = await startMockTestAttempt(t.id);
+    if (!result) {
+      Alert.alert(
+        "Sign in required",
+        "Please open the test on the web portal to begin your attempt.",
+      );
+      return;
+    }
+    Alert.alert("Test started", `Attempt #${result.attemptId.slice(0, 8)} created. Continue on the web portal.`);
+  };
 
   return (
     <ScreenContainer>
-      <SectionHeader title="Mock Tests"  />
+      <SectionHeader title="Mock Tests" />
 
       <View
         style={[
@@ -49,63 +82,75 @@ export default function StudentMockTests() {
         ]}
       >
         <View style={{ flex: 1 }}>
-          <Text style={[styles.heroLabel, { color: "#C9A84C" }]}>YOUR PROGRESS</Text>
+          <Text style={[styles.heroLabel, { color: "#C9A84C" }]}>AVAILABLE</Text>
           <Text style={[styles.heroTitle, { color: "#fff", fontFamily: "PlusJakartaSans_700Bold" }]}>
-            12 attempts · Avg 71%
+            {loading ? "Loading…" : `${tests.length} test${tests.length === 1 ? "" : "s"} ready`}
           </Text>
           <Text style={[styles.heroSub, { color: "#fff", opacity: 0.75 }]}>
-            Keep practicing — your rank improves every week.
+            Timed MCQs with auto-scoring — keep practicing to improve your rank.
           </Text>
         </View>
         <Feather name="award" size={36} color="#C9A84C" />
       </View>
 
-      {TESTS.map((t) => {
-        const meta = STATUS_META[t.status];
-        return (
-          <TouchableOpacity
-            key={t.id}
-            onPress={demo}
-            disabled={t.status !== "available" && t.status !== "completed"}
-            activeOpacity={0.75}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                borderRadius: colors.radius,
-              },
-            ]}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: meta.color + "15", borderRadius: 8 }]}>
-              <Feather name={meta.icon} size={20} color={meta.color} />
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text
-                numberOfLines={1}
-                style={[styles.title, { color: colors.foreground, fontFamily: "PlusJakartaSans_600SemiBold" }]}
-              >
-                {t.title}
-              </Text>
-              <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                {t.subject} · {t.questions} Qs · {t.duration} min · {t.marks} marks
-              </Text>
-              <View style={styles.statusRow}>
-                <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
-                {t.status === "completed" && t.score != null && (
-                  <Text style={[styles.scoreText, { color: colors.foreground }]}>
-                    · Score {t.score}/{t.marks} ({Math.round((t.score / t.marks) * 100)}%)
-                  </Text>
-                )}
-                {t.status === "scheduled" && (
-                  <Text style={[styles.scoreText, { color: colors.mutedForeground }]}>· {t.scheduledFor}</Text>
-                )}
+      {loading ? (
+        <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 13 }}>Loading mock tests…</Text>
+        </View>
+      ) : tests.length === 0 ? (
+        <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Feather name="inbox" size={28} color={colors.mutedForeground} />
+          <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 13, textAlign: "center" }}>
+            {hasWebsiteBase()
+              ? "No tests available yet. Check back soon!"
+              : "Connect to the web portal to load mock tests."}
+          </Text>
+        </View>
+      ) : (
+        tests.map((t) => {
+          const status = statusFor(t);
+          const meta = STATUS_META[status];
+          const maxMarks = (t.questionCount ?? 0) * t.marksPerQuestion;
+          return (
+            <TouchableOpacity
+              key={t.id}
+              onPress={() => onStart(t)}
+              activeOpacity={0.75}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: meta.color + "15", borderRadius: 8 }]}>
+                <Feather name={meta.icon} size={20} color={meta.color} />
               </View>
-            </View>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        );
-      })}
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.title, { color: colors.foreground, fontFamily: "PlusJakartaSans_600SemiBold" }]}
+                >
+                  {t.title}
+                </Text>
+                <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                  {t.subject} · {t.questionCount} Q{t.questionCount === 1 ? "" : "s"} · {t.durationMinutes} min · {maxMarks} marks
+                </Text>
+                <View style={styles.statusRow}>
+                  <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
+                  {status === "scheduled" && (
+                    <Text style={[styles.scoreText, { color: colors.mutedForeground }]}>· {formatScheduled(t.scheduledStart)}</Text>
+                  )}
+                </View>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          );
+        })
+      )}
     </ScreenContainer>
   );
 }
@@ -121,6 +166,7 @@ const styles = StyleSheet.create({
   heroLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   heroTitle: { fontSize: 18, marginTop: 4 },
   heroSub: { fontSize: 12, marginTop: 4 },
+  empty: { padding: 32, alignItems: "center", borderWidth: 1 },
   card: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
-import { questionBank } from "@workspace/db/schema";
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { questionBank, questionBookmarks, students } from "@workspace/db/schema";
+import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -38,7 +38,24 @@ export async function GET(req: NextRequest) {
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  return NextResponse.json({ success: true, items, total, page, pageSize });
+  // Per-user bookmark IDs (only when signed-in as an active student).
+  let bookmarkedIds: string[] = [];
+  const viewer = await getDbUser().catch(() => null);
+  if (viewer && items.length > 0) {
+    const [s] = await db.select({ id: students.id }).from(students)
+      .where(and(eq(students.userId, viewer.id), eq(students.isActive, true))).limit(1);
+    if (s) {
+      const bms = await db.select({ questionId: questionBookmarks.questionId })
+        .from(questionBookmarks)
+        .where(and(
+          eq(questionBookmarks.studentId, s.id),
+          inArray(questionBookmarks.questionId, items.map((q) => q.id)),
+        ));
+      bookmarkedIds = bms.map((b) => b.questionId);
+    }
+  }
+
+  return NextResponse.json({ success: true, items, total, page, pageSize, bookmarkedIds });
 }
 
 export async function POST(req: NextRequest) {
