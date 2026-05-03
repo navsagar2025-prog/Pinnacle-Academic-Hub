@@ -505,6 +505,7 @@ export const questionAttempts = qbSchema.table("question_attempts", {
   questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
   submittedAnswer: text("submitted_answer"),
   isCorrect: boolean("is_correct"),
+  timeSpentSeconds: integer("time_spent_seconds"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

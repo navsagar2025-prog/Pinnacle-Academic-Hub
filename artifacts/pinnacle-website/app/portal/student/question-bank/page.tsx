@@ -1,8 +1,8 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { questionBank, questionBookmarks, students } from "@workspace/db/schema";
-import { and, desc, eq } from "drizzle-orm";
-import { Sparkles, Bookmark } from "lucide-react";
+import { questionBank, questionBookmarks, questionAttempts, students } from "@workspace/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { Sparkles, Bookmark, CheckCircle2, Target, Clock, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "../../admin/question-bank/QuestionBankFilters";
 
@@ -36,6 +36,64 @@ export default async function StudentQuestionBankPage({
     : [];
   const bookmarkSet = new Set(myBookmarks.map((b) => b.id));
 
+  type PerQ = { count: number; lastCorrect: boolean | null };
+  const attemptByQ = new Map<string, PerQ>();
+  let analytics: {
+    overall: { total: number; correct: number; gradable: number; uniqueQuestions: number; totalSeconds: number };
+    bySubject: Array<{ subject: string; total: number; correct: number; gradable: number }>;
+    byDifficulty: Array<{ difficulty: string; total: number; correct: number; gradable: number }>;
+  } | null = null;
+
+  if (student) {
+    const perQ = await db
+      .select({
+        questionId: questionAttempts.questionId,
+        count: sql<number>`count(*)::int`,
+        lastCorrect: sql<boolean | null>`(array_agg(${questionAttempts.isCorrect} order by ${questionAttempts.createdAt} desc))[1]`,
+      })
+      .from(questionAttempts)
+      .where(eq(questionAttempts.studentId, student.id))
+      .groupBy(questionAttempts.questionId);
+    for (const r of perQ) attemptByQ.set(r.questionId, { count: r.count, lastCorrect: r.lastCorrect });
+
+    const [overall] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        correct: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} = true)::int`,
+        gradable: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} is not null)::int`,
+        uniqueQuestions: sql<number>`count(distinct ${questionAttempts.questionId})::int`,
+        totalSeconds: sql<number>`coalesce(sum(${questionAttempts.timeSpentSeconds}), 0)::int`,
+      })
+      .from(questionAttempts)
+      .where(eq(questionAttempts.studentId, student.id));
+
+    const bySubject = await db
+      .select({
+        subject: questionBank.subject,
+        total: sql<number>`count(*)::int`,
+        correct: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} = true)::int`,
+        gradable: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} is not null)::int`,
+      })
+      .from(questionAttempts)
+      .innerJoin(questionBank, eq(questionAttempts.questionId, questionBank.id))
+      .where(eq(questionAttempts.studentId, student.id))
+      .groupBy(questionBank.subject);
+
+    const byDifficulty = await db
+      .select({
+        difficulty: questionBank.difficulty,
+        total: sql<number>`count(*)::int`,
+        correct: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} = true)::int`,
+        gradable: sql<number>`count(*) filter (where ${questionAttempts.isCorrect} is not null)::int`,
+      })
+      .from(questionAttempts)
+      .innerJoin(questionBank, eq(questionAttempts.questionId, questionBank.id))
+      .where(eq(questionAttempts.studentId, student.id))
+      .groupBy(questionBank.difficulty);
+
+    analytics = { overall, bySubject, byDifficulty };
+  }
+
   let filtered = all.filter((q) => {
     if (sp.subject && sp.subject !== "All" && q.subject !== sp.subject) return false;
     if (sp.difficulty && q.difficulty !== sp.difficulty) return false;
@@ -67,6 +125,77 @@ export default async function StudentQuestionBankPage({
         </div>
       </div>
 
+      {analytics && analytics.overall.total > 0 && (
+        <div className="card space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={16} className="text-[var(--color-teal)]" />
+            <h2 className="font-bold text-sm text-[var(--color-navy)]">My practice analytics</h2>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-slate-100 p-3">
+              <Target size={14} className="text-[var(--color-teal)] mb-1" />
+              <div className="text-xl font-bold text-[var(--color-navy)]">{analytics.overall.total}</div>
+              <div className="text-xs text-slate-500">Total attempts</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 p-3">
+              <CheckCircle2 size={14} className="text-green-600 mb-1" />
+              <div className="text-xl font-bold text-[var(--color-navy)]">
+                {analytics.overall.gradable > 0 ? Math.round((analytics.overall.correct / analytics.overall.gradable) * 100) : 0}%
+              </div>
+              <div className="text-xs text-slate-500">Accuracy ({analytics.overall.correct}/{analytics.overall.gradable})</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 p-3">
+              <Sparkles size={14} className="text-[var(--color-gold)] mb-1" />
+              <div className="text-xl font-bold text-[var(--color-navy)]">{analytics.overall.uniqueQuestions}</div>
+              <div className="text-xs text-slate-500">Unique questions</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 p-3">
+              <Clock size={14} className="text-blue-500 mb-1" />
+              <div className="text-xl font-bold text-[var(--color-navy)]">{Math.round(analytics.overall.totalSeconds / 60)}m</div>
+              <div className="text-xs text-slate-500">Time practiced</div>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs font-semibold text-slate-500 mb-2">By subject</div>
+              <div className="space-y-1.5">
+                {analytics.bySubject.map((row) => {
+                  const acc = row.gradable > 0 ? Math.round((row.correct / row.gradable) * 100) : null;
+                  return (
+                    <div key={row.subject} className="flex items-center gap-2 text-xs">
+                      <span className="w-24 truncate text-slate-600">{row.subject}</span>
+                      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className={`h-full ${acc !== null && acc >= 75 ? "bg-green-500" : acc !== null && acc >= 50 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${acc ?? 0}%` }} />
+                      </div>
+                      <span className="w-20 text-right text-slate-500">{row.total} att{acc !== null && <> · {acc}%</>}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 mb-2">By difficulty</div>
+              <div className="space-y-1.5">
+                {["easy", "medium", "hard"].map((d) => {
+                  const row = analytics!.byDifficulty.find((r) => r.difficulty === d);
+                  const total = row?.total ?? 0;
+                  const acc = row && row.gradable > 0 ? Math.round((row.correct / row.gradable) * 100) : null;
+                  return (
+                    <div key={d} className="flex items-center gap-2 text-xs">
+                      <span className={`w-24 capitalize badge ${DIFF_COLOR[d]}`}>{d}</span>
+                      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className={`h-full ${acc !== null && acc >= 75 ? "bg-green-500" : acc !== null && acc >= 50 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${acc ?? 0}%` }} />
+                      </div>
+                      <span className="w-20 text-right text-slate-500">{total} att{acc !== null && <> · {acc}%</>}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <QuestionBankFilters subjects={subjects} years={years} />
 
       {filtered.length === 0 ? (
@@ -87,6 +216,17 @@ export default async function StudentQuestionBankPage({
                   <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
                   <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
                   {bookmarkSet.has(q.id) && <Bookmark size={12} className="text-[var(--color-gold)] fill-[var(--color-gold)]" />}
+                  {(() => {
+                    const a = attemptByQ.get(q.id);
+                    if (!a) return null;
+                    return (
+                      <span className="badge bg-slate-100 text-slate-600 flex items-center gap-1">
+                        {a.lastCorrect === true && <CheckCircle2 size={10} className="text-green-600" />}
+                        {a.lastCorrect === false && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
+                        {a.count}× attempted
+                      </span>
+                    );
+                  })()}
                 </div>
                 <p className="text-sm text-[var(--color-navy)] line-clamp-2">{q.questionText}</p>
               </div>

@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { Bookmark, Eye, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bookmark, Eye, CheckCircle2, XCircle, History } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -25,12 +25,36 @@ type Q = {
   solutionImageUrl: string | null;
 };
 
-export function PracticeView({ question: q, initialBookmarked }: { question: Q; initialBookmarked: boolean }) {
+type PriorAttempt = {
+  id: string;
+  submittedAnswer: string | null;
+  isCorrect: boolean | null;
+  timeSpentSeconds: number | null;
+  createdAt: string;
+};
+
+export function PracticeView({
+  question: q,
+  initialBookmarked,
+  initialAttempts,
+}: {
+  question: Q;
+  initialBookmarked: boolean;
+  initialAttempts: PriorAttempt[];
+}) {
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [bmLoading, setBmLoading] = useState(false);
   const [selected, setSelected] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [attempts, setAttempts] = useState<PriorAttempt[]>(initialAttempts);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const startRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    startRef.current = Date.now();
+  }, [q.id]);
 
   async function toggleBookmark() {
     setBmLoading(true);
@@ -42,6 +66,68 @@ export function PracticeView({ question: q, initialBookmarked }: { question: Q; 
 
   const isMcq = q.questionType === "mcq" && q.options;
   const correct = isMcq && selected === q.correctAnswer;
+
+  async function recordAttempt() {
+    const submittedAnswer = isMcq ? selected : textAnswer.trim();
+    if (!submittedAnswer) return;
+    const timeSpentSeconds = Math.round((Date.now() - startRef.current) / 1000);
+    setSaving(true);
+    setSaveError(false);
+    setRevealed(true);
+    try {
+      const res = await fetch(`${BASE}/api/v1/question-bank/${q.id}/attempts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submittedAnswer, timeSpentSeconds }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.attempt) setAttempts((prev) => [data.attempt, ...prev]);
+      } else {
+        setSaveError(true);
+      }
+    } catch {
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function retrySave() {
+    const submittedAnswer = isMcq ? selected : textAnswer.trim();
+    if (!submittedAnswer) return;
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const res = await fetch(`${BASE}/api/v1/question-bank/${q.id}/attempts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submittedAnswer }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.attempt) setAttempts((prev) => [data.attempt, ...prev]);
+      } else {
+        setSaveError(true);
+      }
+    } catch {
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function tryAgain() {
+    setRevealed(false);
+    setSelected("");
+    setTextAnswer("");
+    startRef.current = Date.now();
+  }
+
+  const totalAttempts = attempts.length;
+  const gradable = attempts.filter((a) => a.isCorrect !== null);
+  const correctCount = gradable.filter((a) => a.isCorrect).length;
+  const accuracy = gradable.length > 0 ? Math.round((correctCount / gradable.length) * 100) : null;
 
   return (
     <div className="space-y-5">
@@ -96,13 +182,13 @@ export function PracticeView({ question: q, initialBookmarked }: { question: Q; 
 
         <div className="flex items-center justify-between gap-3 pt-2">
           {!revealed ? (
-            <button onClick={() => setRevealed(true)}
-              disabled={isMcq ? !selected : !textAnswer.trim()}
+            <button onClick={recordAttempt}
+              disabled={saving || (isMcq ? !selected : !textAnswer.trim())}
               className="btn-gold px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50">
               <Eye size={14} /> Reveal Solution
             </button>
           ) : (
-            <button onClick={() => { setRevealed(false); setSelected(""); setTextAnswer(""); }}
+            <button onClick={tryAgain}
               className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">
               Try Again
             </button>
@@ -115,6 +201,16 @@ export function PracticeView({ question: q, initialBookmarked }: { question: Q; 
         </div>
       </div>
 
+      {saveError && (
+        <div className="card border-l-4 border-l-rose-400 bg-rose-50 flex items-center justify-between gap-3">
+          <p className="text-xs text-rose-700">We couldn&apos;t save this attempt to your history.</p>
+          <button onClick={retrySave} disabled={saving}
+            className="px-3 py-1 rounded-md border border-rose-300 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50">
+            {saving ? "Retrying…" : "Retry save"}
+          </button>
+        </div>
+      )}
+
       {revealed && (
         <div className="card border-l-4 border-l-[var(--color-teal)] bg-[var(--color-teal)]/5">
           <div className="font-bold text-[var(--color-teal)] mb-2 text-sm">Solution</div>
@@ -125,6 +221,36 @@ export function PracticeView({ question: q, initialBookmarked }: { question: Q; 
             <p className="text-sm text-slate-400 italic">No detailed solution provided.</p>
           )}
           {q.solutionImageUrl && <img src={q.solutionImageUrl} alt="Solution" className="mt-3 max-w-full rounded-lg border border-slate-100" />}
+        </div>
+      )}
+
+      {totalAttempts > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <History size={14} className="text-slate-500" />
+            <h3 className="font-bold text-sm text-[var(--color-navy)]">Your attempts ({totalAttempts})</h3>
+            {accuracy !== null && (
+              <span className={`ml-auto text-xs font-semibold ${accuracy >= 75 ? "text-green-700" : accuracy >= 50 ? "text-amber-700" : "text-rose-700"}`}>
+                {accuracy}% accuracy
+              </span>
+            )}
+          </div>
+          <ul className="space-y-1.5 text-xs">
+            {attempts.slice(0, 8).map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-2 text-slate-600">
+                <span className="flex items-center gap-2">
+                  {a.isCorrect === true ? <CheckCircle2 size={12} className="text-green-600" /> :
+                   a.isCorrect === false ? <XCircle size={12} className="text-rose-600" /> :
+                   <span className="w-3 h-3 rounded-full bg-slate-200 inline-block" />}
+                  <span className="font-mono">{a.submittedAnswer ?? "—"}</span>
+                </span>
+                <span className="text-slate-400">
+                  {a.timeSpentSeconds != null && <>{a.timeSpentSeconds}s · </>}
+                  {new Date(a.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

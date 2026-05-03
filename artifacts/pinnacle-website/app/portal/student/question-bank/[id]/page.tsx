@@ -1,7 +1,7 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { questionBank, questionBookmarks, students } from "@workspace/db/schema";
-import { and, eq } from "drizzle-orm";
+import { questionBank, questionBookmarks, questionAttempts, students } from "@workspace/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -19,10 +19,23 @@ export default async function StudentQuestionDetailPage({ params }: { params: Pr
     .where(and(eq(students.userId, user.id), eq(students.isActive, true))).limit(1);
 
   let bookmarked = false;
+  let priorAttempts: Array<{ id: string; submittedAnswer: string | null; isCorrect: boolean | null; timeSpentSeconds: number | null; createdAt: string }> = [];
   if (student) {
     const [bm] = await db.select({ id: questionBookmarks.id }).from(questionBookmarks)
       .where(and(eq(questionBookmarks.studentId, student.id), eq(questionBookmarks.questionId, id))).limit(1);
     bookmarked = !!bm;
+
+    const rows = await db.select({
+      id: questionAttempts.id,
+      submittedAnswer: questionAttempts.submittedAnswer,
+      isCorrect: questionAttempts.isCorrect,
+      timeSpentSeconds: questionAttempts.timeSpentSeconds,
+      createdAt: questionAttempts.createdAt,
+    }).from(questionAttempts)
+      .where(and(eq(questionAttempts.studentId, student.id), eq(questionAttempts.questionId, id)))
+      .orderBy(desc(questionAttempts.createdAt))
+      .limit(20);
+    priorAttempts = rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
   }
 
   const opts = (q.options as Record<string, string> | null) ?? null;
@@ -49,6 +62,7 @@ export default async function StudentQuestionDetailPage({ params }: { params: Pr
           solutionImageUrl: q.solutionImageUrl,
         }}
         initialBookmarked={bookmarked}
+        initialAttempts={priorAttempts}
       />
     </div>
   );
