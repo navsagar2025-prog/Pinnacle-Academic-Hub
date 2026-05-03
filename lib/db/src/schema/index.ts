@@ -431,6 +431,55 @@ export const doubtAnswers = pgTable("doubt_answers", {
   authorRole: text("author_role").notNull(),
   answerText: text("answer_text").notNull(),
   imageUrl: text("image_url"),
+  upvotes: integer("upvotes").default(0).notNull(),
+  isOfficial: boolean("is_official").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const doubtAnswerVotes = pgTable("doubt_answer_votes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  answerId: uuid("answer_id").references(() => doubtAnswers.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const questionTypeEnum = pgEnum("question_type", ["mcq", "short", "long", "numerical"]);
+export const questionDifficultyEnum = pgEnum("question_difficulty", ["easy", "medium", "hard"]);
+
+export const questionBank = pgTable("question_bank", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subject: text("subject").notNull(),
+  topic: text("topic"),
+  classGrade: text("class_grade"),
+  year: integer("year"),
+  difficulty: questionDifficultyEnum("difficulty").notNull().default("medium"),
+  questionType: questionTypeEnum("question_type").notNull().default("mcq"),
+  questionText: text("question_text").notNull(),
+  options: jsonb("options"),
+  correctAnswer: text("correct_answer").notNull(),
+  solution: text("solution"),
+  imageUrl: text("image_url"),
+  solutionImageUrl: text("solution_image_url"),
+  marks: integer("marks").default(4).notNull(),
+  isPublished: boolean("is_published").default(true).notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const questionBookmarks = pgTable("question_bookmarks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
+  questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const questionAttempts = pgTable("question_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
+  questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
+  submittedAnswer: text("submitted_answer"),
+  isCorrect: boolean("is_correct"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -484,3 +533,8 @@ export type Doubt = typeof doubts.$inferSelect;
 export type InsertDoubt = typeof doubts.$inferInsert;
 export type DoubtAnswer = typeof doubtAnswers.$inferSelect;
 export type InsertDoubtAnswer = typeof doubtAnswers.$inferInsert;
+export type DoubtAnswerVote = typeof doubtAnswerVotes.$inferSelect;
+export type QuestionBank = typeof questionBank.$inferSelect;
+export type InsertQuestionBank = typeof questionBank.$inferInsert;
+export type QuestionBookmark = typeof questionBookmarks.$inferSelect;
+export type QuestionAttempt = typeof questionAttempts.$inferSelect;

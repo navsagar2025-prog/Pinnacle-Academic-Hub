@@ -19,6 +19,27 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
+    label: "Question Bank",
+    sub: "Practice PYQs by subject & difficulty",
+    icon: "book-open",
+    route: "/(student)/question-bank",
+    color: "#0A1F5C",
+  },
+  {
+    label: "Mock Tests",
+    sub: "Full-length mocks generated from the bank",
+    icon: "clipboard",
+    route: "/(student)/mock-tests",
+    color: "#C9A84C",
+  },
+  {
+    label: "Doubt Forum",
+    sub: "Ask doubts, get teacher-verified answers",
+    icon: "message-circle",
+    route: "/(student)/doubts",
+    color: "#0D7377",
+  },
+  {
     label: "Attendance",
     sub: "Subject-wise attendance tracker",
     icon: "check-square",

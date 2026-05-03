@@ -1,84 +1,99 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions } from "@workspace/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { Library, BookOpen, ChevronRight } from "lucide-react";
+import { questionBank, questionBookmarks, students } from "@workspace/db/schema";
+import { and, desc, eq } from "drizzle-orm";
+import { Sparkles, Bookmark } from "lucide-react";
 import Link from "next/link";
+import { QuestionBankFilters } from "../../admin/question-bank/QuestionBankFilters";
 
 export const metadata = { title: "Question Bank — Student Portal" };
 
-type SP = { subject?: string; examType?: string; topic?: string };
+const TYPE_LABEL: Record<string, string> = { mcq: "MCQ", short: "Short", long: "Long", numerical: "Numerical" };
+const DIFF_COLOR: Record<string, string> = {
+  easy: "bg-green-50 text-green-700",
+  medium: "bg-amber-50 text-amber-700",
+  hard: "bg-rose-50 text-rose-700",
+};
 
-export default async function QuestionBankPage({ searchParams }: { searchParams: Promise<SP> }) {
-  await requirePortalRole("student");
+export default async function StudentQuestionBankPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; q?: string; bookmarked?: string }>;
+}) {
+  const user = await requirePortalRole("student");
   const sp = await searchParams;
-  const subjectFilter = sp.subject ?? "";
-  const examTypeFilter = sp.examType ?? "";
 
-  const conds = [eq(mockTests.isPublished, true)];
-  if (subjectFilter) conds.push(eq(mockTests.subject, subjectFilter));
-  if (examTypeFilter) conds.push(eq(mockTests.examType, examTypeFilter));
+  const [student] = await db.select({ id: students.id }).from(students)
+    .where(and(eq(students.userId, user.id), eq(students.isActive, true))).limit(1);
 
-  const tests = await db.select({
-    id: mockTests.id, title: mockTests.title, subject: mockTests.subject, examType: mockTests.examType,
-    questionCount: sql<number>`(select count(*)::int from ${mockTestQuestions} where ${mockTestQuestions.testId} = ${mockTests.id})`,
-  }).from(mockTests).where(and(...conds)).orderBy(desc(mockTests.createdAt));
+  const all = await db.select().from(questionBank)
+    .where(eq(questionBank.isPublished, true))
+    .orderBy(desc(questionBank.createdAt))
+    .limit(500);
 
-  const subjects = Array.from(new Set(tests.map((t) => t.subject).filter((s): s is string => !!s))).sort();
-  const examTypes = Array.from(new Set(tests.map((t) => t.examType).filter((e): e is string => !!e))).sort();
+  const myBookmarks = student
+    ? await db.select({ id: questionBookmarks.questionId }).from(questionBookmarks).where(eq(questionBookmarks.studentId, student.id))
+    : [];
+  const bookmarkSet = new Set(myBookmarks.map((b) => b.id));
 
-  const visibleTests = tests.filter((t) => t.questionCount > 0);
+  let filtered = all.filter((q) => {
+    if (sp.subject && sp.subject !== "All" && q.subject !== sp.subject) return false;
+    if (sp.difficulty && q.difficulty !== sp.difficulty) return false;
+    if (sp.type && q.questionType !== sp.type) return false;
+    if (sp.year && q.year !== Number(sp.year)) return false;
+    if (sp.q) {
+      const needle = sp.q.toLowerCase();
+      if (!q.questionText.toLowerCase().includes(needle) && !(q.topic ?? "").toLowerCase().includes(needle)) return false;
+    }
+    return true;
+  });
+  if (sp.bookmarked === "1") filtered = filtered.filter((q) => bookmarkSet.has(q.id));
+
+  const subjects = Array.from(new Set(all.map((q) => q.subject))).sort();
+  const years = Array.from(new Set(all.map((q) => q.year).filter((y): y is number => !!y))).sort((a, b) => b - a);
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] flex items-center gap-2">
-          <Library size={22} className="text-[var(--color-teal)]" />Question Bank
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">Browse questions from previous-year papers and mock tests for self-practice.</p>
+    <div className="space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Question Bank</h1>
+          <p className="text-slate-500 text-sm mt-1">Practice from {all.length} curated questions, including previous-year papers.</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/portal/student/question-bank" className={`px-3 py-1.5 rounded-lg ${sp.bookmarked !== "1" ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600"}`}>All</Link>
+          <Link href="/portal/student/question-bank?bookmarked=1" className={`px-3 py-1.5 rounded-lg flex items-center gap-1 ${sp.bookmarked === "1" ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600"}`}>
+            <Bookmark size={13} />Bookmarks ({bookmarkSet.size})
+          </Link>
+        </div>
       </div>
 
-      <div className="card flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-slate-500 font-semibold mr-1">Subject:</span>
-        <FilterChip href="/portal/student/question-bank" label="All" active={!subjectFilter} />
-        {subjects.map((s) => (
-          <FilterChip key={s} href={`/portal/student/question-bank?subject=${encodeURIComponent(s)}${examTypeFilter ? `&examType=${encodeURIComponent(examTypeFilter)}` : ""}`} label={s} active={subjectFilter === s} />
-        ))}
-        <span className="w-full" />
-        <span className="text-xs text-slate-500 font-semibold mr-1">Exam:</span>
-        <FilterChip href={subjectFilter ? `/portal/student/question-bank?subject=${encodeURIComponent(subjectFilter)}` : "/portal/student/question-bank"} label="All" active={!examTypeFilter} />
-        {examTypes.map((e) => (
-          <FilterChip key={e} href={`/portal/student/question-bank?examType=${encodeURIComponent(e)}${subjectFilter ? `&subject=${encodeURIComponent(subjectFilter)}` : ""}`} label={e} active={examTypeFilter === e} />
-        ))}
-      </div>
+      <QuestionBankFilters subjects={subjects} years={years} />
 
-      {visibleTests.length === 0 ? (
-        <div className="card text-center py-10 text-slate-400">
-          <BookOpen size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">No questions found for the selected filters.</p>
+      {filtered.length === 0 ? (
+        <div className="card text-center py-12 text-slate-400">
+          <Sparkles size={32} className="mx-auto mb-3 opacity-30" />
+          <p>{sp.bookmarked === "1" ? "You haven't bookmarked any questions yet." : "No questions match your filters."}</p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {visibleTests.map((t) => (
-            <Link key={t.id} href={`/portal/student/question-bank/${t.id}`}
-              className="card hover:shadow-elevated transition-all flex items-center justify-between gap-3 group">
+        <div className="space-y-3">
+          {filtered.map((q) => (
+            <Link key={q.id} href={`/portal/student/question-bank/${q.id}`}
+              className="card hover:shadow-elevated transition-all flex items-start gap-3 group">
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-[var(--color-navy)] line-clamp-1">{t.title}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{t.subject} · {t.examType} · {t.questionCount} questions</div>
+                <div className="flex items-center gap-2 flex-wrap mb-1.5 text-xs">
+                  <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
+                  {q.topic && <span className="text-slate-500">· {q.topic}</span>}
+                  {q.year && <span className="text-slate-400">· PYQ {q.year}</span>}
+                  <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
+                  <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
+                  {bookmarkSet.has(q.id) && <Bookmark size={12} className="text-[var(--color-gold)] fill-[var(--color-gold)]" />}
+                </div>
+                <p className="text-sm text-[var(--color-navy)] line-clamp-2">{q.questionText}</p>
               </div>
-              <ChevronRight size={16} className="text-slate-300 group-hover:text-[var(--color-teal)] flex-shrink-0" />
             </Link>
           ))}
         </div>
       )}
     </div>
-  );
-}
-
-function FilterChip({ href, label, active }: { href: string; label: string; active: boolean }) {
-  return (
-    <Link href={href} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${
-      active ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-    }`}>{label}</Link>
   );
 }
