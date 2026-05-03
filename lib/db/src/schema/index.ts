@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSchema,
   text,
   integer,
   boolean,
@@ -7,6 +8,7 @@ import {
   uuid,
   pgEnum,
   jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["student", "parent", "teacher", "admin"]);
@@ -446,7 +448,11 @@ export const doubtAnswerVotes = pgTable("doubt_answer_votes", {
 export const questionTypeEnum = pgEnum("question_type", ["mcq", "short", "long", "numerical"]);
 export const questionDifficultyEnum = pgEnum("question_difficulty", ["easy", "medium", "hard"]);
 
-export const questionBank = pgTable("question_bank", {
+// Dedicated Postgres schema for the question bank so it can be backed up,
+// permission-scoped, and indexed independently of the operational tables.
+export const qbSchema = pgSchema("question_bank");
+
+export const questionBank = qbSchema.table("question_bank", {
   id: uuid("id").primaryKey().defaultRandom(),
   subject: text("subject").notNull(),
   topic: text("topic"),
@@ -465,16 +471,20 @@ export const questionBank = pgTable("question_bank", {
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("question_bank_subject_idx").on(t.subject),
+  index("question_bank_topic_idx").on(t.topic),
+  index("question_bank_year_idx").on(t.year),
+]);
 
-export const questionBookmarks = pgTable("question_bookmarks", {
+export const questionBookmarks = qbSchema.table("question_bookmarks", {
   id: uuid("id").primaryKey().defaultRandom(),
   studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
   questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const questionAttempts = pgTable("question_attempts", {
+export const questionAttempts = qbSchema.table("question_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
   questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),

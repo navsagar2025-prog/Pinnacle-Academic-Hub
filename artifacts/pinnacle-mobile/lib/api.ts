@@ -144,9 +144,11 @@ export type QBQuestion = {
 export async function fetchQuestionBank(params: {
   subject?: string;
   pageSize?: number;
+  search?: string;
 } = {}): Promise<{ items: QBQuestion[]; bookmarkedIds: string[] }> {
   const sp = new URLSearchParams();
   if (params.subject && params.subject !== "All") sp.set("subject", params.subject);
+  if (params.search && params.search.trim()) sp.set("search", params.search.trim());
   sp.set("pageSize", String(params.pageSize ?? 50));
   const data = await getJson<{ items?: QBQuestion[]; bookmarkedIds?: string[] }>(
     `/api/v1/question-bank?${sp.toString()}`,

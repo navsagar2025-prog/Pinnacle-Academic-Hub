@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { questionBank, questionBookmarks, students } from "@workspace/db/schema";
-import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const year = url.searchParams.get("year");
   const difficulty = url.searchParams.get("difficulty");
   const type = url.searchParams.get("type");
-  const search = url.searchParams.get("q");
+  // Accept both `search` (preferred) and the legacy `q` parameter.
+  const search = (url.searchParams.get("search") ?? url.searchParams.get("q") ?? "").trim();
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
   const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? "20")));
 
@@ -24,17 +25,22 @@ export async function GET(req: NextRequest) {
   if (difficulty) conds.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard"));
   if (type) conds.push(eq(questionBank.questionType, type as "mcq" | "short" | "long" | "numerical"));
   if (search) {
-    const searchCond = or(ilike(questionBank.questionText, `%${search}%`), ilike(questionBank.topic, `%${search}%`));
-    if (searchCond) conds.push(searchCond);
+    // plainto_tsquery is forgiving of arbitrary user input (no syntax errors).
+    conds.push(sql`search_vector @@ plainto_tsquery('english', ${search})`);
   }
 
   const where = conds.length === 1 ? conds[0] : and(...conds);
 
   const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(questionBank).where(where);
 
+  // When searching, rank by relevance with newest-first as a stable tie-breaker.
   const items = await db.select().from(questionBank)
     .where(where)
-    .orderBy(desc(questionBank.createdAt))
+    .orderBy(
+      ...(search
+        ? [sql`ts_rank(search_vector, plainto_tsquery('english', ${search})) DESC`, desc(questionBank.createdAt)]
+        : [desc(questionBank.createdAt)]),
+    )
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 

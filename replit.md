@@ -97,6 +97,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `artifacts/pinnacle-website/lib/data.ts` — All demo/static data (courses, faculty, toppers, testimonials)
   - `artifacts/pinnacle-website/next.config.ts` — basePath=/pinnacle-website, assetPrefix set
   - `lib/db/src/schema/index.ts` — Full Drizzle schema (18 tables: users, courses, batches, students, parents, teachers, studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries, assignments, attendance, studentTestResults, **galleryItems**, **seoOverrides**, siteSettings, auditLogs, blogPosts, results)
+- **Question Bank schema** (Postgres `question_bank` schema via Drizzle `pgSchema`): tables `question_bank.question_bank` / `question_bookmarks` / `question_attempts`. Generated `tsvector` column `search_vector` (question_text A, topic B, solution C) + GIN index. API `GET /api/v1/question-bank?search=…` uses `plainto_tsquery` + `ts_rank`. SQL lives in `lib/db/sql/question-bank-search.sql` and is re-applied by `scripts/post-merge.sh` after every `drizzle-kit push` (idempotent). Drizzle config has `schemaFilter: ["public", "question_bank"]`.
 
 ### 6. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
 - Expo React Native app (iOS + Android + Web) for Pinnacle Academic Classes
