@@ -29,3 +29,9 @@ id = "jhP1TGROmtZdwwJFcSbXT"
 uri = "file://pinnacle-demo-website.zip"
 type = "unspecified"
 title = "Pinnacle Demo Website — cPanel Ready (ZIP)"
+
+[[outputs]]
+id = "EDnfweYVtq66m4QAr6EWr"
+uri = "file://exports/pinnacle-platform-source.zip"
+type = "unspecified"
+title = "Pinnacle Platform — Full Source + SQL Dump (zip)"
