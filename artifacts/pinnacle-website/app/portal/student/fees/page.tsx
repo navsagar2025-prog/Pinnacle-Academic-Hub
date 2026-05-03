@@ -12,7 +12,7 @@ export default async function FeesPage() {
   const dbUser = await requirePortalRole("student");
 
   const [enrollment] = await db
-    .select({ studentId: students.id, batchId: students.batchId })
+    .select({ studentId: students.id, batchId: students.batchId, feePlan: students.feePlan })
     .from(students)
     .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
     .limit(1);
@@ -62,6 +62,13 @@ export default async function FeesPage() {
         <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Fee Status</h1>
         <p className="text-slate-500 text-sm mt-1">
           {batchInfo ? `${batchInfo.courseName} · ${batchInfo.batchName}` : "Not enrolled in a batch"}
+          {enrollment?.feePlan && (
+            <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide font-semibold ${
+              enrollment.feePlan === "monthly" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+            }`}>
+              {enrollment.feePlan === "monthly" ? "Monthly EMI" : "Annual"} Plan
+            </span>
+          )}
         </p>
       </div>
 

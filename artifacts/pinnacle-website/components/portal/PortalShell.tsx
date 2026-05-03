@@ -32,6 +32,8 @@ import {
   UserCheck,
   Images,
   ScrollText,
+  Sparkles,
+  MessageCircleQuestion,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   UserCheck,
   Images,
   ScrollText,
+  Sparkles,
+  MessageCircleQuestion,
 };
 
 export interface NavItem {

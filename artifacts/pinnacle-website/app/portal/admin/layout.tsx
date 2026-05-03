@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { label: "Fee Management", href: "/portal/admin/fees", icon: "CreditCard" },
   { label: "Results & Toppers", href: "/portal/admin/results", icon: "Trophy" },
   { label: "Test Scores", href: "/portal/admin/test-scores", icon: "ClipboardList" },
+  { label: "Mock Tests", href: "/portal/admin/mock-tests", icon: "Sparkles" },
+  { label: "Doubt Q&A", href: "/portal/admin/doubts", icon: "MessageCircleQuestion" },
   { label: "Blog CMS", href: "/portal/admin/blog", icon: "FileText" },
   { label: "Gallery", href: "/portal/admin/gallery", icon: "Images" },
   { label: "Analytics", href: "#", icon: "FileBarChart", divider: true },

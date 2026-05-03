@@ -74,6 +74,7 @@ export const students = pgTable("students", {
   dateOfBirth: timestamp("date_of_birth"),
   address: text("address"),
   previousSchool: text("previous_school"),
+  feePlan: text("fee_plan").default("annual"),
   enrolledAt: timestamp("enrolled_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -344,6 +345,95 @@ export const attendanceLowAlerts = pgTable("attendance_low_alerts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const mockTests = pgTable("mock_tests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  subject: text("subject").notNull(),
+  examType: text("exam_type").default("Mixed"),
+  batchId: uuid("batch_id").references(() => batches.id),
+  durationMinutes: integer("duration_minutes").notNull().default(60),
+  marksPerQuestion: integer("marks_per_question").notNull().default(4),
+  negativeMarkingPercent: integer("negative_marking_percent").notNull().default(25),
+  instructions: text("instructions"),
+  isPublished: boolean("is_published").default(false).notNull(),
+  isPublic: boolean("is_public").default(false).notNull(),
+  scheduledStart: timestamp("scheduled_start"),
+  scheduledEnd: timestamp("scheduled_end"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const mockTestQuestions = pgTable("mock_test_questions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
+  questionNumber: integer("question_number").notNull(),
+  questionText: text("question_text").notNull(),
+  optionA: text("option_a").notNull(),
+  optionB: text("option_b").notNull(),
+  optionC: text("option_c").notNull(),
+  optionD: text("option_d").notNull(),
+  correctOption: text("correct_option").notNull(),
+  topic: text("topic"),
+  explanation: text("explanation"),
+  imageUrl: text("image_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const mockTestAttempts = pgTable("mock_test_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }),
+  guestName: text("guest_name"),
+  guestEmail: text("guest_email"),
+  guestPhone: text("guest_phone"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  submittedAt: timestamp("submitted_at"),
+  totalQuestions: integer("total_questions").notNull().default(0),
+  attemptedCount: integer("attempted_count").notNull().default(0),
+  correctCount: integer("correct_count").notNull().default(0),
+  wrongCount: integer("wrong_count").notNull().default(0),
+  score: integer("score").notNull().default(0),
+  maxScore: integer("max_score").notNull().default(0),
+  timeSpentSeconds: integer("time_spent_seconds").notNull().default(0),
+  isCompleted: boolean("is_completed").default(false).notNull(),
+});
+
+export const mockTestAnswers = pgTable("mock_test_answers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  attemptId: uuid("attempt_id").references(() => mockTestAttempts.id, { onDelete: "cascade" }).notNull(),
+  questionId: uuid("question_id").references(() => mockTestQuestions.id, { onDelete: "cascade" }).notNull(),
+  selectedOption: text("selected_option"),
+  isCorrect: boolean("is_correct"),
+  marksAwarded: integer("marks_awarded").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const doubts = pgTable("doubts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
+  batchId: uuid("batch_id").references(() => batches.id),
+  subject: text("subject").notNull(),
+  topic: text("topic"),
+  questionText: text("question_text").notNull(),
+  imageUrl: text("image_url"),
+  status: text("status").default("open").notNull(),
+  isResolved: boolean("is_resolved").default(false).notNull(),
+  answerCount: integer("answer_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const doubtAnswers = pgTable("doubt_answers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doubtId: uuid("doubt_id").references(() => doubts.id, { onDelete: "cascade" }).notNull(),
+  authorId: uuid("author_id").references(() => users.id).notNull(),
+  authorRole: text("author_role").notNull(),
+  answerText: text("answer_text").notNull(),
+  imageUrl: text("image_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),
@@ -384,3 +474,13 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type GalleryItem = typeof galleryItems.$inferSelect;
 export type InsertGalleryItem = typeof galleryItems.$inferInsert;
 export type SeoOverride = typeof seoOverrides.$inferSelect;
+export type MockTest = typeof mockTests.$inferSelect;
+export type InsertMockTest = typeof mockTests.$inferInsert;
+export type MockTestQuestion = typeof mockTestQuestions.$inferSelect;
+export type InsertMockTestQuestion = typeof mockTestQuestions.$inferInsert;
+export type MockTestAttempt = typeof mockTestAttempts.$inferSelect;
+export type MockTestAnswer = typeof mockTestAnswers.$inferSelect;
+export type Doubt = typeof doubts.$inferSelect;
+export type InsertDoubt = typeof doubts.$inferInsert;
+export type DoubtAnswer = typeof doubtAnswers.$inferSelect;
+export type InsertDoubtAnswer = typeof doubtAnswers.$inferInsert;

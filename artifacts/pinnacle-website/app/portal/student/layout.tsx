@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { label: "Assignments", href: "/portal/student/assignments", icon: "ClipboardList" },
   { label: "Study Material", href: "/portal/student/materials", icon: "BookOpen" },
   { label: "Practice Papers", href: "/portal/student/papers", icon: "FileText" },
+  { label: "Mock Tests", href: "/portal/student/mock-tests", icon: "Sparkles" },
+  { label: "Ask a Doubt", href: "/portal/student/doubts", icon: "MessageCircleQuestion" },
   { label: "Attendance", href: "/portal/student/attendance", icon: "UserCheck" },
   { label: "Results", href: "/portal/student/results", icon: "TrendingUp" },
   { label: "Fee Status", href: "/portal/student/fees", icon: "CreditCard" },
