@@ -78,8 +78,7 @@ export default async function TeacherMaterialsPage() {
                 </div>
                 <a
                   href={m.fileUrl ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  target="_blank" rel="noopener noreferrer"
                   className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
                 >
                   <Download size={12} />View

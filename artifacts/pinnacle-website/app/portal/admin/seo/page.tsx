@@ -110,16 +110,14 @@ export default async function SeoAuditPage() {
         <div className="flex items-center gap-2">
           <a
             href={apiUrl("/sitemap.xml")}
-            target="_blank"
-            rel="noreferrer"
+            target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-teal)]/30 text-[var(--color-teal)] hover:bg-[var(--color-teal)]/5 transition-colors"
           >
             <Globe size={13} /> sitemap.xml
           </a>
           <a
             href={apiUrl("/robots.txt")}
-            target="_blank"
-            rel="noreferrer"
+            target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
           >
             <FileText size={13} /> robots.txt
@@ -259,8 +257,7 @@ export default async function SeoAuditPage() {
                 <td className="py-2.5 px-3 text-center">
                   <a
                     href={`${SITE_URL}${r.route}`}
-                    target="_blank"
-                    rel="noreferrer"
+                    target="_blank" rel="noopener noreferrer"
                     className="text-slate-400 hover:text-[var(--color-teal)] transition-colors inline-flex items-center justify-center"
                     title={`Open ${r.label}`}
                   >
@@ -319,8 +316,7 @@ export default async function SeoAuditPage() {
               <a
                 key={f.label}
                 href={f.href}
-                target="_blank"
-                rel="noreferrer"
+                target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-[var(--color-teal)]/30 hover:bg-[var(--color-teal)]/5 transition-all group"
               >
                 <FileText size={15} className="text-slate-400 group-hover:text-[var(--color-teal)]" />

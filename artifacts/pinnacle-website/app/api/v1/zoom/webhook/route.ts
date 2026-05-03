@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log(`[Zoom webhook] recording.completed for meetingId=${meetingId}, liveClassId=${liveClass?.id ?? "not found"}`);
+    console.info(`[Zoom webhook] recording.completed for meetingId=${meetingId}, liveClassId=${liveClass?.id ?? "not found"}`);
     return ok({ received: true, meetingId, recordingUrl });
   }
 

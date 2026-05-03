@@ -107,8 +107,7 @@ export default async function RecordingsPage() {
               <a
                 key={r.id}
                 href={r.recordingUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
+                target="_blank" rel="noopener noreferrer"
                 className="card group hover:shadow-elevated transition-all p-0 overflow-hidden block"
               >
                 <RecordingThumbnail subject={r.subject} dur={dur} sc={sc} interactive />

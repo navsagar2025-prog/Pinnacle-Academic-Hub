@@ -43,8 +43,7 @@ export function ContactDetails({ info }: { info: ContactInfo }) {
         <p className="text-white/70 text-sm mb-3">Quick queries answered on WhatsApp 9 AM – 8 PM.</p>
         <a
           href={`https://wa.me/${info.whatsapp.replace(/\D/g, "")}`}
-          target="_blank"
-          rel="noopener noreferrer"
+          target="_blank" rel="noopener noreferrer"
           className="btn-gold py-2 px-5 text-sm w-full justify-center"
         >
           Open WhatsApp

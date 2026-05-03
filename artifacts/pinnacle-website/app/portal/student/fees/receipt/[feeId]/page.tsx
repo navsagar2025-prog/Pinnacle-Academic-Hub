@@ -45,8 +45,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ feeId:
     : "—";
   const paymentMethod = fee.razorpayPaymentId
     ? "Online (Razorpay)"
-    : (fee as typeof fee & { paymentMethod?: string | null }).paymentMethod
-      ?? (fee.transactionRef ? "Manual Transfer" : "Cash");
+    : fee.paymentMethod ?? (fee.transactionRef ? "Manual Transfer" : "Cash");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

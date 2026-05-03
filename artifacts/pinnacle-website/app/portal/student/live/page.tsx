@@ -146,8 +146,7 @@ export default async function LiveClassesPage() {
             {(computed === "live" || computed === "upcoming") && cls.zoomJoinUrl ? (
               <a
                 href={cls.zoomJoinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                target="_blank" rel="noopener noreferrer"
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   computed === "live"
                     ? "bg-green-600 text-white hover:bg-green-700"
@@ -162,8 +161,7 @@ export default async function LiveClassesPage() {
             ) : computed === "ended" && cls.recordingUrl ? (
               <a
                 href={cls.recordingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
               >
                 <Video size={13} />Recording

@@ -408,6 +408,6 @@ async function checkAndNotifyLowAttendance(studentIds: string[]): Promise<void> 
       continue;
     }
 
-    console.log(`[attendance-alert] Sent low-attendance alert for student ${studentId} (${pct}%) to ${recipientEmail}`);
+    console.info(`[attendance-alert] Sent low-attendance alert for student ${studentId} (${pct}%) to ${recipientEmail}`);
   }
 }

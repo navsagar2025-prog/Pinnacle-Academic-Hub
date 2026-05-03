@@ -104,8 +104,7 @@ export default async function AssignmentsPage() {
                   {a.fileUrl ? (
                     <a
                       href={a.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors"
                     >
                       <Download size={14} />Download

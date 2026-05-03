@@ -116,8 +116,7 @@ export default async function TeacherLivePage() {
                     {cls.zoomJoinUrl && (
                       <a
                         href={cls.zoomJoinUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-teal)] hover:underline"
                       >
                         <ExternalLink size={11} /> Open Meeting Link
@@ -126,8 +125,7 @@ export default async function TeacherLivePage() {
                     {cls.zoomHostUrl && cls.zoomHostUrl !== cls.zoomJoinUrl && (
                       <a
                         href={cls.zoomHostUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:underline"
                       >
                         <ExternalLink size={11} /> Host Link
@@ -169,8 +167,7 @@ export default async function TeacherLivePage() {
                   {cls.recordingUrl ? (
                     <a
                       href={cls.recordingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target="_blank" rel="noopener noreferrer"
                       className="text-xs font-semibold text-[var(--color-teal)] hover:underline flex items-center gap-1"
                     >
                       <Video size={11} /> Recording
