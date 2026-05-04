@@ -24,10 +24,10 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const subjects = allowedSubjects.length > 0 ? allowedSubjects : ["Physics"];
+  const hasSubjects = allowedSubjects.length > 0;
   const [form, setForm] = useState({
     title: "",
-    subject: subjects[0],
+    subject: hasSubjects ? allowedSubjects[0] : "",
     examType: "JEE Main",
     batchId: "",
     durationMinutes: 60,
@@ -110,6 +110,12 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
         <form onSubmit={submit} className="p-5 space-y-4">
           {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
+          {!hasSubjects && (
+            <p className="text-amber-700 text-sm bg-amber-50 rounded-lg px-3 py-2">
+              You have no subjects assigned. Please contact your administrator to get subjects assigned before creating tests.
+            </p>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Title</label>
             <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -119,10 +125,10 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
-              <select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className={input + " bg-white"}>
-                {subjects.map((s) => <option key={s}>{s}</option>)}
+              <select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className={input + " bg-white"} disabled={!hasSubjects}>
+                {allowedSubjects.map((s) => <option key={s}>{s}</option>)}
               </select>
-              {subjects.length === 1 && (
+              {allowedSubjects.length === 1 && (
                 <p className="text-[10px] text-slate-400 mt-0.5">Restricted to your subject</p>
               )}
             </div>
@@ -211,7 +217,7 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] disabled:opacity-50 flex items-center gap-1.5">
+            <button type="submit" disabled={loading || !hasSubjects} className="px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] disabled:opacity-50 flex items-center gap-1.5">
               {mode === "auto" && <Sparkles size={14} />}
               {loading ? "Working…" : mode === "auto" ? "Generate Test" : "Create & Add Questions"}
             </button>

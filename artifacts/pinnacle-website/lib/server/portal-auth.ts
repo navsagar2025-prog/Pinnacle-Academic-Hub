@@ -183,12 +183,14 @@ export async function getTeacherPermissions(userId: string): Promise<TeacherPerm
   const isExaminer = teacher.isExaminer ||
     (typeof teacher.designation === "string" && /examiner/i.test(teacher.designation));
 
+  const MOCK_TEST_SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "Mixed"];
+
   return {
     teacherId: teacher.id,
     userId,
     isExaminer,
     allowedSubjects: isExaminer
-      ? ["Physics", "Chemistry", "Mathematics", "Biology", "Mixed"]
+      ? MOCK_TEST_SUBJECTS
       : (teacher.subjects ?? []),
   };
 }
