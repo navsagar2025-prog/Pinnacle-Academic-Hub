@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const viewer = await getDbUser().catch(() => null);
 
-  if (mine === "true" && viewer && viewer.role === "teacher") {
+  if (viewer?.role === "teacher" && mine === "true") {
     const conds: SQL[] = [eq(mockTests.createdBy, viewer.id)];
     if (subject && subject !== "All") conds.push(eq(mockTests.subject, subject));
 
@@ -50,7 +50,12 @@ export async function GET(req: NextRequest) {
     audience = enrollment?.batchId
       ? or(eq(mockTests.batchId, enrollment.batchId), isNull(mockTests.batchId))
       : isNull(mockTests.batchId);
-  } else if (viewer.role !== "teacher" && viewer.role !== "admin") {
+  } else if (viewer?.role === "teacher") {
+    audience = or(
+      eq(mockTests.createdBy, viewer.id),
+      isNull(mockTests.batchId)
+    );
+  } else if (viewer?.role !== "admin") {
     audience = and(eq(mockTests.isPublic, true), isNull(mockTests.batchId));
   }
 

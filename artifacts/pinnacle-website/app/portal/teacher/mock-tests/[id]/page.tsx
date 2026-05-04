@@ -92,10 +92,14 @@ function TeacherDeleteQuestion({ testId, questionId }: { testId: string; questio
     <form action={async () => {
       "use server";
       const { db: dbInner } = await import("@workspace/db");
-      const { mockTestQuestions: mq } = await import("@workspace/db/schema");
-      const { eq: eqInner } = await import("drizzle-orm");
+      const { mockTests: mt, mockTestQuestions: mq } = await import("@workspace/db/schema");
+      const { eq: eqInner, and: andInner } = await import("drizzle-orm");
       const { revalidatePath } = await import("next/cache");
-      await dbInner.delete(mq).where(eqInner(mq.id, questionId));
+      const { requirePortalRole: rpr } = await import("@/lib/server/portal-auth");
+      const user = await rpr("teacher");
+      const [test] = await dbInner.select({ createdBy: mt.createdBy }).from(mt).where(eqInner(mt.id, testId)).limit(1);
+      if (!test || test.createdBy !== user.id) return;
+      await dbInner.delete(mq).where(andInner(eqInner(mq.id, questionId), eqInner(mq.testId, testId)));
       revalidatePath(`/portal/teacher/mock-tests/${testId}`);
     }}>
       <button type="submit" aria-label="Delete question" className="text-slate-400 hover:text-[var(--color-maroon)]">
