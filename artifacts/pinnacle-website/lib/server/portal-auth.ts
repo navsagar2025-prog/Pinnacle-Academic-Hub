@@ -32,7 +32,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export type PortalRole = "student" | "parent" | "teacher" | "admin";
 
@@ -162,4 +162,40 @@ export async function getDbUserById(clerkUserId: string) {
 export async function authUserId(): Promise<string | null> {
   const { userId } = await auth();
   return userId ?? null;
+}
+
+export type TeacherPermissions = {
+  teacherId: string;
+  userId: string;
+  isExaminer: boolean;
+  allowedSubjects: string[];
+};
+
+export async function getTeacherPermissions(userId: string): Promise<TeacherPermissions | null> {
+  const [teacher] = await db
+    .select()
+    .from(schema.teachers)
+    .where(and(eq(schema.teachers.userId, userId), eq(schema.teachers.isActive, true)))
+    .limit(1);
+
+  if (!teacher) return null;
+
+  const isExaminer = teacher.isExaminer ||
+    (typeof teacher.designation === "string" && /examiner/i.test(teacher.designation));
+
+  return {
+    teacherId: teacher.id,
+    userId,
+    isExaminer,
+    allowedSubjects: isExaminer
+      ? ["Physics", "Chemistry", "Mathematics", "Biology", "Mixed"]
+      : (teacher.subjects ?? []),
+  };
+}
+
+export async function requireTeacherOrAdmin() {
+  const user = await getDbUser();
+  if (!user) return null;
+  if (user.role !== "admin" && user.role !== "teacher") return null;
+  return user;
 }

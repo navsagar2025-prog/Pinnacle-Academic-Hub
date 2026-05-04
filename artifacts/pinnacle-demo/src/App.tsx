@@ -37,6 +37,7 @@ import TeacherSchedule from "@/pages/portal/teacher/Schedule";
 import TeacherMaterials from "@/pages/portal/teacher/Materials";
 import TeacherNotices from "@/pages/portal/teacher/Notices";
 import TeacherBatches from "@/pages/portal/teacher/Batches";
+import TeacherMockTests from "@/pages/portal/teacher/MockTests";
 
 import AdminDashboard from "@/pages/portal/admin/Dashboard";
 import AdminStudents from "@/pages/portal/admin/Students";
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/portal/teacher/materials" component={TeacherMaterials} />
       <Route path="/portal/teacher/notices" component={TeacherNotices} />
       <Route path="/portal/teacher/batches" component={TeacherBatches} />
+      <Route path="/portal/teacher/mock-tests" component={TeacherMockTests} />
 
       {/* Shared portal — scan feature for teacher + admin */}
       <Route path="/portal/scan" component={ScanDocument} />

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDbUser } from "@/lib/server/portal-auth";
+import { getDbUser, getTeacherPermissions } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTests, mockTestQuestions, questionBank } from "@workspace/db/schema";
 import { and, eq, sql, type SQL } from "drizzle-orm";
@@ -13,6 +13,15 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   if (!body?.title || !body?.subject) return NextResponse.json({ error: "title and subject are required" }, { status: 400 });
+
+  if (user.role === "teacher") {
+    const perms = await getTeacherPermissions(user.id);
+    if (!perms) return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+    if (!perms.allowedSubjects.includes(body.subject)) {
+      return NextResponse.json({ error: `You can only create tests for: ${perms.allowedSubjects.join(", ")}` }, { status: 403 });
+    }
+  }
+
   const count = Math.min(100, Math.max(1, Number(body.count) || 20));
 
   const conds: SQL[] = [eq(questionBank.isPublished, true), eq(questionBank.questionType, "mcq")];

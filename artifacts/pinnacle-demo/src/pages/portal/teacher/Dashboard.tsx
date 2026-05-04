@@ -1,5 +1,5 @@
 import { PortalLayout } from "@/components/layout/PortalLayout";
-import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users, Video, ScanLine } from "lucide-react";
+import { LayoutDashboard, CalendarPlus, Upload, BellRing, Users, Video, ScanLine, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 
 export const teacherNavItems = [
@@ -8,6 +8,7 @@ export const teacherNavItems = [
   { label: "Upload Material", href: "/portal/teacher/materials", icon: Upload },
   { label: "Post Notice",     href: "/portal/teacher/notices",   icon: BellRing },
   { label: "Batches",         href: "/portal/teacher/batches",   icon: Users },
+  { label: "Mock Tests",      href: "/portal/teacher/mock-tests", icon: Sparkles },
   { label: "Scan Document",   href: "/portal/scan",              icon: ScanLine },
 ];
 

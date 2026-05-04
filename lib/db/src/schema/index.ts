@@ -110,6 +110,7 @@ export const teachers = pgTable("teachers", {
   experienceYears: integer("experience_years"),
   bio: text("bio"),
   initials: text("initials"),
+  isExaminer: boolean("is_examiner").default(false).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true),
   photoUrl: text("photo_url"),

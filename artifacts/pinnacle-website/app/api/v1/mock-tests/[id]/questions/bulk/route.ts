@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePortalRole } from "@/lib/server/portal-auth";
+import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
-import { mockTestQuestions } from "@workspace/db/schema";
+import { mockTests, mockTestQuestions } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 
 function parseCsv(text: string): string[][] {
-  // RFC 4180-compliant state machine. States: FIELD_START, UNQUOTED, QUOTED, QUOTE_IN_QUOTED.
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -40,7 +39,7 @@ function parseCsv(text: string): string[][] {
         else if (c === ",") { endField(); }
         else if (c === "\n") { endRow(); }
         else if (c === "\r") { if (text[i + 1] === "\n") i++; endRow(); }
-        else { cell += c; state = "QUOTED"; } // tolerate stray chars
+        else { cell += c; state = "QUOTED"; }
         break;
     }
   }
@@ -49,8 +48,19 @@ function parseCsv(text: string): string[][] {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  try { await requirePortalRole("admin"); } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }); }
+  const user = await getDbUser();
+  if (!user) return NextResponse.json({ error: "Login required" }, { status: 401 });
+  if (user.role !== "admin" && user.role !== "teacher") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id: testId } = await ctx.params;
+
+  const [test] = await db.select({ createdBy: mockTests.createdBy }).from(mockTests).where(eq(mockTests.id, testId)).limit(1);
+  if (!test) return NextResponse.json({ error: "Test not found" }, { status: 404 });
+  if (user.role === "teacher" && test.createdBy !== user.id) {
+    return NextResponse.json({ error: "Forbidden — you can only import questions to your own tests" }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   const csv = typeof body?.csv === "string" ? body.csv : "";

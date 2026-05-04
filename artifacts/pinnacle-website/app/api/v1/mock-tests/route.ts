@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDbUser, requirePortalRole } from "@/lib/server/portal-auth";
+import { getDbUser, getTeacherPermissions } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTests, mockTestQuestions, students } from "@workspace/db/schema";
 import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
@@ -7,13 +7,37 @@ import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const subject = url.searchParams.get("subject");
+  const mine = url.searchParams.get("mine");
 
   const viewer = await getDbUser().catch(() => null);
 
-  // Resolve audience filter:
-  // - Anonymous + parent viewers: only public tests with no batch.
-  // - Signed-in students: their batch's tests + tests with no batch.
-  // - Signed-in staff (teacher/admin): all published tests (no extra filter).
+  if (mine === "true" && viewer && viewer.role === "teacher") {
+    const conds: SQL[] = [eq(mockTests.createdBy, viewer.id)];
+    if (subject && subject !== "All") conds.push(eq(mockTests.subject, subject));
+
+    const items = await db
+      .select({
+        id: mockTests.id,
+        title: mockTests.title,
+        subject: mockTests.subject,
+        examType: mockTests.examType,
+        durationMinutes: mockTests.durationMinutes,
+        marksPerQuestion: mockTests.marksPerQuestion,
+        isPublished: mockTests.isPublished,
+        isPublic: mockTests.isPublic,
+        scheduledStart: mockTests.scheduledStart,
+        scheduledEnd: mockTests.scheduledEnd,
+        questionCount: sql<number>`(select count(*)::int from ${mockTestQuestions} where ${mockTestQuestions.testId} = ${mockTests.id})`,
+        createdAt: mockTests.createdAt,
+      })
+      .from(mockTests)
+      .where(and(...conds))
+      .orderBy(desc(mockTests.createdAt))
+      .limit(200);
+
+    return NextResponse.json({ success: true, items });
+  }
+
   let audience: SQL | undefined;
   if (!viewer || viewer.role === "parent") {
     audience = and(eq(mockTests.isPublic, true), isNull(mockTests.batchId));
@@ -27,7 +51,6 @@ export async function GET(req: NextRequest) {
       ? or(eq(mockTests.batchId, enrollment.batchId), isNull(mockTests.batchId))
       : isNull(mockTests.batchId);
   } else if (viewer.role !== "teacher" && viewer.role !== "admin") {
-    // Unknown role: deny by default — only public, null-batch tests.
     audience = and(eq(mockTests.isPublic, true), isNull(mockTests.batchId));
   }
 
@@ -57,12 +80,24 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let user;
-  try { user = await requirePortalRole("admin"); } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }); }
+  const user = await getDbUser();
+  if (!user) return NextResponse.json({ error: "Login required" }, { status: 401 });
+
+  if (user.role !== "admin" && user.role !== "teacher") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   const { title, subject, examType, batchId, durationMinutes, marksPerQuestion, negativeMarkingPercent, instructions, isPublic } = body ?? {};
   if (!title || !subject) return NextResponse.json({ error: "title and subject are required" }, { status: 400 });
+
+  if (user.role === "teacher") {
+    const perms = await getTeacherPermissions(user.id);
+    if (!perms) return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+    if (!perms.allowedSubjects.includes(subject)) {
+      return NextResponse.json({ error: `You can only create tests for: ${perms.allowedSubjects.join(", ")}` }, { status: 403 });
+    }
+  }
 
   const [created] = await db.insert(mockTests).values({
     title,
