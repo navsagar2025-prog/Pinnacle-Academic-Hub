@@ -26,6 +26,7 @@ export async function GET(request: Request) {
         initials: teachers.initials,
         bio: teachers.bio,
         isActive: teachers.isActive,
+        isExaminer: teachers.isExaminer,
         joinedAt: teachers.joinedAt,
       })
       .from(teachers)
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     bio?: string;
     initials?: string;
     photoUrl?: string;
+    isExaminer?: boolean;
   };
   try {
     body = await req.json();
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, designation, phone, qualification, subjects, experienceYears, bio, initials, photoUrl } = body;
+  const { name, email, designation, phone, qualification, subjects, experienceYears, bio, initials, photoUrl, isExaminer } = body;
   if (!name || !email || !designation) {
     return NextResponse.json({ error: "name, email, and designation are required" }, { status: 400 });
   }
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
     await db.update(teachers).set({
       designation, qualification: qualification ?? null, subjects: subjects ?? null,
       experienceYears: experienceYears ?? null, bio: bio ?? null, initials: initials ?? null,
-      photoUrl: photoUrl ?? null, isActive: true, updatedAt: new Date(),
+      photoUrl: photoUrl ?? null, isExaminer: isExaminer ?? false, isActive: true, updatedAt: new Date(),
     }).where(eq(teachers.id, existingTeacher.id));
     return NextResponse.json({ success: true, id: existingTeacher.id });
   }
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
     userId: existingUser.id, designation, qualification: qualification ?? null,
     subjects: subjects ?? null, experienceYears: experienceYears ?? null,
     bio: bio ?? null, initials: initials ?? null, photoUrl: photoUrl ?? null,
-    isActive: true,
+    isExaminer: isExaminer ?? false, isActive: true,
   }).returning({ id: teachers.id });
 
   return NextResponse.json({ success: true, id: newTeacher.id });

@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { teachers, users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { Mail, Phone, UserCheck } from "lucide-react";
+import { Award, Mail, Phone, UserCheck } from "lucide-react";
 import { AddFacultyButton, EditFacultyButton, RemoveFacultyButton } from "./TeacherModal";
 
 export const metadata = { title: "Faculty — Admin Panel" };
@@ -17,6 +17,7 @@ export default async function AdminTeachersPage() {
       initials: teachers.initials,
       bio: teachers.bio,
       isActive: teachers.isActive,
+      isExaminer: teachers.isExaminer,
       photoUrl: teachers.photoUrl,
       name: users.name,
       email: users.email,
@@ -59,7 +60,14 @@ export default async function AdminTeachersPage() {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <h3 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] text-sm leading-tight">{f.name ?? "—"}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] text-sm leading-tight">{f.name ?? "—"}</h3>
+                    {f.isExaminer && (
+                      <span className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                        <Award size={10} />Examiner
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[var(--color-gold)] text-xs font-medium mt-0.5">{f.designation}</div>
                   {f.experienceYears && <div className="text-slate-400 text-xs mt-0.5">{f.experienceYears} yr exp</div>}
                 </div>

@@ -1,15 +1,15 @@
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { adminNavItems } from "./Dashboard";
-import { Mail, Phone, Star, UserPlus } from "lucide-react";
+import { Award, Mail, Phone, Star, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const teachers = [
-  { name: "Dr. Ramesh Kumar",   subject: "Physics",   batches: ["JEE 2026 Eve", "JEE 2026 Morn", "Cl-12 PCM"],  classes: 22, students: 87, rating: 4.9, exp: "14 yrs", phone: "98765-43210", email: "ramesh@pinnacle.in" },
-  { name: "Ms. Priya Sharma",   subject: "Biology",   batches: ["NEET 2026 Morn", "NEET 2026 Eve"],             classes: 18, students: 64, rating: 4.8, exp: "9 yrs",  phone: "87654-32109", email: "priya@pinnacle.in" },
-  { name: "Mr. Ajay Tiwari",    subject: "Maths",     batches: ["JEE 2026 Eve", "Cl-12 PCM", "Cl-11 Found"],   classes: 26, students: 94, rating: 4.7, exp: "11 yrs", phone: "76543-21098", email: "ajay@pinnacle.in" },
-  { name: "Ms. Nidhi Verma",    subject: "Chemistry", batches: ["JEE 2026 Morn", "NEET 2026 Morn"],            classes: 20, students: 72, rating: 4.8, exp: "7 yrs",  phone: "65432-10987", email: "nidhi@pinnacle.in" },
-  { name: "Mr. Suresh Pandey",  subject: "English",   batches: ["Cl-12 PCM", "Cl-12 PCB", "Cl-12 Comm"],      classes: 14, students: 76, rating: 4.5, exp: "12 yrs", phone: "54321-09876", email: "suresh@pinnacle.in" },
-  { name: "Ms. Kavita Joshi",   subject: "Commerce",  batches: ["Cl-12 Comm", "Cl-11 Comm"],                   classes: 16, students: 45, rating: 4.6, exp: "8 yrs",  phone: "43210-98765", email: "kavita@pinnacle.in" },
+  { name: "Dr. Ramesh Kumar",   subject: "Physics",   batches: ["JEE 2026 Eve", "JEE 2026 Morn", "Cl-12 PCM"],  classes: 22, students: 87, rating: 4.9, exp: "14 yrs", phone: "98765-43210", email: "ramesh@pinnacle.in", isExaminer: true },
+  { name: "Ms. Priya Sharma",   subject: "Biology",   batches: ["NEET 2026 Morn", "NEET 2026 Eve"],             classes: 18, students: 64, rating: 4.8, exp: "9 yrs",  phone: "87654-32109", email: "priya@pinnacle.in", isExaminer: false },
+  { name: "Mr. Ajay Tiwari",    subject: "Maths",     batches: ["JEE 2026 Eve", "Cl-12 PCM", "Cl-11 Found"],   classes: 26, students: 94, rating: 4.7, exp: "11 yrs", phone: "76543-21098", email: "ajay@pinnacle.in", isExaminer: true },
+  { name: "Ms. Nidhi Verma",    subject: "Chemistry", batches: ["JEE 2026 Morn", "NEET 2026 Morn"],            classes: 20, students: 72, rating: 4.8, exp: "7 yrs",  phone: "65432-10987", email: "nidhi@pinnacle.in", isExaminer: false },
+  { name: "Mr. Suresh Pandey",  subject: "English",   batches: ["Cl-12 PCM", "Cl-12 PCB", "Cl-12 Comm"],      classes: 14, students: 76, rating: 4.5, exp: "12 yrs", phone: "54321-09876", email: "suresh@pinnacle.in", isExaminer: false },
+  { name: "Ms. Kavita Joshi",   subject: "Commerce",  batches: ["Cl-12 Comm", "Cl-11 Comm"],                   classes: 16, students: 45, rating: 4.6, exp: "8 yrs",  phone: "43210-98765", email: "kavita@pinnacle.in", isExaminer: true },
 ];
 
 function DemoBtn({ label }: { label: string }) {
@@ -41,7 +41,14 @@ export default function AdminTeachers() {
                 {t.name.split(" ").map(n => n[0]).join("").slice(0,2)}
               </div>
               <div className="flex-1">
-                <div className="font-bold text-foreground">{t.name}</div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-foreground">{t.name}</span>
+                  {t.isExaminer && (
+                    <span className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                      <Award className="w-2.5 h-2.5" />Examiner
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-secondary font-medium">{t.subject}</div>
                 <div className="text-xs text-muted-foreground">{t.exp} experience</div>
               </div>

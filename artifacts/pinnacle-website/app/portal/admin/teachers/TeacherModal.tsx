@@ -16,6 +16,7 @@ interface TeacherRow {
   initials: string | null;
   bio: string | null;
   isActive: boolean | null;
+  isExaminer: boolean;
   photoUrl: string | null;
   name: string | null;
   email: string | null;
@@ -91,6 +92,7 @@ function TeacherModal({ teacher, onClose }: { teacher?: TeacherRow; onClose: () 
     bio: teacher?.bio ?? "",
     initials: teacher?.initials ?? "",
     photoUrl: teacher?.photoUrl ?? "",
+    isExaminer: teacher?.isExaminer ?? false,
   });
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -104,6 +106,7 @@ function TeacherModal({ teacher, onClose }: { teacher?: TeacherRow; onClose: () 
       subjects: form.subjects.split(",").map((s) => s.trim()).filter(Boolean),
       experienceYears: form.experienceYears ? Number(form.experienceYears) : undefined,
       photoUrl: form.photoUrl || undefined,
+      isExaminer: form.isExaminer,
     };
     const url = teacher ? `${BASE}/api/v1/teachers/${teacher.id}` : `${BASE}/api/v1/teachers`;
     const method = teacher ? "PUT" : "POST";
@@ -147,13 +150,26 @@ function TeacherModal({ teacher, onClose }: { teacher?: TeacherRow; onClose: () 
                 <input
                   type={type ?? "text"}
                   required={req}
-                  value={form[key as keyof typeof form]}
+                  value={form[key as keyof typeof form] as string}
                   onChange={(e) => set(key, e.target.value)}
                   placeholder={placeholder}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
                 />
               </div>
             ))}
+
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.isExaminer}
+                  onChange={(e) => setForm((p) => ({ ...p, isExaminer: e.target.checked }))}
+                  className="w-4 h-4 rounded border-slate-300 text-[var(--color-teal)] focus:ring-[var(--color-teal)]"
+                />
+                <span className="text-xs font-semibold text-slate-600">Examiner</span>
+                <span className="text-[10px] text-slate-400">(can set/review exam papers)</span>
+              </label>
+            </div>
 
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Bio (optional)</label>

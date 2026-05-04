@@ -24,6 +24,7 @@ export async function PUT(
     initials?: string;
     photoUrl?: string;
     isActive?: boolean;
+    isExaminer?: boolean;
   };
   try {
     body = await req.json();
@@ -31,7 +32,7 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { designation, qualification, subjects, experienceYears, bio, initials, photoUrl, isActive } = body;
+  const { designation, qualification, subjects, experienceYears, bio, initials, photoUrl, isActive, isExaminer } = body;
 
   await db
     .update(teachers)
@@ -44,6 +45,7 @@ export async function PUT(
       ...(initials !== undefined && { initials }),
       ...(photoUrl !== undefined && { photoUrl }),
       ...(isActive !== undefined && { isActive }),
+      ...(isExaminer !== undefined && { isExaminer }),
       updatedAt: new Date(),
     })
     .where(eq(teachers.id, id));
