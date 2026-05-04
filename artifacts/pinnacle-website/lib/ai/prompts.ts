@@ -3,7 +3,8 @@ export type AiTool =
   | "enquiry_responder"
   | "study_summariser"
   | "batch_insight"
-  | "fee_reminder";
+  | "fee_reminder"
+  | "question_generator";
 
 export interface NoticeWriterCtx {
   topic: string;
@@ -45,12 +46,22 @@ export interface FeeReminderCtx {
   guardianPhone?: string | null;
 }
 
+export interface QuestionGeneratorCtx {
+  subject: string;
+  topic: string;
+  difficulty: "easy" | "medium" | "hard" | "mixed";
+  count: number;
+  classGrade?: string;
+  examType?: string;
+}
+
 export type AiContext =
   | NoticeWriterCtx
   | EnquiryResponderCtx
   | StudySummariserCtx
   | BatchInsightCtx
-  | FeeReminderCtx;
+  | FeeReminderCtx
+  | QuestionGeneratorCtx;
 
 const INSTITUTE =
   "Pinnacle Academic Classes (managed by KCK Corporate Services Pvt. Ltd.), Greater Noida, offering JEE/NEET/Foundation coaching.";
@@ -114,6 +125,41 @@ export function buildPrompt(
       return {
         systemPrompt: `You are a professional fee management officer at ${INSTITUTE}. Write polite, respectful, and firm fee reminder messages in BOTH English and Hindi. Maintain a caring tone — students are our priority.`,
         userPrompt: `Write a bilingual (English + Hindi) fee reminder message for:\n\nStudent: ${ctx.studentName} (Roll No: ${ctx.rollNumber})${ctx.guardianName ? `\nGuardian: ${ctx.guardianName}` : ""}${ctx.guardianPhone ? ` (${ctx.guardianPhone})` : ""}\nFee Period: ${ctx.period}\nAmount Due: ₹${ctx.amount.toLocaleString("en-IN")}\nDue Date: ${ctx.dueDate}\n\nFormat:\n**English Message:**\n[Write the English message here]\n\n**Hindi Message (हिंदी संदेश):**\n[Write the Hindi message here]\n\nKeep each message under 150 words. Be polite but clear about the urgency.`,
+      };
+    }
+
+    case "question_generator": {
+      const ctx = context as QuestionGeneratorCtx;
+      const diffInstruction = ctx.difficulty === "mixed"
+        ? "Mix difficulties: roughly 25% easy, 50% medium, 25% hard."
+        : `All questions should be "${ctx.difficulty}" difficulty.`;
+      const classNote = ctx.classGrade ? `Target class: ${ctx.classGrade}.` : "";
+      const examNote = ctx.examType ? `Style: ${ctx.examType} previous-year pattern.` : "Style: JEE/NEET competitive exam pattern.";
+      return {
+        systemPrompt: `You are an expert question paper setter for ${INSTITUTE}. Generate high-quality multiple-choice questions (MCQs) for competitive exam preparation. Each question MUST have exactly 4 options (A, B, C, D) with exactly one correct answer and a clear, concise solution explaining the reasoning. Output ONLY a valid JSON array — no markdown fences, no extra text.`,
+        userPrompt: `Generate exactly ${ctx.count} MCQ question(s) for:
+
+Subject: ${ctx.subject}
+Topic: ${ctx.topic}
+${classNote}
+${examNote}
+${diffInstruction}
+
+Output a JSON array where each element has these exact keys:
+{
+  "questionText": "the question",
+  "options": { "A": "option A", "B": "option B", "C": "option C", "D": "option D" },
+  "correctAnswer": "A",
+  "solution": "1-3 sentence explanation with key formula/steps",
+  "difficulty": "easy" | "medium" | "hard"
+}
+
+Rules:
+- Questions must be original, exam-quality, and conceptually distinct from each other
+- Distractors (wrong options) must be plausible — no obviously silly answers
+- Solutions should reference the key formula, principle, or reasoning
+- Do NOT repeat similar questions with just numbers changed
+- Output ONLY the JSON array, nothing else`,
       };
     }
   }

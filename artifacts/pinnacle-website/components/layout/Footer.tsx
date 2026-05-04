@@ -10,7 +10,7 @@ import {
   GraduationCap,
   ExternalLink,
 } from "lucide-react";
-import { getContactSettings } from "@/lib/server/site-settings";
+import { CONTACT } from "@/lib/contact";
 
 const COURSES = [
   { label: "JEE Main & Advanced", href: "/courses#jee" },
@@ -36,14 +36,13 @@ const LEGAL = [
   { label: "Refund Policy", href: "/refund-policy" },
 ];
 
-export default async function Footer() {
-  const settings = await getContactSettings();
+const social = [
+  { href: "https://facebook.com", Icon: Facebook, label: "Facebook" },
+  { href: "https://youtube.com", Icon: Youtube, label: "YouTube" },
+  { href: "https://instagram.com", Icon: Instagram, label: "Instagram" },
+];
 
-  const social = [
-    { href: settings.facebook_url, Icon: Facebook, label: "Facebook" },
-    { href: settings.youtube_url, Icon: Youtube, label: "YouTube" },
-    { href: settings.instagram_url, Icon: Instagram, label: "Instagram" },
-  ];
+export default function Footer() {
 
   return (
     <footer className="bg-[var(--color-navy)] text-white">
@@ -132,28 +131,25 @@ export default async function Footer() {
               <li className="flex gap-3">
                 <MapPin size={15} className="text-[var(--color-gold)] flex-shrink-0 mt-0.5" />
                 <span className="text-white/70 text-sm">
-                  {settings.address_line1}
-                  {settings.address_city && (
-                    <>, {settings.address_city}</>
-                  )}
+                  {CONTACT.address}
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={15} className="text-[var(--color-gold)] flex-shrink-0" />
                 <a
-                  href={`tel:${settings.contact_phone.replace(/\s/g, "")}`}
+                  href={CONTACT.telHref}
                   className="text-white/70 hover:text-white text-sm transition-colors"
                 >
-                  {settings.contact_phone}
+                  {CONTACT.phone}
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={15} className="text-[var(--color-gold)] flex-shrink-0" />
                 <a
-                  href={`mailto:${settings.contact_email}`}
+                  href={CONTACT.emailHref}
                   className="text-white/70 hover:text-white text-sm transition-colors"
                 >
-                  {settings.contact_email}
+                  {CONTACT.email}
                 </a>
               </li>
               <li className="flex items-start gap-3">
@@ -167,7 +163,7 @@ export default async function Footer() {
             </ul>
 
             <a
-              href={settings.maps_url}
+              href={CONTACT.mapsHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 mt-4 text-xs text-[var(--color-gold)] hover:text-[var(--color-gold-light)] transition-colors"
