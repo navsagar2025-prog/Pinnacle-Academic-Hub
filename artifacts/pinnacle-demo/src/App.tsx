@@ -46,6 +46,7 @@ import AdminFees from "@/pages/portal/admin/Fees";
 import AdminNotices from "@/pages/portal/admin/Notices";
 import AdminResults from "@/pages/portal/admin/Results";
 import AdminEnquiries from "@/pages/portal/admin/Enquiries";
+import AdminQuestionBank from "@/pages/portal/admin/QuestionBank";
 import AdminSettings from "@/pages/portal/admin/Settings";
 import ScanDocument from "@/pages/portal/ScanDocument";
 
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/portal/admin/notices" component={AdminNotices} />
       <Route path="/portal/admin/results" component={AdminResults} />
       <Route path="/portal/admin/enquiries" component={AdminEnquiries} />
+      <Route path="/portal/admin/question-bank" component={AdminQuestionBank} />
       <Route path="/portal/admin/settings" component={AdminSettings} />
 
       <Route component={NotFound} />
