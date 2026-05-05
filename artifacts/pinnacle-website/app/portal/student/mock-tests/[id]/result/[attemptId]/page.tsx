@@ -1,18 +1,43 @@
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers } from "@workspace/db/schema";
-import { eq, asc } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, students } from "@workspace/db/schema";
+import { eq, and, asc } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Trophy, Target, Clock, CheckCircle2, XCircle, MinusCircle, ChevronLeft } from "lucide-react";
-import { RichText } from "@/components/rich/RichText";
+import { Trophy, Target, Clock, CheckCircle2, ChevronLeft } from "lucide-react";
+import { requirePortalRole } from "@/lib/server/portal-auth";
+import { QuestionReview } from "./QuestionReview";
 
 export const metadata = { title: "Test Result — Student Portal" };
 
 export default async function ResultPage({ params }: { params: Promise<{ id: string; attemptId: string }> }) {
+  const dbUser = await requirePortalRole("student");
   const { id, attemptId } = await params;
 
-  const [attempt] = await db.select().from(mockTestAttempts).where(eq(mockTestAttempts.id, attemptId)).limit(1);
-  if (!attempt || attempt.testId !== id) notFound();
+  // Resolve the current student's record so we can scope the attempt to them.
+  const [enrollment] = await db
+    .select({ studentId: students.id })
+    .from(students)
+    .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
+    .limit(1);
+  if (!enrollment) notFound();
+
+  // Scope the attempt strictly to the current student + the URL test id.
+  const [attempt] = await db
+    .select()
+    .from(mockTestAttempts)
+    .where(and(
+      eq(mockTestAttempts.id, attemptId),
+      eq(mockTestAttempts.testId, id),
+      eq(mockTestAttempts.studentId, enrollment.studentId),
+    ))
+    .limit(1);
+  if (!attempt) notFound();
+
+  // Solutions/answers are only revealed for completed (graded) attempts.
+  // Send the student back to the take page if the attempt is still in progress.
+  if (!attempt.isCompleted) {
+    redirect(`/portal/student/mock-tests/${id}/take`);
+  }
 
   const [test] = await db.select().from(mockTests).where(eq(mockTests.id, id)).limit(1);
   if (!test) notFound();
@@ -109,68 +134,30 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Per-question review */}
-      <div className="card">
-        <h2 className="font-bold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">Question Review</h2>
-        <ol className="space-y-4">
-          {questions.map((q) => {
-            const ans = answerByQ.get(q.id);
-            const sel = ans?.selectedOption;
-            const wasSkipped = !sel;
-            const wasCorrect = ans?.isCorrect === true;
-            return (
-              <li key={q.id} className="border border-slate-100 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Q{q.questionNumber}{q.topic && ` · ${q.topic}`}</span>
-                    {wasSkipped ? <span className="text-xs text-slate-400 inline-flex items-center gap-1"><MinusCircle size={12} />Skipped</span>
-                     : wasCorrect ? <span className="text-xs text-[var(--color-teal)] inline-flex items-center gap-1"><CheckCircle2 size={12} />Correct (+{ans?.marksAwarded})</span>
-                     : <span className="text-xs text-[var(--color-maroon)] inline-flex items-center gap-1"><XCircle size={12} />Wrong ({ans?.marksAwarded})</span>}
-                  </div>
-                </div>
-                <div className="font-medium text-[var(--color-navy)] text-sm mb-2">
-                  <RichText>{q.questionText}</RichText>
-                </div>
-                {q.imageUrl && (
-                  <img src={q.imageUrl} alt="Question diagram"
-                    className="max-h-56 rounded-lg border border-slate-100 mb-3 mx-auto block" />
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {(["A", "B", "C", "D"] as const).map((opt) => {
-                    const text = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }[opt];
-                    const optImg = { A: q.optionAImageUrl, B: q.optionBImageUrl, C: q.optionCImageUrl, D: q.optionDImageUrl }[opt];
-                    const isCorrect = opt === q.correctOption;
-                    const isSelected = sel === opt;
-                    return (
-                      <div key={opt} className={`text-xs p-2 rounded-lg ${
-                        isCorrect ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)] font-semibold"
-                        : isSelected ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] font-semibold"
-                        : "text-slate-600"
-                      }`}>
-                        <span className="font-mono mr-1.5">{opt}.</span>
-                        {text && <RichText>{text}</RichText>}
-                        {optImg && <img src={optImg} alt={`Option ${opt}`} className="max-h-24 rounded border border-slate-100 mt-1" />}
-                        {isCorrect && " ✓"}
-                        {isSelected && !isCorrect && " ← your answer"}
-                      </div>
-                    );
-                  })}
-                </div>
-                {(q.explanation || q.explanationImageUrl) && (
-                  <div className="text-xs text-slate-600 mt-3 bg-blue-50 rounded-lg p-2">
-                    <span className="font-semibold text-blue-800">Explanation: </span>
-                    {q.explanation && <RichText>{q.explanation}</RichText>}
-                    {q.explanationImageUrl && (
-                      <img src={q.explanationImageUrl} alt="Explanation"
-                        className="max-h-56 rounded border border-blue-100 mt-2 mx-auto block bg-white" />
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+      {/* Per-question review with filters and solutions */}
+      <QuestionReview
+        questions={questions.map((q) => {
+          const ans = answerByQ.get(q.id);
+          return {
+            id: q.id,
+            questionNumber: q.questionNumber,
+            topic: q.topic,
+            questionText: q.questionText,
+            imageUrl: q.imageUrl,
+            optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD,
+            optionAImageUrl: q.optionAImageUrl,
+            optionBImageUrl: q.optionBImageUrl,
+            optionCImageUrl: q.optionCImageUrl,
+            optionDImageUrl: q.optionDImageUrl,
+            correctOption: q.correctOption,
+            explanation: q.explanation,
+            explanationImageUrl: q.explanationImageUrl,
+            selectedOption: ans?.selectedOption ?? null,
+            isCorrect: ans?.isCorrect ?? null,
+            marksAwarded: ans?.marksAwarded ?? null,
+          };
+        })}
+      />
     </div>
   );
 }
