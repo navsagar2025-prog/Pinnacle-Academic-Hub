@@ -5,6 +5,7 @@ import { Sparkles, Plus, Filter } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "./QuestionBankFilters";
 import { QuestionImporter } from "./QuestionImporter";
+import { QuestionPdfImporter } from "./QuestionPdfImporter";
 import QuestionGenerator from "@/components/ai/QuestionGenerator";
 
 export const metadata = { title: "Question Bank — Admin Panel" };
@@ -52,6 +53,7 @@ export default async function AdminQuestionBankPage({
         </div>
         <div className="flex items-center gap-2">
           <QuestionGenerator />
+          <QuestionPdfImporter />
           <QuestionImporter />
           <Link href="/portal/admin/question-bank/new" className="btn-gold text-sm px-4 py-2 flex items-center gap-1.5">
             <Plus size={16} /> Add Question

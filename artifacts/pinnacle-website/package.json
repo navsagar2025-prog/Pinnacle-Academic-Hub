@@ -20,11 +20,13 @@
     "lucide-react": "catalog:",
     "next": "^15.3.3",
     "openai": "^6.27.0",
+    "pdf-to-png-converter": "^4.0.0",
     "razorpay": "^2.9.6",
     "react": "catalog:",
     "react-dom": "catalog:",
     "recharts": "^3.8.1",
     "resend": "^6.12.2",
+    "sharp": "^0.34.5",
     "tailwind-merge": "catalog:",
     "xlsx": "^0.18.5",
     "zod": "catalog:"

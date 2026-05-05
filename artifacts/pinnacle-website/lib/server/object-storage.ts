@@ -78,7 +78,9 @@ export type UploadCategory =
   | "faculty_photo"   // public — shown on public faculty page
   | "course_banner"   // public — shown on public courses page
   | "blog_image"      // public — shown on public blog page
-  | "mock_test_image"; // public — diagrams/figures inside mock-test questions
+  | "mock_test_image" // public — diagrams/figures inside mock-test questions
+  | "question_figure" // public — figure images cropped from imported PYQ PDFs
+  | "pyq_pdf";         // private — admin-only scanned PYQ source PDFs awaiting extraction
 
 const CATEGORY_SUBPATH: Record<UploadCategory, string> = {
   material_pdf:    "public/materials",
@@ -87,6 +89,8 @@ const CATEGORY_SUBPATH: Record<UploadCategory, string> = {
   course_banner:   "public/courses",
   blog_image:      "public/blog",
   mock_test_image: "public/mock-tests",
+  question_figure: "public/question-figures",
+  pyq_pdf:         "private/pyq-pdfs",
 };
 
 /**
@@ -101,7 +105,7 @@ export function validateCategoryMime(
   const PDF = ["application/pdf"];
   const IMAGES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
 
-  const isPdf = category === "material_pdf" || category === "assignment_pdf";
+  const isPdf = category === "material_pdf" || category === "assignment_pdf" || category === "pyq_pdf";
   const allowedMimes: string[] = isPdf ? PDF : IMAGES;
 
   if (!allowedMimes.includes(contentType)) {
@@ -118,13 +122,49 @@ export function validateSize(
   size: number,
 ): { ok: true } | { ok: false; error: string } {
   const maxPdf = 20 * 1024 * 1024;
+  const maxPyqPdf = 25 * 1024 * 1024;
   const maxImage = 5 * 1024 * 1024;
-  const isPdf = category === "material_pdf" || category === "assignment_pdf";
-  const max = isPdf ? maxPdf : maxImage;
+  let max: number;
+  let label: string;
+  if (category === "pyq_pdf") { max = maxPyqPdf; label = "25 MB"; }
+  else if (category === "material_pdf" || category === "assignment_pdf") { max = maxPdf; label = "20 MB"; }
+  else { max = maxImage; label = "5 MB"; }
   if (size > max) {
-    return { ok: false, error: `File too large. Max ${isPdf ? "20 MB" : "5 MB"} for this category.` };
+    return { ok: false, error: `File too large. Max ${label} for this category.` };
   }
   return { ok: true };
+}
+
+/** Read an entire object from storage into memory as a Buffer. */
+export async function downloadObjectBytes(objectPath: string): Promise<{ bytes: Buffer; contentType: string }> {
+  if (!objectPath.startsWith("/objects/")) throw new Error("Invalid object path");
+  const entityId = objectPath.slice("/objects/".length);
+  let dir = getPrivateObjectDir();
+  if (!dir.endsWith("/")) dir = `${dir}/`;
+  const fullPath = `${dir}${entityId}`;
+  const { bucketName, objectName } = parseObjectPath(fullPath);
+  const file = objectStorageClient.bucket(bucketName).file(objectName);
+  const [exists] = await file.exists();
+  if (!exists) throw new Error("Object not found");
+  const [metadata] = await file.getMetadata();
+  const [bytes] = await file.download();
+  return { bytes, contentType: (metadata.contentType as string) || "application/octet-stream" };
+}
+
+/** Upload an in-memory buffer to object storage and return the object path + serving URL. */
+export async function uploadBufferToCategory(
+  category: UploadCategory,
+  contentType: string,
+  bytes: Buffer,
+): Promise<{ objectPath: string }> {
+  const privateObjectDir = getPrivateObjectDir();
+  const objectId = randomUUID();
+  const subpath = CATEGORY_SUBPATH[category];
+  const fullPath = `${privateObjectDir}/${subpath}/${objectId}`;
+  const { bucketName, objectName } = parseObjectPath(fullPath);
+  const file = objectStorageClient.bucket(bucketName).file(objectName);
+  await file.save(bytes, { contentType, resumable: false });
+  return { objectPath: `/objects/${subpath}/${objectId}` };
 }
 
 export async function generateUploadURL(

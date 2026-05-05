@@ -14,12 +14,16 @@ const VALID_CATEGORIES: UploadCategory[] = [
   "course_banner",
   "blog_image",
   "mock_test_image",
+  "question_figure",
+  "pyq_pdf",
 ];
 
 const ADMIN_ONLY_CATEGORIES: UploadCategory[] = [
   "faculty_photo",
   "course_banner",
   "blog_image",
+  "pyq_pdf",
+  "question_figure",
 ];
 
 export async function POST(req: NextRequest) {
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
   const cat = category as UploadCategory;
 
   if (ADMIN_ONLY_CATEGORIES.includes(cat) && user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can upload images" }, { status: 403 });
+    return NextResponse.json({ error: `Only admins can upload files in category "${cat}"` }, { status: 403 });
   }
 
   const mimeCheck = validateCategoryMime(cat, contentType);
