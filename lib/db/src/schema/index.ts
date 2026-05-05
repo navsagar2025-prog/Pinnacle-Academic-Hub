@@ -373,6 +373,7 @@ export const mockTests = pgTable("mock_tests", {
   isPublic: boolean("is_public").default(false).notNull(),
   scheduledStart: timestamp("scheduled_start"),
   scheduledEnd: timestamp("scheduled_end"),
+  autoPublishAtStart: boolean("auto_publish_at_start").default(false).notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

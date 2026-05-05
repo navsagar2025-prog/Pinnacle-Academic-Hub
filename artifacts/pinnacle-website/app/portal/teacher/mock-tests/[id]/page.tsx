@@ -173,6 +173,7 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
           isPublic: test.isPublic,
           scheduledStart: test.scheduledStart ? test.scheduledStart.toISOString() : null,
           scheduledEnd: test.scheduledEnd ? test.scheduledEnd.toISOString() : null,
+          autoPublishAtStart: test.autoPublishAtStart,
         }}
         sections={sections.map((s) => ({ id: s.id, name: s.name, ordering: s.ordering, instructions: s.instructions }))}
       />

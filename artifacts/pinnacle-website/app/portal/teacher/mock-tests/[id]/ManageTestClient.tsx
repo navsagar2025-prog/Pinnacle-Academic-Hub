@@ -14,6 +14,7 @@ type Test = {
   isPublic: boolean;
   scheduledStart: string | null;
   scheduledEnd: string | null;
+  autoPublishAtStart: boolean;
 };
 
 type ImageState = {
@@ -173,7 +174,7 @@ export function TeacherManageTestClient({ test, sections }: { test: Test; sectio
 
   return (
     <div className="space-y-4">
-      <ScheduleEditor testId={test.id} initialStart={test.scheduledStart} initialEnd={test.scheduledEnd} />
+      <ScheduleEditor testId={test.id} initialStart={test.scheduledStart} initialEnd={test.scheduledEnd} initialAutoPublish={test.autoPublishAtStart} />
       <SectionsManager testId={test.id} initialSections={sections} />
       <BulkImportCard testId={test.id} onImported={() => router.refresh()} />
       <div className="card flex flex-wrap items-center justify-between gap-3">
@@ -323,20 +324,21 @@ export function TeacherManageTestClient({ test, sections }: { test: Test; sectio
   );
 }
 
-function ScheduleEditor({ testId, initialStart, initialEnd }: { testId: string; initialStart: string | null; initialEnd: string | null }) {
+function ScheduleEditor({ testId, initialStart, initialEnd, initialAutoPublish }: { testId: string; initialStart: string | null; initialEnd: string | null; initialAutoPublish: boolean }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(Boolean(initialStart || initialEnd));
   const [start, setStart] = useState(toLocalInput(initialStart));
   const [end, setEnd] = useState(toLocalInput(initialEnd));
+  const [autoPublish, setAutoPublish] = useState(initialAutoPublish);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
   async function save() {
     setError(""); setMsg("");
-    const payload = enabled
-      ? { scheduledStart: start ? new Date(start).toISOString() : null, scheduledEnd: end ? new Date(end).toISOString() : null }
-      : { scheduledStart: null, scheduledEnd: null };
+    const payload: Record<string, unknown> = enabled
+      ? { scheduledStart: start ? new Date(start).toISOString() : null, scheduledEnd: end ? new Date(end).toISOString() : null, autoPublishAtStart: autoPublish }
+      : { scheduledStart: null, scheduledEnd: null, autoPublishAtStart: false };
     if (enabled) {
       if (!start || !end) { setError("Pick both an opens-at and closes-at time."); return; }
       if (new Date(end).getTime() <= new Date(start).getTime()) { setError("Schedule end must be after start."); return; }
@@ -372,18 +374,27 @@ function ScheduleEditor({ testId, initialStart, initialEnd }: { testId: string; 
         </label>
       </div>
       {enabled && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Opens at</label>
-            <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Opens at</label>
+              <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Closes at</label>
+              <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Closes at</label>
-            <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
-          </div>
-        </div>
+          <label className="flex items-start gap-2 text-sm text-[var(--color-navy)] cursor-pointer mt-3">
+            <input type="checkbox" checked={autoPublish} onChange={(e) => setAutoPublish(e.target.checked)} className="rounded mt-0.5" />
+            <span>
+              <span className="font-semibold">Publish automatically when window opens</span>
+              <span className="block text-xs text-slate-500 font-normal">Test stays in draft until <em>Opens at</em>, then is published for students automatically. No need to remember to hit Publish.</span>
+            </span>
+          </label>
+        </>
       )}
       {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</p>}
       {msg && <p className="text-[var(--color-teal)] text-sm bg-[var(--color-teal)]/10 rounded-lg px-3 py-2 mt-3">{msg}</p>}

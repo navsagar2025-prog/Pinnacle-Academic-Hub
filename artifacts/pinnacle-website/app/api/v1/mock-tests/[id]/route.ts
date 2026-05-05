@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const allowed_fields: Record<string, unknown> = {};
-  for (const k of ["title", "subject", "examType", "batchId", "durationMinutes", "marksPerQuestion", "negativeMarkingPercent", "instructions", "isPublished", "isPublic"]) {
+  for (const k of ["title", "subject", "examType", "batchId", "durationMinutes", "marksPerQuestion", "negativeMarkingPercent", "instructions", "isPublished", "isPublic", "autoPublishAtStart"]) {
     if (k in body) allowed_fields[k] = body[k];
   }
 
