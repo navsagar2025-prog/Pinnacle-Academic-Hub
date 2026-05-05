@@ -1,9 +1,51 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Trash2 } from "lucide-react";
+import { Save, Trash2, X, Image as ImageIcon } from "lucide-react";
+import FileUpload from "@/components/upload/FileUpload";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
+function ImageField({
+  label, value, onChange,
+}: { label: string; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  if (value) {
+    return (
+      <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2 text-xs">
+        <ImageIcon size={14} className="text-[var(--color-teal)] shrink-0" />
+        <img src={value} alt="" className="h-10 w-10 rounded object-cover border border-slate-200" />
+        <span className="flex-1 text-slate-600 truncate">{label} image attached</span>
+        <button type="button" onClick={() => onChange("")}
+          className="text-slate-400 hover:text-[var(--color-maroon)]" aria-label={`Remove ${label} image`}>
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)}
+        className="text-xs text-slate-500 hover:text-[var(--color-teal)] inline-flex items-center gap-1 font-semibold">
+        <ImageIcon size={12} /> Add {label} image / diagram
+      </button>
+    );
+  }
+  return (
+    <div className="space-y-1">
+      <FileUpload
+        category="mock_test_image"
+        accept="image"
+        label={`Upload ${label} image`}
+        hint="JPG, PNG, WebP or GIF, max 5 MB"
+        onUploaded={(_path, servingUrl) => { onChange(servingUrl); setOpen(false); }}
+      />
+      <button type="button" onClick={() => setOpen(false)} className="text-[11px] text-slate-400 hover:text-slate-600">
+        Cancel
+      </button>
+    </div>
+  );
+}
 
 type Initial = {
   id: string;
@@ -156,8 +198,8 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1">Question image URL (optional)</label>
-        <input className={cls} value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" />
+        <label className="block text-xs font-semibold text-slate-500 mb-1">Question diagram / figure (optional)</label>
+        <ImageField label="Question" value={form.imageUrl} onChange={(v) => setForm({ ...form, imageUrl: v })} />
       </div>
 
       {form.questionType === "mcq" ? (
@@ -187,8 +229,8 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1">Solution image URL (optional)</label>
-        <input className={cls} value={form.solutionImageUrl} onChange={(e) => setForm({ ...form, solutionImageUrl: e.target.value })} placeholder="https://…" />
+        <label className="block text-xs font-semibold text-slate-500 mb-1">Solution diagram / figure (optional)</label>
+        <ImageField label="Solution" value={form.solutionImageUrl} onChange={(v) => setForm({ ...form, solutionImageUrl: v })} />
       </div>
 
       <label className="flex items-center gap-2 text-sm text-slate-600">
