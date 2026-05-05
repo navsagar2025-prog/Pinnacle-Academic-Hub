@@ -16,11 +16,10 @@ export default async function AdminPracticeSetDetailPage({ params }: { params: P
   const detail = await getSetDetail(id);
   if (!detail) notFound();
 
-  // Subjects come from a tiny SELECT DISTINCT instead of pulling 2000 rows;
-  // the picker itself fetches questions from the API on demand.
-  const [allSubjects, allBatches, allStudents] = await Promise.all([
+  const [subjectsRows, allBatches, allStudents] = await Promise.all([
     db.selectDistinct({ subject: questionBank.subject }).from(questionBank)
-      .where(eq(questionBank.isPublished, true)).orderBy(asc(questionBank.subject)),
+      .where(eq(questionBank.isPublished, true))
+      .orderBy(questionBank.subject),
     db.select({ id: batches.id, name: batches.name }).from(batches).orderBy(asc(batches.name)),
     db.select({
       id: students.id, rollNumber: students.rollNumber, name: users.name, batchName: batches.name,
@@ -57,7 +56,7 @@ export default async function AdminPracticeSetDetailPage({ params }: { params: P
           studentId: a.studentId, studentName: a.studentName, studentRoll: a.studentRoll,
           dueAt: a.dueAt ? a.dueAt.toISOString() : null,
         }))}
-        subjects={allSubjects.map((s) => s.subject)}
+        subjects={subjectsRows.map((r) => r.subject)}
         batches={allBatches}
         students={allStudents.map((s) => ({ id: s.id, name: s.name ?? "Unnamed", rollNumber: s.rollNumber, batchName: s.batchName }))}
       />

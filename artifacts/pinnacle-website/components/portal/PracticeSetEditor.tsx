@@ -63,52 +63,15 @@ export function PracticeSetEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerSubject, setPickerSubject] = useState("All");
+  const [pickerTopic, setPickerTopic] = useState("");
+  const [pickerPage, setPickerPage] = useState(1);
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
   const [pickerBusy, setPickerBusy] = useState(false);
 
-  // Picker results come from the API on demand — we never preload the full
-  // question bank into the browser. Selection persists across pages so an
-  // admin can flip pages, tick boxes, and bulk-add at the end.
-  const [pickerResults, setPickerResults] = useState<EditorQuestion[]>([]);
+  const [pickerItems, setPickerItems] = useState<EditorQuestion[]>([]);
   const [pickerTotal, setPickerTotal] = useState(0);
-  const [pickerPage, setPickerPage] = useState(1);
   const [pickerLoading, setPickerLoading] = useState(false);
-  const fetchSeq = useRef(0);
-
-  // Server-side fetch with debounce. Each call increments fetchSeq so a slow
-  // earlier response can't clobber a later one.
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const myReq = ++fetchSeq.current;
-    setPickerLoading(true);
-    const handle = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams();
-        if (pickerSubject !== "All") params.set("subject", pickerSubject);
-        if (pickerSearch.trim()) params.set("search", pickerSearch.trim());
-        params.set("page", String(pickerPage));
-        params.set("pageSize", String(PICKER_PAGE_SIZE));
-        const res = await fetch(`${BASE}/api/v1/question-bank?${params.toString()}`);
-        if (!res.ok) throw new Error(String(res.status));
-        const json = (await res.json()) as { items: EditorQuestion[]; total: number };
-        if (myReq !== fetchSeq.current) return; // a newer request superseded us
-        setPickerResults(json.items);
-        setPickerTotal(json.total);
-      } catch {
-        if (myReq === fetchSeq.current) {
-          setPickerResults([]);
-          setPickerTotal(0);
-        }
-      } finally {
-        if (myReq === fetchSeq.current) setPickerLoading(false);
-      }
-    }, 250);
-    return () => clearTimeout(handle);
-  }, [pickerOpen, pickerSubject, pickerSearch, pickerPage]);
-
-  // Reset to page 1 whenever the user changes filters mid-session, otherwise
-  // they can land on an empty "page 5" of a now-tiny result set.
-  useEffect(() => { setPickerPage(1); }, [pickerSubject, pickerSearch]);
+  const [pickerTopics, setPickerTopics] = useState<string[]>([]);
 
   const [assignTab, setAssignTab] = useState<"batch" | "student">("batch");
   const [assignBatch, setAssignBatch] = useState("");
@@ -119,7 +82,61 @@ export function PracticeSetEditor({
   const [studentSearch, setStudentSearch] = useState("");
 
   const inSet = useMemo(() => new Set(questions.map((q) => q.id)), [questions]);
-  const pickerTotalPages = Math.max(1, Math.ceil(pickerTotal / PICKER_PAGE_SIZE));
+
+  // Debounced server-side fetch for the question picker.
+  const fetchSeq = useRef(0);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const seq = ++fetchSeq.current;
+    setPickerLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (pickerSubject !== "All") params.set("subject", pickerSubject);
+        if (pickerTopic) params.set("topic", pickerTopic);
+        if (pickerSearch.trim()) params.set("search", pickerSearch.trim());
+        params.set("page", String(pickerPage));
+        params.set("pageSize", String(PICKER_PAGE_SIZE));
+        const res = await fetch(`${BASE}/api/v1/question-bank?${params.toString()}`);
+        if (!res.ok) throw new Error("Failed to load");
+        const data = await res.json();
+        if (seq !== fetchSeq.current) return;
+        setPickerItems((data.items ?? []).map((q: EditorQuestion) => ({
+          id: q.id, subject: q.subject, topic: q.topic, difficulty: q.difficulty,
+          questionType: q.questionType, questionText: q.questionText, year: q.year, examName: q.examName,
+        })));
+        setPickerTotal(Number(data.total ?? 0));
+      } catch {
+        if (seq !== fetchSeq.current) return;
+        setPickerItems([]); setPickerTotal(0);
+      } finally {
+        if (seq === fetchSeq.current) setPickerLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [pickerOpen, pickerSubject, pickerTopic, pickerSearch, pickerPage]);
+
+  // Topic dropdown for the picker, refreshed when subject changes.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    if (pickerSubject === "All") { setPickerTopics([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${BASE}/api/v1/question-bank/topics?subject=${encodeURIComponent(pickerSubject)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setPickerTopics(data.topics ?? []);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [pickerOpen, pickerSubject]);
+
+  // Reset to page 1 when filters change.
+  useEffect(() => { setPickerPage(1); }, [pickerSubject, pickerTopic, pickerSearch]);
+
+  // Reset topic when subject changes.
+  useEffect(() => { setPickerTopic(""); }, [pickerSubject]);
 
   const studentsFiltered = useMemo(() => {
     const needle = studentSearch.trim().toLowerCase();
@@ -132,6 +149,10 @@ export function PracticeSetEditor({
       )
       .slice(0, 50);
   }, [students, studentSearch]);
+
+  const pickerTotalPages = Math.max(1, Math.ceil(pickerTotal / PICKER_PAGE_SIZE));
+  const pickerFrom = pickerTotal === 0 ? 0 : (pickerPage - 1) * PICKER_PAGE_SIZE + 1;
+  const pickerTo = Math.min(pickerPage * PICKER_PAGE_SIZE, pickerTotal);
 
   async function saveMeta() {
     setSavingMeta(true);
@@ -373,7 +394,7 @@ export function PracticeSetEditor({
               <h3 className="font-[family-name:var(--font-playfair)] text-lg font-bold text-[var(--color-navy)]">Add questions from the bank</h3>
               <button onClick={() => !pickerBusy && setPickerOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
             </div>
-            <div className="p-4 border-b border-slate-100 flex flex-wrap gap-2">
+            <div className="p-4 border-b border-slate-100 flex flex-wrap gap-2 items-end">
               <div className="relative flex-1 min-w-[180px]">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input className="input-field pl-8 text-xs" placeholder="Search question text, topic, exam…" value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} />
@@ -382,18 +403,28 @@ export function PracticeSetEditor({
                 <option value="All">All subjects</option>
                 {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              <select
+                className="input-field text-xs max-w-[180px]"
+                value={pickerTopic}
+                onChange={(e) => setPickerTopic(e.target.value)}
+                disabled={pickerSubject === "All" || pickerTopics.length === 0}
+                title={pickerSubject === "All" ? "Pick a subject first" : ""}
+              >
+                <option value="">{pickerSubject === "All" ? "All topics" : `All ${pickerTopics.length} topics`}</option>
+                {pickerTopics.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
-            <div className="flex-1 overflow-auto p-3 space-y-1.5">
+            <div className="flex-1 overflow-auto p-3 space-y-1.5 min-h-[200px]">
               {pickerLoading ? (
                 <p className="text-xs text-slate-400 text-center py-8 italic">Loading…</p>
-              ) : pickerResults.length === 0 ? (
+              ) : pickerItems.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-8 italic">No questions match — try clearing filters.</p>
-              ) : pickerResults.map((q) => {
+              ) : pickerItems.map((q) => {
                 const checked = pickerSelected.has(q.id);
                 const already = inSet.has(q.id);
                 return (
                   <label key={q.id} className={`flex items-start gap-3 p-2.5 rounded-lg border transition-colors ${already ? "border-slate-100 bg-slate-50/60 opacity-60 cursor-not-allowed" : checked ? "border-[var(--color-teal)] bg-[var(--color-teal)]/5 cursor-pointer" : "border-slate-100 hover:bg-slate-50 cursor-pointer"}`}>
-                    <input type="checkbox" className="mt-1 shrink-0" checked={checked || already} disabled={already}
+                    <input type="checkbox" className="mt-1 shrink-0" checked={checked} disabled={already}
                       onChange={(e) => {
                         const next = new Set(pickerSelected);
                         if (e.target.checked) next.add(q.id); else next.delete(q.id);
@@ -417,23 +448,16 @@ export function PracticeSetEditor({
                 );
               })}
             </div>
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-xs text-slate-500">
-                {pickerSelected.size} selected · {pickerTotal.toLocaleString()} match{pickerTotal === 1 ? "" : "es"}
-              </p>
-              {pickerTotalPages > 1 && (
-                <div className="flex items-center gap-1 text-xs">
-                  <button onClick={() => setPickerPage((p) => Math.max(1, p - 1))} disabled={pickerPage <= 1}
-                    className="px-2 py-1 rounded border border-slate-200 disabled:text-slate-300 disabled:border-slate-100 flex items-center gap-1">
-                    <ChevronLeft size={11} /> Prev
-                  </button>
-                  <span className="text-slate-500 px-1">Page {pickerPage} / {pickerTotalPages}</span>
-                  <button onClick={() => setPickerPage((p) => Math.min(pickerTotalPages, p + 1))} disabled={pickerPage >= pickerTotalPages}
-                    className="px-2 py-1 rounded border border-slate-200 disabled:text-slate-300 disabled:border-slate-100 flex items-center gap-1">
-                    Next <ChevronRight size={11} />
-                  </button>
-                </div>
-              )}
+            <div className="px-4 py-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span>{pickerTotal === 0 ? "No matches" : <>Showing <b>{pickerFrom}–{pickerTo}</b> of <b>{pickerTotal.toLocaleString()}</b></>}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPickerPage((p) => Math.max(1, p - 1))} disabled={pickerPage <= 1} className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 flex items-center gap-1"><ChevronLeft size={11} /> Prev</button>
+                <span>Page {pickerPage} / {pickerTotalPages.toLocaleString()}</span>
+                <button onClick={() => setPickerPage((p) => Math.min(pickerTotalPages, p + 1))} disabled={pickerPage >= pickerTotalPages} className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 flex items-center gap-1">Next <ChevronRight size={11} /></button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-xs text-slate-500">{pickerSelected.size} selected</p>
               <div className="flex gap-2">
                 <button onClick={() => !pickerBusy && setPickerOpen(false)} className="text-xs text-slate-600 px-3 py-1.5 hover:text-slate-900">Cancel</button>
                 <button onClick={addQuestions} disabled={pickerBusy || pickerSelected.size === 0} className="btn-gold text-xs px-3 py-1.5 disabled:opacity-60">

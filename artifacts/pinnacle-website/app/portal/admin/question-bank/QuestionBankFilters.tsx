@@ -3,15 +3,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export function QuestionBankFilters({
   subjects,
+  topics = [],
   years,
   examNames = [],
-  topicsForSubject = [],
   showPyqShortcut = false,
 }: {
   subjects: string[];
+  topics?: string[];
   years: number[];
   examNames?: string[];
-  topicsForSubject?: string[];
   showPyqShortcut?: boolean;
 }) {
   const router = useRouter();
@@ -22,17 +22,10 @@ export function QuestionBankFilters({
   function update(key: string, value: string) {
     const params = new URLSearchParams(sp.toString());
     if (value) params.set(key, value); else params.delete(key);
+    // Any filter change resets pagination to page 1.
     params.delete("page");
-    router.push(`?${params.toString()}`);
-  }
-
-  // Switching subjects also clears the topic filter — a topic from one
-  // subject rarely makes sense once you switch to another.
-  function updateSubject(value: string) {
-    const params = new URLSearchParams(sp.toString());
-    if (value) params.set("subject", value); else params.delete("subject");
-    params.delete("topic");
-    params.delete("page");
+    // Changing subject invalidates the topic selection.
+    if (key === "subject") params.delete("topic");
     router.push(`?${params.toString()}`);
   }
 
@@ -45,29 +38,44 @@ export function QuestionBankFilters({
 
   const cls = "px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white";
   const pyqOn = sp.get("pyq") === "1";
-  const currentSubject = sp.get("subject") ?? "All";
-  const currentTopic = sp.get("topic") ?? "";
+  const subjectVal = sp.get("subject") ?? "All";
+  const topicVal = sp.get("topic") ?? "";
 
   return (
     <div className="card flex flex-wrap items-end gap-3">
       <div>
         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Subject</label>
-        <select className={cls} value={currentSubject} onChange={(e) => updateSubject(e.target.value === "All" ? "" : e.target.value)}>
+        <select className={cls} value={subjectVal} onChange={(e) => update("subject", e.target.value === "All" ? "" : e.target.value)}>
           <option>All</option>
           {subjects.map((s) => <option key={s}>{s}</option>)}
         </select>
       </div>
       <div>
         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Topic</label>
-        <select
-          className={cls + " max-w-[220px]"}
-          value={currentTopic}
-          onChange={(e) => update("topic", e.target.value)}
-          disabled={topicsForSubject.length === 0}
-        >
-          <option value="">{currentSubject === "All" ? "Pick a subject first" : "All topics"}</option>
-          {topicsForSubject.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        {subjectVal === "All" && topicVal ? (
+          // Deep-link case: a `?topic=...` was applied without a subject. Show
+          // the active topic as a removable pill so it isn't stranded.
+          <button
+            type="button"
+            onClick={() => update("topic", "")}
+            className="px-3 py-2 rounded-lg bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] text-sm font-semibold flex items-center gap-1.5 hover:bg-[var(--color-maroon)]/20"
+            title="Clear topic filter"
+          >
+            {topicVal}
+            <span className="text-xs opacity-60">×</span>
+          </button>
+        ) : (
+          <select
+            className={cls}
+            value={topicVal}
+            onChange={(e) => update("topic", e.target.value)}
+            disabled={subjectVal === "All" || topics.length === 0}
+            title={subjectVal === "All" ? "Pick a subject first" : ""}
+          >
+            <option value="">{subjectVal === "All" ? "All topics" : `All ${topics.length} topics`}</option>
+            {topics.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
       </div>
       <div>
         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Difficulty</label>
@@ -121,53 +129,19 @@ export function QuestionBankFilters({
         <input className={cls + " w-full"} placeholder="Topic or question text…" defaultValue={sp.get("q") ?? ""}
           onKeyDown={(e) => { if (e.key === "Enter") update("q", (e.target as HTMLInputElement).value); }} />
       </div>
-    </div>
-  );
-}
-
-export function TopicsSummary({
-  subject,
-  topics,
-  activeTopic,
-}: {
-  subject: string;
-  topics: Array<{ topic: string; count: number }>;
-  activeTopic: string | null;
-}) {
-  const router = useRouter();
-  const sp = useSearchParams();
-
-  function pickTopic(t: string) {
-    const params = new URLSearchParams(sp.toString());
-    if (activeTopic === t) params.delete("topic"); else params.set("topic", t);
-    params.delete("page");
-    router.push(`?${params.toString()}`);
-  }
-
-  if (topics.length === 0) return null;
-
-  return (
-    <div className="card">
-      <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">Topics in {subject}</h3>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-        {topics.map((t) => {
-          const active = activeTopic === t.topic;
-          return (
-            <button
-              key={t.topic}
-              onClick={() => pickTopic(t.topic)}
-              className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-xs text-left transition-colors ${
-                active
-                  ? "bg-[var(--color-navy)] text-white"
-                  : "bg-slate-50 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <span className="truncate">{t.topic}</span>
-              <span className={`shrink-0 font-mono ${active ? "text-white/80" : "text-slate-400"}`}>{t.count}</span>
-            </button>
-          );
-        })}
-      </div>
+      {subjectVal === "All" && topicVal && (
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Active topic</label>
+          <button
+            type="button"
+            onClick={() => update("topic", "")}
+            className="px-3 py-2 rounded-lg text-sm font-semibold bg-[var(--color-navy)] text-white hover:opacity-90"
+            title="Clear topic filter"
+          >
+            {topicVal} ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
