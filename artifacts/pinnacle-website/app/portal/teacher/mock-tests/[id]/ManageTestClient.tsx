@@ -83,7 +83,10 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
   const [form, setForm] = useState({
     questionText: "", optionA: "", optionB: "", optionC: "", optionD: "",
     correctOption: "A", topic: "", explanation: "",
+    numericalAnswer: "", numericalTolerance: "0",
   });
+  const [questionType, setQuestionType] = useState<"mcq" | "multi" | "numerical">("mcq");
+  const [correctOptions, setCorrectOptions] = useState<Set<"A" | "B" | "C" | "D">>(new Set());
   const [images, setImages] = useState<ImageState>(EMPTY_IMAGES);
 
   async function togglePublished() {
@@ -107,22 +110,59 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
   async function addQuestion(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const optHas = (txt: string, img: string) => Boolean(txt.trim() || img);
     const hasQuestion = form.questionText.trim() || images.imageUrl;
-    if (!hasQuestion ||
-        !optHas(form.optionA, images.optionAImageUrl) || !optHas(form.optionB, images.optionBImageUrl) ||
-        !optHas(form.optionC, images.optionCImageUrl) || !optHas(form.optionD, images.optionDImageUrl)) {
-      setError("Question and each option must have either text or an image.");
-      return;
+    if (!hasQuestion) { setError("Question text or image is required."); return; }
+    if (questionType === "mcq" || questionType === "multi") {
+      const optHas = (txt: string, img: string) => Boolean(txt.trim() || img);
+      if (!optHas(form.optionA, images.optionAImageUrl) || !optHas(form.optionB, images.optionBImageUrl) ||
+          !optHas(form.optionC, images.optionCImageUrl) || !optHas(form.optionD, images.optionDImageUrl)) {
+        setError("Each of the four options must have either text or an image."); return;
+      }
+      if (questionType === "multi" && correctOptions.size === 0) {
+        setError("Pick at least one correct option for a multi-correct question."); return;
+      }
+    } else {
+      const n = Number(form.numericalAnswer);
+      if (form.numericalAnswer.trim() === "" || !Number.isFinite(n)) {
+        setError("Numerical answer must be a number."); return;
+      }
+      const tol = Number(form.numericalTolerance);
+      if (!Number.isFinite(tol) || tol < 0) {
+        setError("Tolerance must be a non-negative number."); return;
+      }
+    }
+    const payload: Record<string, unknown> = {
+      questionType,
+      questionText: form.questionText,
+      topic: form.topic,
+      explanation: form.explanation,
+      ...images,
+    };
+    if (questionType === "mcq") {
+      Object.assign(payload, {
+        optionA: form.optionA, optionB: form.optionB, optionC: form.optionC, optionD: form.optionD,
+        correctOption: form.correctOption,
+      });
+    } else if (questionType === "multi") {
+      Object.assign(payload, {
+        optionA: form.optionA, optionB: form.optionB, optionC: form.optionC, optionD: form.optionD,
+        correctOptions: Array.from(correctOptions).sort(),
+      });
+    } else {
+      Object.assign(payload, {
+        numericalAnswer: Number(form.numericalAnswer),
+        numericalTolerance: Number(form.numericalTolerance),
+      });
     }
     const res = await fetch(`${BASE}/api/v1/mock-tests/${test.id}/questions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, ...images }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? "Failed"); return; }
-    setForm({ questionText: "", optionA: "", optionB: "", optionC: "", optionD: "", correctOption: "A", topic: form.topic, explanation: "" });
+    setForm({ questionText: "", optionA: "", optionB: "", optionC: "", optionD: "", correctOption: "A", topic: form.topic, explanation: "", numericalAnswer: "", numericalTolerance: "0" });
+    setCorrectOptions(new Set());
     setImages(EMPTY_IMAGES);
     setAdding(true);
     router.refresh();
@@ -180,26 +220,79 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
             <ImageField label="Question" value={images.imageUrl}
               onChange={(v) => setImages({ ...images, imageUrl: v })} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {(["A", "B", "C", "D"] as const).map((opt) => {
-                const imgKey = `option${opt}ImageUrl` as keyof ImageState;
-                return (
-                  <div key={opt} className="space-y-1">
-                    <input placeholder={`Option ${opt} (text or image)`}
-                      value={form[`option${opt}` as keyof typeof form]}
-                      onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value } as typeof form)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
-                    <ImageField label={opt} value={images[imgKey]}
-                      onChange={(v) => setImages({ ...images, [imgKey]: v })} />
-                  </div>
-                );
-              })}
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-slate-500 mr-1">Type:</span>
+              {(["mcq", "multi", "numerical"] as const).map((t) => (
+                <button key={t} type="button" onClick={() => setQuestionType(t)}
+                  className={`px-2 py-1 rounded-md font-semibold transition-colors ${
+                    questionType === t ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}>
+                  {t === "mcq" ? "Single correct" : t === "multi" ? "Multiple correct" : "Numerical"}
+                </button>
+              ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <select value={form.correctOption} onChange={(e) => setForm({ ...form, correctOption: e.target.value })}
-                className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
-                {(["A", "B", "C", "D"] as const).map((o) => <option key={o} value={o}>Correct: {o}</option>)}
-              </select>
+            {(questionType === "mcq" || questionType === "multi") && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(["A", "B", "C", "D"] as const).map((opt) => {
+                    const imgKey = `option${opt}ImageUrl` as keyof ImageState;
+                    const isCorrect = questionType === "multi"
+                      ? correctOptions.has(opt)
+                      : form.correctOption === opt;
+                    return (
+                      <div key={opt} className={`space-y-1 p-2 rounded-lg border ${isCorrect ? "border-[var(--color-teal)] bg-[var(--color-teal)]/5" : "border-transparent"}`}>
+                        <div className="flex items-center gap-2">
+                          {questionType === "multi" ? (
+                            <input type="checkbox" checked={correctOptions.has(opt)}
+                              onChange={(e) => {
+                                const next = new Set(correctOptions);
+                                if (e.target.checked) next.add(opt); else next.delete(opt);
+                                setCorrectOptions(next);
+                              }}
+                              className="accent-[var(--color-teal)]" title="Mark as correct" />
+                          ) : (
+                            <input type="radio" name="correctOption" checked={form.correctOption === opt}
+                              onChange={() => setForm({ ...form, correctOption: opt })}
+                              className="accent-[var(--color-teal)]" title="Mark as correct" />
+                          )}
+                          <input placeholder={`Option ${opt} (text or image)`}
+                            value={form[`option${opt}` as "optionA" | "optionB" | "optionC" | "optionD"]}
+                            onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value } as typeof form)}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                        </div>
+                        <ImageField label={opt} value={images[imgKey]}
+                          onChange={(v) => setImages({ ...images, [imgKey]: v })} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {questionType === "multi"
+                    ? "Tick every option that is correct. Students get full marks only when their selection matches exactly."
+                    : "Pick the single correct option using the radio button."}
+                </p>
+              </>
+            )}
+            {questionType === "numerical" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Correct numerical answer</label>
+                  <input type="text" inputMode="decimal" placeholder="e.g. 3.14"
+                    value={form.numericalAnswer}
+                    onChange={(e) => setForm({ ...form, numericalAnswer: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tolerance (± value)</label>
+                  <input type="text" inputMode="decimal" placeholder="0"
+                    value={form.numericalTolerance}
+                    onChange={(e) => setForm({ ...form, numericalTolerance: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono" />
+                </div>
+                <p className="text-[11px] text-slate-500 sm:col-span-2">Student's response is correct if it falls within ± tolerance of the answer.</p>
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-2">
               <input placeholder="Topic (e.g. Kinematics)" value={form.topic}
                 onChange={(e) => setForm({ ...form, topic: e.target.value })}
                 className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
@@ -328,7 +421,7 @@ function BulkImportCard({ testId, onImported }: { testId: string; onImported: ()
           <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] flex items-center gap-2">
             <Upload size={16} className="text-[var(--color-teal)]" />Bulk Import Questions
           </h2>
-          <p className="text-xs text-slate-500 mt-1">Paste CSV or upload a .csv file. Required columns: questionText, optionA, optionB, optionC, optionD, correctOption. Optional: topic, explanation, imageUrl, optionAImageUrl, optionBImageUrl, optionCImageUrl, optionDImageUrl, explanationImageUrl. Wrap math with <code>$…$</code>.</p>
+          <p className="text-xs text-slate-500 mt-1">Paste CSV or upload a .csv file. Required: <code>questionText</code>. For MCQ also <code>optionA-D + correctOption (A|B|C|D)</code>. For multi-correct set <code>questionType=multi</code> and <code>correctOptions=A|C</code>. For numerical set <code>questionType=numerical</code> and <code>numericalAnswer</code> (optional <code>numericalTolerance</code>). Other optional: topic, explanation, imageUrl, optionAImageUrl…optionDImageUrl, explanationImageUrl. Wrap math with <code>$…$</code>.</p>
         </div>
         <button onClick={() => setOpen((o) => !o)} className="text-xs text-[var(--color-teal)] font-semibold hover:underline">
           {open ? "Hide" : "Open importer"}

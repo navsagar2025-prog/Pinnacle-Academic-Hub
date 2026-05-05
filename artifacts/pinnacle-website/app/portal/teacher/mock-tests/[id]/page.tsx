@@ -79,7 +79,7 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
   if (completedCount > 0) {
     const topicRows = await db.select({
       topic: mockTestQuestions.topic,
-      totalAnswered: sql<number>`count(case when ${mockTestAnswers.selectedOption} is not null then 1 end)::int`,
+      totalAnswered: sql<number>`count(case when ${mockTestAnswers.selectedOption} is not null or ${mockTestAnswers.selectedOptions} is not null or ${mockTestAnswers.numericalResponse} is not null then 1 end)::int`,
       correctCount: sql<number>`count(case when ${mockTestAnswers.isCorrect} = true then 1 end)::int`,
       wrongCount: sql<number>`count(case when ${mockTestAnswers.isCorrect} = false then 1 end)::int`,
     })
@@ -88,7 +88,7 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
       .innerJoin(mockTestAttempts, eq(mockTestAnswers.attemptId, mockTestAttempts.id))
       .where(and(eq(mockTestAttempts.testId, id), eq(mockTestAttempts.isCompleted, true)))
       .groupBy(mockTestQuestions.topic)
-      .orderBy(sql`count(case when ${mockTestAnswers.isCorrect} = true then 1 end)::float / nullif(count(case when ${mockTestAnswers.selectedOption} is not null then 1 end), 0) asc`);
+      .orderBy(sql`count(case when ${mockTestAnswers.isCorrect} = true then 1 end)::float / nullif(count(case when ${mockTestAnswers.selectedOption} is not null or ${mockTestAnswers.selectedOptions} is not null or ${mockTestAnswers.numericalResponse} is not null then 1 end), 0) asc`);
 
     topicBreakdown = topicRows
       .filter((r) => r.topic && r.totalAnswered > 0)
@@ -186,21 +186,35 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
                   </div>
                   <TeacherDeleteQuestion testId={test.id} questionId={q.id} />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
-                  {(["A", "B", "C", "D"] as const).map((opt) => {
-                    const text = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }[opt];
-                    const optImg = { A: q.optionAImageUrl, B: q.optionBImageUrl, C: q.optionCImageUrl, D: q.optionDImageUrl }[opt];
-                    const correct = opt === q.correctOption;
-                    return (
-                      <div key={opt} className={`text-xs p-2 rounded-lg ${correct ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)] font-semibold" : "text-slate-600"}`}>
-                        <span className="font-mono mr-1.5">{opt}.</span>
-                        {text && <RichText>{text}</RichText>}
-                        {optImg && <img src={optImg} alt={`Option ${opt}`} className="max-h-20 rounded border border-slate-100 mt-1" />}
-                        {correct && " ✓"}
-                      </div>
-                    );
-                  })}
-                </div>
+                {q.questionType === "numerical" ? (
+                  <div className="mt-2 text-xs bg-blue-50 border border-blue-100 rounded-lg p-2 inline-flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold text-[10px]">Numerical</span>
+                    <span className="text-slate-600">Answer: <span className="font-mono font-semibold text-[var(--color-teal)]">{q.numericalAnswer ?? "—"}</span>{q.numericalTolerance ? <span className="text-slate-400"> ± {q.numericalTolerance}</span> : null}</span>
+                  </div>
+                ) : (
+                  <>
+                    {q.questionType === "multi" && (
+                      <div className="mt-2 mb-1 text-[10px] inline-block px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">Multiple correct</div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+                      {(["A", "B", "C", "D"] as const).map((opt) => {
+                        const text = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }[opt];
+                        const optImg = { A: q.optionAImageUrl, B: q.optionBImageUrl, C: q.optionCImageUrl, D: q.optionDImageUrl }[opt];
+                        const correct = q.questionType === "multi"
+                          ? (q.correctOptions ?? []).includes(opt)
+                          : opt === q.correctOption;
+                        return (
+                          <div key={opt} className={`text-xs p-2 rounded-lg ${correct ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)] font-semibold" : "text-slate-600"}`}>
+                            <span className="font-mono mr-1.5">{opt}.</span>
+                            {text && <RichText>{text}</RichText>}
+                            {optImg && <img src={optImg} alt={`Option ${opt}`} className="max-h-20 rounded border border-slate-100 mt-1" />}
+                            {correct && " ✓"}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
                 {(q.explanation || q.explanationImageUrl) && (
                   <div className="text-xs text-slate-500 mt-2 italic">
                     Explanation: {q.explanation && <RichText>{q.explanation}</RichText>}

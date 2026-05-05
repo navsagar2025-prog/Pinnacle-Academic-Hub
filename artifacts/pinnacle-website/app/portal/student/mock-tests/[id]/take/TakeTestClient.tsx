@@ -7,15 +7,17 @@ import { RichText } from "@/components/rich/RichText";
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+type Option = "A" | "B" | "C" | "D";
 
 type Question = {
   id: string;
   questionNumber: number;
+  questionType: string; // 'mcq' | 'multi' | 'numerical'
   questionText: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
+  optionA: string | null;
+  optionB: string | null;
+  optionC: string | null;
+  optionD: string | null;
   topic: string | null;
   imageUrl: string | null;
   optionAImageUrl: string | null;
@@ -35,43 +37,92 @@ type Test = {
   instructions: string | null;
 };
 
-type Option = "A" | "B" | "C" | "D";
+type Resume = {
+  attemptId: string;
+  secondsLeft: number;
+  savedAnswers: Record<string, Option>;
+  savedMultiAnswers: Record<string, Option[]>;
+  savedNumAnswers: Record<string, number>;
+  savedMarks: string[];
+};
 
 export function TakeTestClient({
   test, questions, resume,
 }: {
   test: Test;
   questions: Question[];
-  resume: { attemptId: string; secondsLeft: number; savedAnswers: Record<string, Option>; savedMarks: string[] } | null;
+  resume: Resume | null;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"ready" | "taking" | "submitting">(resume ? "taking" : "ready");
   const [attemptId, setAttemptId] = useState<string | null>(resume?.attemptId ?? null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Option | null>>(resume?.savedAnswers ?? {});
+  const [multiAnswers, setMultiAnswers] = useState<Record<string, Option[]>>(resume?.savedMultiAnswers ?? {});
+  // Stored as raw input strings so the user can type "-" or "1.2e" while typing.
+  const [numAnswers, setNumAnswers] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    if (resume?.savedNumAnswers) {
+      for (const [k, v] of Object.entries(resume.savedNumAnswers)) out[k] = String(v);
+    }
+    return out;
+  });
   const [marked, setMarked] = useState<Set<string>>(new Set(resume?.savedMarks ?? []));
   const [secondsLeft, setSecondsLeft] = useState(resume?.secondsLeft ?? test.durationMinutes * 60);
   const startTimeRef = useRef<number>(resume ? Date.now() - (test.durationMinutes * 60 - resume.secondsLeft) * 1000 : 0);
   const [error, setError] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  // Per-question debounce timers and in-flight controllers so a change on Q2
-  // never cancels a pending save on Q1.
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const inflightRef = useRef<Map<string, AbortController>>(new Map());
 
-  const saveAnswer = useCallback((questionId: string, selectedOption: Option | null, isMarkedForReview: boolean, immediate = false) => {
+  const isQuestionAnswered = useCallback((q: Question): boolean => {
+    if (q.questionType === "multi") return (multiAnswers[q.id]?.length ?? 0) > 0;
+    if (q.questionType === "numerical") {
+      const v = numAnswers[q.id];
+      return typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+    }
+    return Boolean(answers[q.id]);
+  }, [answers, multiAnswers, numAnswers]);
+
+  // Build the autosave payload for a given question from the latest state.
+  const buildPayload = useCallback((q: Question, isMarkedForReview: boolean) => {
+    const payload: {
+      questionId: string;
+      selectedOption: Option | null;
+      selectedOptions: Option[] | null;
+      numericalResponse: number | null;
+      isMarkedForReview: boolean;
+    } = {
+      questionId: q.id,
+      selectedOption: null, selectedOptions: null, numericalResponse: null,
+      isMarkedForReview,
+    };
+    if (q.questionType === "mcq") payload.selectedOption = answers[q.id] ?? null;
+    else if (q.questionType === "multi") {
+      const arr = multiAnswers[q.id] ?? [];
+      payload.selectedOptions = arr.length > 0 ? arr : null;
+    } else if (q.questionType === "numerical") {
+      const raw = numAnswers[q.id];
+      const n = raw !== undefined && raw.trim() !== "" ? Number(raw) : NaN;
+      payload.numericalResponse = Number.isFinite(n) ? n : null;
+    }
+    return payload;
+  }, [answers, multiAnswers, numAnswers]);
+
+  const saveAnswerForQuestion = useCallback((q: Question, isMarkedForReview: boolean, immediate = false) => {
     if (!attemptId) return;
+    const payload = buildPayload(q, isMarkedForReview);
     const fire = async () => {
-      const prev = inflightRef.current.get(questionId);
+      const prev = inflightRef.current.get(q.id);
       if (prev) prev.abort();
       const ctrl = new AbortController();
-      inflightRef.current.set(questionId, ctrl);
+      inflightRef.current.set(q.id, ctrl);
       setSaveState("saving");
       try {
         const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ questionId, selectedOption, isMarkedForReview }),
+          body: JSON.stringify(payload),
           signal: ctrl.signal,
         });
         if (!res.ok) throw new Error(String(res.status));
@@ -80,25 +131,28 @@ export function TakeTestClient({
         if (e instanceof DOMException && e.name === "AbortError") return;
         setSaveState("error");
       } finally {
-        if (inflightRef.current.get(questionId) === ctrl) inflightRef.current.delete(questionId);
+        if (inflightRef.current.get(q.id) === ctrl) inflightRef.current.delete(q.id);
       }
     };
-    const existing = saveTimersRef.current.get(questionId);
+    const existing = saveTimersRef.current.get(q.id);
     if (existing) clearTimeout(existing);
     if (immediate) {
-      saveTimersRef.current.delete(questionId);
+      saveTimersRef.current.delete(q.id);
       void fire();
       return;
     }
     const t = setTimeout(() => {
-      saveTimersRef.current.delete(questionId);
+      saveTimersRef.current.delete(q.id);
       void fire();
     }, 500);
-    saveTimersRef.current.set(questionId, t);
-  }, [attemptId]);
+    saveTimersRef.current.set(q.id, t);
+  }, [attemptId, buildPayload]);
 
   const current = questions[currentIdx];
-  const answeredCount = Object.values(answers).filter((a) => a !== null && a !== undefined).length;
+  const answeredCount = useMemo(
+    () => questions.reduce((acc, q) => acc + (isQuestionAnswered(q) ? 1 : 0), 0),
+    [questions, isQuestionAnswered],
+  );
 
   // Timer
   useEffect(() => {
@@ -125,16 +179,11 @@ export function TakeTestClient({
     return () => window.removeEventListener("beforeunload", handler);
   }, [phase]);
 
-  // If we resumed an in-progress attempt, baseline the start ref already
-  // computed above. For a fresh start, set startTimeRef when the attempt is
-  // created.
   useEffect(() => {
     if (resume) startTimeRef.current = Date.now() - (test.durationMinutes * 60 - resume.secondsLeft) * 1000;
   }, [resume, test.durationMinutes]);
 
-  // If a resumed attempt already had no time remaining, submit immediately
-  // instead of waiting for the next 1s timer tick — otherwise the student
-  // could briefly answer questions during expired time.
+  // If a resumed attempt already had no time remaining, submit immediately.
   useEffect(() => {
     if (resume && resume.secondsLeft <= 0 && phase === "taking") {
       void submitAttempt();
@@ -152,29 +201,162 @@ export function TakeTestClient({
     setPhase("taking");
   }
 
-  function selectAnswer(questionId: string, opt: Option | null) {
-    setAnswers((a) => ({ ...a, [questionId]: opt }));
-    saveAnswer(questionId, opt, marked.has(questionId));
+  function selectMcq(q: Question, opt: Option | null) {
+    setAnswers((a) => ({ ...a, [q.id]: opt }));
+    // Use a microtask so state is committed before we read it.
+    queueMicrotask(() => saveAnswerForQuestion(q, marked.has(q.id)));
   }
 
-  function toggleMark(questionId: string) {
+  function toggleMulti(q: Question, opt: Option) {
+    setMultiAnswers((m) => {
+      const arr = m[q.id] ?? [];
+      const has = arr.includes(opt);
+      const next = has ? arr.filter((o) => o !== opt) : [...arr, opt].sort() as Option[];
+      const updated = { ...m, [q.id]: next };
+      queueMicrotask(() => {
+        // Build payload from the latest map directly to avoid stale state.
+        if (!attemptId) return;
+        const payload = {
+          questionId: q.id,
+          selectedOption: null,
+          selectedOptions: next.length > 0 ? next : null,
+          numericalResponse: null,
+          isMarkedForReview: marked.has(q.id),
+        };
+        scheduleSave(q.id, payload);
+      });
+      return updated;
+    });
+  }
+
+  function setNumeric(q: Question, raw: string) {
+    setNumAnswers((m) => ({ ...m, [q.id]: raw }));
+    queueMicrotask(() => {
+      if (!attemptId) return;
+      const n = raw.trim() !== "" ? Number(raw) : NaN;
+      const payload = {
+        questionId: q.id,
+        selectedOption: null,
+        selectedOptions: null,
+        numericalResponse: Number.isFinite(n) ? n : null,
+        isMarkedForReview: marked.has(q.id),
+      };
+      scheduleSave(q.id, payload);
+    });
+  }
+
+  // Generic scheduled save used by multi + numerical handlers (which need to
+  // bypass the stale-state buildPayload path).
+  const scheduleSave = useCallback((qid: string, payload: object) => {
+    if (!attemptId) return;
+    const existing = saveTimersRef.current.get(qid);
+    if (existing) clearTimeout(existing);
+    const fire = async () => {
+      const prev = inflightRef.current.get(qid);
+      if (prev) prev.abort();
+      const ctrl = new AbortController();
+      inflightRef.current.set(qid, ctrl);
+      setSaveState("saving");
+      try {
+        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        setSaveState("saved");
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setSaveState("error");
+      } finally {
+        if (inflightRef.current.get(qid) === ctrl) inflightRef.current.delete(qid);
+      }
+    };
+    const t = setTimeout(() => { saveTimersRef.current.delete(qid); void fire(); }, 500);
+    saveTimersRef.current.set(qid, t);
+  }, [attemptId]);
+
+  function clearCurrent(q: Question) {
+    if (q.questionType === "multi") {
+      setMultiAnswers((m) => ({ ...m, [q.id]: [] }));
+      queueMicrotask(() => scheduleSave(q.id, {
+        questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
+        isMarkedForReview: marked.has(q.id),
+      }));
+    } else if (q.questionType === "numerical") {
+      setNumAnswers((m) => ({ ...m, [q.id]: "" }));
+      queueMicrotask(() => scheduleSave(q.id, {
+        questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
+        isMarkedForReview: marked.has(q.id),
+      }));
+    } else {
+      selectMcq(q, null);
+    }
+  }
+
+  function toggleMark(q: Question) {
     setMarked((m) => {
       const n = new Set(m);
-      const next = !n.has(questionId);
-      if (next) n.add(questionId); else n.delete(questionId);
-      saveAnswer(questionId, answers[questionId] ?? null, next, true);
+      const next = !n.has(q.id);
+      if (next) n.add(q.id); else n.delete(q.id);
+      // Save immediately, mark only — keep current answer payload.
+      const payload = buildPayload(q, next);
+      scheduleSaveImmediate(q.id, payload);
       return n;
     });
   }
+
+  const scheduleSaveImmediate = useCallback((qid: string, payload: object) => {
+    if (!attemptId) return;
+    const existing = saveTimersRef.current.get(qid);
+    if (existing) { clearTimeout(existing); saveTimersRef.current.delete(qid); }
+    void (async () => {
+      const prev = inflightRef.current.get(qid);
+      if (prev) prev.abort();
+      const ctrl = new AbortController();
+      inflightRef.current.set(qid, ctrl);
+      setSaveState("saving");
+      try {
+        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        setSaveState("saved");
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setSaveState("error");
+      } finally {
+        if (inflightRef.current.get(qid) === ctrl) inflightRef.current.delete(qid);
+      }
+    })();
+  }, [attemptId]);
 
   async function submitAttempt() {
     if (!attemptId || phase === "submitting") return;
     setPhase("submitting");
     const timeSpentSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    // Build a per-type body keyed by question id.
+    const bodyAnswers: Record<string, { selectedOption?: Option | null; selectedOptions?: Option[] | null; numericalResponse?: number | null }> = {};
+    for (const q of questions) {
+      if (q.questionType === "mcq") {
+        bodyAnswers[q.id] = { selectedOption: answers[q.id] ?? null };
+      } else if (q.questionType === "multi") {
+        const arr = multiAnswers[q.id] ?? [];
+        bodyAnswers[q.id] = { selectedOptions: arr.length > 0 ? arr : null };
+      } else if (q.questionType === "numerical") {
+        const raw = numAnswers[q.id];
+        const n = raw !== undefined && raw.trim() !== "" ? Number(raw) : NaN;
+        bodyAnswers[q.id] = { numericalResponse: Number.isFinite(n) ? n : null };
+      }
+    }
     const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers, timeSpentSeconds }),
+      body: JSON.stringify({ answers: bodyAnswers, timeSpentSeconds }),
     });
     const data = await res.json();
     if (!res.ok && res.status !== 409) {
@@ -189,13 +371,13 @@ export function TakeTestClient({
   const ss = String(secondsLeft % 60).padStart(2, "0");
 
   const palette = useMemo(() => questions.map((q) => {
-    const a = answers[q.id];
+    const a = isQuestionAnswered(q);
     const m = marked.has(q.id);
     if (m && a) return "answered-marked";
     if (m) return "marked";
     if (a) return "answered";
     return "unseen";
-  }), [questions, answers, marked]);
+  }), [questions, isQuestionAnswered, marked]);
 
   if (phase === "ready") {
     return (
@@ -223,9 +405,10 @@ export function TakeTestClient({
             <p className="font-semibold text-[var(--color-navy)]">Instructions</p>
             <ul className="list-disc list-inside space-y-1 text-xs">
               <li>+{test.marksPerQuestion} for correct, −{(test.marksPerQuestion * test.negativeMarkingPercent / 100).toFixed(2)} for wrong, 0 for skipped</li>
+              <li>Multiple-correct questions need <strong>all</strong> correct options selected (and no wrong ones) for full marks</li>
+              <li>Numerical questions accept a number — partial credit only if it falls within the allowed tolerance</li>
               <li>You can navigate freely between questions and mark them for review</li>
-              <li>The test will auto-submit when the timer hits zero</li>
-              <li>Do not refresh or close the tab — your answers will be lost</li>
+              <li>Your progress autosaves and the test will resume if you refresh; auto-submits at zero</li>
               {test.instructions && <li>{test.instructions}</li>}
             </ul>
           </div>
@@ -238,6 +421,12 @@ export function TakeTestClient({
       </div>
     );
   }
+
+  const typeBadge = current.questionType === "multi"
+    ? { label: "Multiple correct", className: "bg-purple-100 text-purple-700" }
+    : current.questionType === "numerical"
+    ? { label: "Numerical", className: "bg-blue-100 text-blue-700" }
+    : null;
 
   return (
     <div className="space-y-4">
@@ -277,10 +466,15 @@ export function TakeTestClient({
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-4">
         {/* Question + options */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3 text-xs">
-            <span className="text-slate-400">Q{current.questionNumber}{current.topic && ` · ${current.topic}`}</span>
+          <div className="flex items-center justify-between mb-3 text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Q{current.questionNumber}{current.topic && ` · ${current.topic}`}</span>
+              {typeBadge && (
+                <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] ${typeBadge.className}`}>{typeBadge.label}</span>
+              )}
+            </div>
             <button
-              onClick={() => toggleMark(current.id)}
+              onClick={() => toggleMark(current)}
               className={`flex items-center gap-1 text-xs font-semibold ${marked.has(current.id) ? "text-[var(--color-gold)]" : "text-slate-400 hover:text-[var(--color-gold)]"}`}
             >
               <Flag size={12} />{marked.has(current.id) ? "Marked" : "Mark for Review"}
@@ -293,30 +487,60 @@ export function TakeTestClient({
             <img src={current.imageUrl} alt="Question diagram"
               className="max-w-full max-h-72 rounded-lg border border-slate-100 mb-5 mx-auto block" />
           )}
-          <div className="space-y-2">
-            {(["A", "B", "C", "D"] as const).map((opt) => {
-              const text = { A: current.optionA, B: current.optionB, C: current.optionC, D: current.optionD }[opt];
-              const optImg = { A: current.optionAImageUrl, B: current.optionBImageUrl, C: current.optionCImageUrl, D: current.optionDImageUrl }[opt];
-              const selected = answers[current.id] === opt;
-              return (
-                <label key={opt} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                  selected ? "border-[var(--color-teal)] bg-[var(--color-teal)]/5" : "border-slate-200 hover:border-slate-300"
-                }`}>
-                  <input type="radio" name={current.id} value={opt} checked={selected}
-                    onChange={() => selectAnswer(current.id, opt)}
-                    className="mt-1 accent-[var(--color-teal)]" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono text-xs text-slate-400 mr-2">{opt}.</span>
-                    {text && <RichText className="text-sm text-slate-700">{text}</RichText>}
-                    {optImg && (
-                      <img src={optImg} alt={`Option ${opt}`}
-                        className="max-h-40 rounded border border-slate-100 mt-1.5" />
-                    )}
-                  </div>
-                </label>
-              );
-            })}
-          </div>
+
+          {/* Type-specific input */}
+          {current.questionType === "numerical" ? (
+            <div className="space-y-2">
+              <label className="block text-xs text-slate-500 font-semibold">Your answer</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={numAnswers[current.id] ?? ""}
+                onChange={(e) => setNumeric(current, e.target.value)}
+                placeholder="Enter a number (e.g. 3.14, -2, 1.5e-3)"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-base font-mono focus:border-[var(--color-teal)] focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-400">Enter a numeric value. Decimals and scientific notation are accepted.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {current.questionType === "multi" && (
+                <p className="text-[11px] text-purple-700 bg-purple-50 rounded-lg px-2 py-1.5 mb-1">
+                  Select <strong>all</strong> correct options. Full marks only if your selection exactly matches.
+                </p>
+              )}
+              {(["A", "B", "C", "D"] as const).map((opt) => {
+                const text = { A: current.optionA, B: current.optionB, C: current.optionC, D: current.optionD }[opt];
+                const optImg = { A: current.optionAImageUrl, B: current.optionBImageUrl, C: current.optionCImageUrl, D: current.optionDImageUrl }[opt];
+                const isMulti = current.questionType === "multi";
+                const selected = isMulti
+                  ? (multiAnswers[current.id] ?? []).includes(opt)
+                  : answers[current.id] === opt;
+                return (
+                  <label key={opt} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    selected ? "border-[var(--color-teal)] bg-[var(--color-teal)]/5" : "border-slate-200 hover:border-slate-300"
+                  }`}>
+                    <input
+                      type={isMulti ? "checkbox" : "radio"}
+                      name={current.id}
+                      value={opt}
+                      checked={selected}
+                      onChange={() => isMulti ? toggleMulti(current, opt) : selectMcq(current, opt)}
+                      className="mt-1 accent-[var(--color-teal)]" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-xs text-slate-400 mr-2">{opt}.</span>
+                      {text && <RichText className="text-sm text-slate-700">{text}</RichText>}
+                      {optImg && (
+                        <img src={optImg} alt={`Option ${opt}`}
+                          className="max-h-40 rounded border border-slate-100 mt-1.5" />
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
             <button
@@ -327,7 +551,7 @@ export function TakeTestClient({
               <ChevronLeft size={14} /> Previous
             </button>
             <button
-              onClick={() => selectAnswer(current.id, null)}
+              onClick={() => clearCurrent(current)}
               className="text-xs text-slate-400 hover:text-slate-600"
             >
               Clear answer

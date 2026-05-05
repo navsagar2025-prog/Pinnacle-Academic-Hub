@@ -7,6 +7,9 @@ import { TakeTestClient } from "./TakeTestClient";
 
 export const metadata = { title: "Take Test — Student Portal" };
 
+type Opt = "A" | "B" | "C" | "D";
+const isOpt = (v: unknown): v is Opt => v === "A" || v === "B" || v === "C" || v === "D";
+
 export default async function TakeTestPage({ params }: { params: Promise<{ id: string }> }) {
   const dbUser = await requirePortalRole("student");
   const { id } = await params;
@@ -18,6 +21,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
     .select({
       id: mockTestQuestions.id,
       questionNumber: mockTestQuestions.questionNumber,
+      questionType: mockTestQuestions.questionType,
       questionText: mockTestQuestions.questionText,
       optionA: mockTestQuestions.optionA,
       optionB: mockTestQuestions.optionB,
@@ -52,7 +56,9 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
   let resume: {
     attemptId: string;
     secondsLeft: number;
-    savedAnswers: Record<string, "A" | "B" | "C" | "D">;
+    savedAnswers: Record<string, Opt>;
+    savedMultiAnswers: Record<string, Opt[]>;
+    savedNumAnswers: Record<string, number>;
     savedMarks: string[];
   } | null = null;
 
@@ -76,19 +82,28 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
         .select({
           questionId: mockTestAnswers.questionId,
           selectedOption: mockTestAnswers.selectedOption,
+          selectedOptions: mockTestAnswers.selectedOptions,
+          numericalResponse: mockTestAnswers.numericalResponse,
           isMarkedForReview: mockTestAnswers.isMarkedForReview,
         })
         .from(mockTestAnswers)
         .where(eq(mockTestAnswers.attemptId, inProgress.id));
-      const savedAnswers: Record<string, "A" | "B" | "C" | "D"> = {};
+      const savedAnswers: Record<string, Opt> = {};
+      const savedMultiAnswers: Record<string, Opt[]> = {};
+      const savedNumAnswers: Record<string, number> = {};
       const savedMarks: string[] = [];
       for (const r of saved) {
-        if (r.selectedOption === "A" || r.selectedOption === "B" || r.selectedOption === "C" || r.selectedOption === "D") {
-          savedAnswers[r.questionId] = r.selectedOption;
+        if (isOpt(r.selectedOption)) savedAnswers[r.questionId] = r.selectedOption;
+        if (Array.isArray(r.selectedOptions)) {
+          const opts = r.selectedOptions.filter(isOpt);
+          if (opts.length > 0) savedMultiAnswers[r.questionId] = opts;
+        }
+        if (r.numericalResponse !== null && r.numericalResponse !== undefined && Number.isFinite(r.numericalResponse)) {
+          savedNumAnswers[r.questionId] = r.numericalResponse;
         }
         if (r.isMarkedForReview) savedMarks.push(r.questionId);
       }
-      resume = { attemptId: inProgress.id, secondsLeft, savedAnswers, savedMarks };
+      resume = { attemptId: inProgress.id, secondsLeft, savedAnswers, savedMultiAnswers, savedNumAnswers, savedMarks };
     }
   }
 

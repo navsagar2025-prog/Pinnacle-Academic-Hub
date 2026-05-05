@@ -2,23 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTestAttempts, mockTestAnswers, mockTestQuestions, students } from "@workspace/db/schema";
-import { and, eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-// Autosave a single answer (or mark-for-review toggle) during an in-progress attempt.
-// Idempotent upsert keyed on (attemptId, questionId).
+const VALID_OPTS = ["A", "B", "C", "D"] as const;
+type Opt = (typeof VALID_OPTS)[number];
+const isOpt = (v: unknown): v is Opt =>
+  typeof v === "string" && (VALID_OPTS as readonly string[]).includes(v);
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id: attemptId } = await ctx.params;
   const body = await req.json().catch(() => null);
-  const questionId = typeof body?.questionId === "string" ? body.questionId : null;
+  const questionId = typeof body?.questionId === "string" ? body.questionId : "";
   const rawSel = body?.selectedOption;
-  const selectedOption: "A" | "B" | "C" | "D" | null =
-    rawSel === "A" || rawSel === "B" || rawSel === "C" || rawSel === "D" ? rawSel : null;
+  const selectedOption: Opt | null = isOpt(rawSel) ? rawSel : null;
+
+  const rawOpts = Array.isArray(body?.selectedOptions) ? body.selectedOptions : null;
+  const selectedOptions: Opt[] | null = rawOpts
+    ? (Array.from(new Set(rawOpts.filter(isOpt))) as Opt[]).sort()
+    : null;
+
+  const rawNum = body?.numericalResponse;
+  const numericalResponse: number | null =
+    rawNum === null || rawNum === undefined || rawNum === ""
+      ? null
+      : Number.isFinite(Number(rawNum)) ? Number(rawNum) : null;
+
   const isMarkedForReview = body?.isMarkedForReview === true;
   if (!questionId) return NextResponse.json({ error: "questionId required" }, { status: 400 });
 
   // Run inside a transaction with FOR UPDATE on the attempt row so a concurrent
-  // submit cannot complete the attempt between our read and our upsert. This
-  // prevents an autosave from clobbering graded values after submission.
+  // submit cannot complete the attempt between our read and our upsert.
   const result = await db.transaction(async (tx) => {
     const [attempt] = await tx.select().from(mockTestAttempts)
       .where(eq(mockTestAttempts.id, attemptId))
@@ -44,12 +57,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await tx.insert(mockTestAnswers).values({
       attemptId, questionId,
       selectedOption,
+      selectedOptions,
+      numericalResponse,
       isMarkedForReview,
       isCorrect: null,
       marksAwarded: 0,
     }).onConflictDoUpdate({
       target: [mockTestAnswers.attemptId, mockTestAnswers.questionId],
-      set: { selectedOption, isMarkedForReview, updatedAt: new Date() },
+      set: { selectedOption, selectedOptions, numericalResponse, isMarkedForReview, updatedAt: new Date() },
     });
 
     return { status: 200, body: { success: true } };

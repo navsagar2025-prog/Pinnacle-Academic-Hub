@@ -62,8 +62,13 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
     const s = topicMap.get(topic)!;
     s.total++;
     const ans = answerByQ.get(q.id);
-    if (!ans?.selectedOption) s.skipped++;
-    else if (ans.isCorrect) s.correct++;
+    const attempted = q.questionType === "multi"
+      ? (ans?.selectedOptions?.length ?? 0) > 0
+      : q.questionType === "numerical"
+      ? ans?.numericalResponse !== null && ans?.numericalResponse !== undefined
+      : Boolean(ans?.selectedOption);
+    if (!attempted) s.skipped++;
+    else if (ans?.isCorrect) s.correct++;
     else s.wrong++;
   }
   const topicRows = Array.from(topicMap.entries()).map(([topic, s]) => ({
@@ -141,6 +146,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           return {
             id: q.id,
             questionNumber: q.questionNumber,
+            questionType: q.questionType,
             topic: q.topic,
             questionText: q.questionText,
             imageUrl: q.imageUrl,
@@ -150,9 +156,14 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             optionCImageUrl: q.optionCImageUrl,
             optionDImageUrl: q.optionDImageUrl,
             correctOption: q.correctOption,
+            correctOptions: q.correctOptions,
+            numericalAnswer: q.numericalAnswer,
+            numericalTolerance: q.numericalTolerance,
             explanation: q.explanation,
             explanationImageUrl: q.explanationImageUrl,
             selectedOption: ans?.selectedOption ?? null,
+            selectedOptions: ans?.selectedOptions ?? null,
+            numericalResponse: ans?.numericalResponse ?? null,
             isCorrect: ans?.isCorrect ?? null,
             marksAwarded: ans?.marksAwarded ?? null,
           };

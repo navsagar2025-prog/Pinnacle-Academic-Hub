@@ -10,6 +10,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  real,
   customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -382,11 +383,20 @@ export const mockTestQuestions = pgTable("mock_test_questions", {
   testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
   questionNumber: integer("question_number").notNull(),
   questionText: text("question_text").notNull(),
-  optionA: text("option_a").notNull(),
-  optionB: text("option_b").notNull(),
-  optionC: text("option_c").notNull(),
-  optionD: text("option_d").notNull(),
-  correctOption: text("correct_option").notNull(),
+  // 'mcq' (single correct), 'multi' (multiple correct), 'numerical' (numeric answer)
+  questionType: text("question_type").default("mcq").notNull(),
+  // Options are nullable so numerical questions don't need them.
+  optionA: text("option_a"),
+  optionB: text("option_b"),
+  optionC: text("option_c"),
+  optionD: text("option_d"),
+  // For mcq: 'A' | 'B' | 'C' | 'D'. Null for numerical / multi.
+  correctOption: text("correct_option"),
+  // For multi: subset of ['A','B','C','D'].
+  correctOptions: text("correct_options").array(),
+  // For numerical: the expected numeric answer and an absolute tolerance band.
+  numericalAnswer: real("numerical_answer"),
+  numericalTolerance: real("numerical_tolerance").default(0),
   topic: text("topic"),
   explanation: text("explanation"),
   imageUrl: text("image_url"),
@@ -421,9 +431,12 @@ export const mockTestAnswers = pgTable("mock_test_answers", {
   id: uuid("id").primaryKey().defaultRandom(),
   attemptId: uuid("attempt_id").references(() => mockTestAttempts.id, { onDelete: "cascade" }).notNull(),
   questionId: uuid("question_id").references(() => mockTestQuestions.id, { onDelete: "cascade" }).notNull(),
-  selectedOption: text("selected_option"),
+  // Per-type response: only one of these is populated based on the question's type.
+  selectedOption: text("selected_option"),         // mcq
+  selectedOptions: text("selected_options").array(), // multi
+  numericalResponse: real("numerical_response"),    // numerical
   isCorrect: boolean("is_correct"),
-  marksAwarded: integer("marks_awarded").default(0),
+  marksAwarded: real("marks_awarded").default(0),
   isMarkedForReview: boolean("is_marked_for_review").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

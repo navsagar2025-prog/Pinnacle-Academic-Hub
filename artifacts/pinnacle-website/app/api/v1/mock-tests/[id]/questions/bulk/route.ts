@@ -5,6 +5,10 @@ import { mockTests, mockTestQuestions } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { validateMockTestImageUrl } from "@/lib/server/image-url";
 
+const VALID_OPTS = ["A", "B", "C", "D"] as const;
+type Opt = (typeof VALID_OPTS)[number];
+const isOpt = (v: string): v is Opt => (VALID_OPTS as readonly string[]).includes(v);
+
 function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -71,16 +75,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (rows.length < 2) return NextResponse.json({ error: "CSV must have a header row plus at least one data row" }, { status: 400 });
 
   const headers = rows[0].map((h) => h.trim().toLowerCase());
-  const required = ["questiontext", "optiona", "optionb", "optionc", "optiond", "correctoption"];
-  for (const r of required) {
-    if (!headers.includes(r)) {
-      return NextResponse.json({
-        error: `Missing required column "${r}". Required headers: ${required.join(", ")}, optional: topic, explanation`,
-      }, { status: 400 });
-    }
+  // questionText is always required; for mcq we additionally need optionA-D + correctOption,
+  // for multi we need options + correctOptions, for numerical we need numericalAnswer.
+  if (!headers.includes("questiontext")) {
+    return NextResponse.json({
+      error: 'Missing required column "questionText". For numerical questions also provide numericalAnswer; for multi provide correctOptions (e.g. "A|C").',
+    }, { status: 400 });
   }
 
   const idx = (name: string) => headers.indexOf(name);
+  const cell = (row: string[], name: string): string => idx(name) >= 0 ? (row[idx(name)] ?? "").trim() : "";
+  const cellOrNull = (row: string[], name: string): string | null => {
+    const v = cell(row, name);
+    return v === "" ? null : v;
+  };
+
   const [{ next }] = await db.select({ next: sql<number>`coalesce(max(${mockTestQuestions.questionNumber}), 0) + 1` })
     .from(mockTestQuestions).where(eq(mockTestQuestions.testId, testId));
 
@@ -88,27 +97,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const errors: string[] = [];
   let counter = next;
 
-  const opt = (name: string) => idx(name) >= 0 ? (row: string[]) => row[idx(name)]?.trim() || null : () => null;
-  const getImage = {
-    q:  opt("imageurl"),
-    a:  opt("optionaimageurl"),
-    b:  opt("optionbimageurl"),
-    c:  opt("optioncimageurl"),
-    d:  opt("optiondimageurl"),
-    ex: opt("explanationimageurl"),
-  };
-  const optHas = (txt: string | undefined, img: string | null) => Boolean((txt && txt.trim()) || img);
-
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const questionText = row[idx("questiontext")]?.trim() ?? "";
-    const optionA = row[idx("optiona")]?.trim() ?? "";
-    const optionB = row[idx("optionb")]?.trim() ?? "";
-    const optionC = row[idx("optionc")]?.trim() ?? "";
-    const optionD = row[idx("optiond")]?.trim() ?? "";
-    const correctOption = row[idx("correctoption")]?.trim().toUpperCase();
-    const topic = idx("topic") >= 0 ? row[idx("topic")]?.trim() || null : null;
-    const explanation = idx("explanation") >= 0 ? row[idx("explanation")]?.trim() || null : null;
+    const questionText = cell(row, "questiontext");
+    const rawType = cell(row, "questiontype").toLowerCase();
+    const questionType: "mcq" | "multi" | "numerical" =
+      rawType === "multi" || rawType === "numerical" ? rawType : "mcq";
+    const topic = cellOrNull(row, "topic");
+    const explanation = cellOrNull(row, "explanation");
+
     let imageUrl: string | null;
     let optionAImageUrl: string | null;
     let optionBImageUrl: string | null;
@@ -116,31 +113,85 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let optionDImageUrl: string | null;
     let explanationImageUrl: string | null;
     try {
-      imageUrl            = validateMockTestImageUrl(getImage.q(row));
-      optionAImageUrl     = validateMockTestImageUrl(getImage.a(row));
-      optionBImageUrl     = validateMockTestImageUrl(getImage.b(row));
-      optionCImageUrl     = validateMockTestImageUrl(getImage.c(row));
-      optionDImageUrl     = validateMockTestImageUrl(getImage.d(row));
-      explanationImageUrl = validateMockTestImageUrl(getImage.ex(row));
+      imageUrl            = validateMockTestImageUrl(cellOrNull(row, "imageurl"));
+      optionAImageUrl     = validateMockTestImageUrl(cellOrNull(row, "optionaimageurl"));
+      optionBImageUrl     = validateMockTestImageUrl(cellOrNull(row, "optionbimageurl"));
+      optionCImageUrl     = validateMockTestImageUrl(cellOrNull(row, "optioncimageurl"));
+      optionDImageUrl     = validateMockTestImageUrl(cellOrNull(row, "optiondimageurl"));
+      explanationImageUrl = validateMockTestImageUrl(cellOrNull(row, "explanationimageurl"));
     } catch (err) {
       errors.push(`Row ${i + 1}: ${err instanceof Error ? err.message : "invalid image URL"}`);
       continue;
     }
 
-    const hasQuestion = questionText.trim() || imageUrl;
-    if (!hasQuestion || !optHas(optionA, optionAImageUrl) || !optHas(optionB, optionBImageUrl) ||
-        !optHas(optionC, optionCImageUrl) || !optHas(optionD, optionDImageUrl)) {
-      errors.push(`Row ${i + 1}: missing question or option (each needs text or image URL)`);
+    if (!questionText && !imageUrl) {
+      errors.push(`Row ${i + 1}: questionText or imageUrl is required`);
       continue;
     }
-    if (!["A", "B", "C", "D"].includes(correctOption)) {
-      errors.push(`Row ${i + 1}: correctOption must be A, B, C, or D (got "${correctOption}")`);
-      continue;
+
+    let correctOptions: Opt[] | null = null;
+    let numericalAnswer: number | null = null;
+    let numericalTolerance: number | null = null;
+    let mcqCorrect: Opt | null = null;
+    let optionA: string | null = null;
+    let optionB: string | null = null;
+    let optionC: string | null = null;
+    let optionD: string | null = null;
+
+    if (questionType === "mcq" || questionType === "multi") {
+      optionA = cell(row, "optiona");
+      optionB = cell(row, "optionb");
+      optionC = cell(row, "optionc");
+      optionD = cell(row, "optiond");
+      const optHas = (txt: string, img: string | null) => Boolean(txt || img);
+      if (!optHas(optionA, optionAImageUrl) || !optHas(optionB, optionBImageUrl) ||
+          !optHas(optionC, optionCImageUrl) || !optHas(optionD, optionDImageUrl)) {
+        errors.push(`Row ${i + 1}: each of optionA-D needs text or an image URL`);
+        continue;
+      }
+      if (questionType === "mcq") {
+        const co = cell(row, "correctoption").toUpperCase();
+        if (!isOpt(co)) {
+          errors.push(`Row ${i + 1}: correctOption must be A, B, C, or D (got "${co}")`);
+          continue;
+        }
+        mcqCorrect = co;
+      } else {
+        const raw = cell(row, "correctoptions");
+        const picks = raw.split(/[|,;\s]+/).map((s) => s.trim().toUpperCase()).filter((s) => s !== "");
+        const valid = picks.filter(isOpt);
+        if (valid.length === 0) {
+          errors.push(`Row ${i + 1}: correctOptions must list at least one of A-D, e.g. "A|C"`);
+          continue;
+        }
+        correctOptions = (Array.from(new Set(valid)) as Opt[]).sort();
+      }
+    } else {
+      // numerical
+      const rawAns = cell(row, "numericalanswer");
+      const n = Number(rawAns);
+      if (rawAns === "" || !Number.isFinite(n)) {
+        errors.push(`Row ${i + 1}: numericalAnswer is required and must be a number for numerical questions`);
+        continue;
+      }
+      numericalAnswer = n;
+      const rawTol = cell(row, "numericaltolerance");
+      const tol = rawTol === "" ? 0 : Number(rawTol);
+      if (!Number.isFinite(tol) || tol < 0) {
+        errors.push(`Row ${i + 1}: numericalTolerance must be a non-negative number`);
+        continue;
+      }
+      numericalTolerance = tol;
     }
 
     toInsert.push({
       testId, questionNumber: counter++, questionText,
-      optionA, optionB, optionC, optionD, correctOption,
+      questionType,
+      optionA, optionB, optionC, optionD,
+      correctOption: mcqCorrect,
+      correctOptions,
+      numericalAnswer,
+      numericalTolerance,
       topic, explanation,
       imageUrl, optionAImageUrl, optionBImageUrl, optionCImageUrl, optionDImageUrl, explanationImageUrl,
     });
