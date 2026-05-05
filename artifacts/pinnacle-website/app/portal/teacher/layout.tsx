@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Performance", href: "/portal/teacher/performance", icon: "TrendingUp" },
   { label: "Materials", href: "/portal/teacher/materials", icon: "BookOpen" },
   { label: "Notices", href: "/portal/teacher/notices", icon: "Bell" },
+  { label: "Practice Sets", href: "/portal/teacher/practice-sets", icon: "Library" },
   { label: "Mock Tests", href: "/portal/teacher/mock-tests", icon: "Sparkles" },
   { label: "Live Classes", href: "/portal/teacher/live", icon: "Video" },
   { label: "Tools", href: "#", icon: "Bot", divider: true },

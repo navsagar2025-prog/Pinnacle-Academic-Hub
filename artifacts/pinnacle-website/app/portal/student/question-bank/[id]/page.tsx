@@ -2,21 +2,36 @@ import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { questionBank, questionBookmarks, questionAttempts, students } from "@workspace/db/schema";
 import { and, desc, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { PracticeView } from "./PracticeView";
+import { studentCanAccessQuestion } from "@/lib/server/practice-sets";
 
 export const metadata = { title: "Practice Question — Student Portal" };
 
-export default async function StudentQuestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StudentQuestionDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ set?: string }>;
+}) {
   const user = await requirePortalRole("student");
   const { id } = await params;
+  const sp = await searchParams;
   const [q] = await db.select().from(questionBank).where(eq(questionBank.id, id)).limit(1);
   if (!q) notFound();
 
   const [student] = await db.select({ id: students.id }).from(students)
     .where(and(eq(students.userId, user.id), eq(students.isActive, true))).limit(1);
+
+  // Gate access: students can only open a question if at least one practice set
+  // they're assigned to contains it. Otherwise, bounce to the practice landing
+  // page so they don't see the raw bank.
+  if (!student) redirect("/portal/student/practice");
+  const canAccess = await studentCanAccessQuestion(student.id, id);
+  if (!canAccess) redirect("/portal/student/practice");
 
   let bookmarked = false;
   let priorAttempts: Array<{ id: string; submittedAnswer: string | null; isCorrect: boolean | null; timeSpentSeconds: number | null; createdAt: string }> = [];
@@ -42,8 +57,11 @@ export default async function StudentQuestionDetailPage({ params }: { params: Pr
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <Link href="/portal/student/question-bank" className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--color-teal)]">
-        <ChevronLeft size={14} /> Back to bank
+      <Link
+        href={sp.set ? `/portal/student/practice/${sp.set}` : "/portal/student/practice"}
+        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--color-teal)]"
+      >
+        <ChevronLeft size={14} /> Back to {sp.set ? "this set" : "practice sets"}
       </Link>
 
       <PracticeView

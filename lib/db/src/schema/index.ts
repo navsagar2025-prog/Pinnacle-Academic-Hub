@@ -559,11 +559,58 @@ export const questionAttempts = qbSchema.table("question_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }).notNull(),
   questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
+  practiceSetId: uuid("practice_set_id"),
   submittedAnswer: text("submitted_answer"),
   isCorrect: boolean("is_correct"),
   timeSpentSeconds: integer("time_spent_seconds"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Practice Sets — teacher/admin-curated bundles of questions assigned to batches
+// or individual students. The ONLY way students reach question-bank questions
+// (the raw bank is staff-only). A set is a lightweight cousin of a mock test:
+// no timer, no submission window, no scoring rollup — just curated drill.
+export const practiceSets = pgTable("practice_sets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  subject: text("subject"),
+  createdBy: uuid("created_by").references(() => users.id),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("practice_sets_created_by_idx").on(t.createdBy),
+  index("practice_sets_subject_idx").on(t.subject),
+]);
+
+export const practiceSetQuestions = pgTable("practice_set_questions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  setId: uuid("set_id").references(() => practiceSets.id, { onDelete: "cascade" }).notNull(),
+  questionId: uuid("question_id").references(() => questionBank.id, { onDelete: "cascade" }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("practice_set_questions_unique_idx").on(t.setId, t.questionId),
+  index("practice_set_questions_set_idx").on(t.setId),
+]);
+
+// An assignment links a set to either an entire batch (batchId set) or a single
+// student (studentId set). Exactly one of those should be populated per row;
+// the application layer enforces this invariant on insert.
+export const practiceSetAssignments = pgTable("practice_set_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  setId: uuid("set_id").references(() => practiceSets.id, { onDelete: "cascade" }).notNull(),
+  batchId: uuid("batch_id").references(() => batches.id, { onDelete: "cascade" }),
+  studentId: uuid("student_id").references(() => students.id, { onDelete: "cascade" }),
+  assignedBy: uuid("assigned_by").references(() => users.id),
+  dueAt: timestamp("due_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("practice_set_assignments_set_idx").on(t.setId),
+  index("practice_set_assignments_batch_idx").on(t.batchId),
+  index("practice_set_assignments_student_idx").on(t.studentId),
+]);
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -624,3 +671,7 @@ export type QuestionBank = typeof questionBank.$inferSelect;
 export type InsertQuestionBank = typeof questionBank.$inferInsert;
 export type QuestionBookmark = typeof questionBookmarks.$inferSelect;
 export type QuestionAttempt = typeof questionAttempts.$inferSelect;
+export type PracticeSet = typeof practiceSets.$inferSelect;
+export type InsertPracticeSet = typeof practiceSets.$inferInsert;
+export type PracticeSetQuestion = typeof practiceSetQuestions.$inferSelect;
+export type PracticeSetAssignment = typeof practiceSetAssignments.$inferSelect;

@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: "Results & Toppers", href: "/portal/admin/results", icon: "Trophy" },
   { label: "Test Scores", href: "/portal/admin/test-scores", icon: "ClipboardList" },
   { label: "Question Bank", href: "/portal/admin/question-bank", icon: "BookOpen" },
+  { label: "Practice Sets", href: "/portal/admin/practice-sets", icon: "Library" },
   { label: "Mock Tests", href: "/portal/admin/mock-tests", icon: "Sparkles" },
   { label: "Doubt Q&A", href: "/portal/admin/doubts", icon: "MessageCircleQuestion" },
   { label: "Blog CMS", href: "/portal/admin/blog", icon: "FileText" },

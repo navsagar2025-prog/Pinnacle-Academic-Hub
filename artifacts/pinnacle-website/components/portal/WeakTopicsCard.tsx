@@ -41,33 +41,24 @@ export function WeakTopicsCard({
       </div>
 
       <ul className="space-y-2">
-        {weakTopics.map((t) => {
-          const params = new URLSearchParams();
-          if (t.subject !== "Mock Test") params.set("subject", t.subject);
-          params.set("topic", t.topic);
-          const href = `${BASE}/portal/student/question-bank?${params.toString()}`;
-          return (
-            <li key={`${t.subject}::${t.topic}`}>
-              <Link
-                href={href}
-                className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[var(--color-slate-light)] transition-colors group"
-              >
-                <span className={`badge text-xs ${accuracyColor(t.accuracy)} font-bold`}>{t.accuracy}%</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[var(--color-navy)] truncate">{t.topic}</div>
-                  <div className="text-[11px] text-slate-500 truncate">
-                    {t.subject !== "Mock Test" && <>{t.subject} · </>}
-                    {t.correct}/{t.attempted} correct
-                    {t.source === "both" && <> · mock + practice</>}
-                    {t.source === "mock" && <> · mock tests</>}
-                    {t.source === "bank" && <> · question bank</>}
-                  </div>
+        {weakTopics.map((t) => (
+          <li key={`${t.subject}::${t.topic}`}>
+            <Link
+              href={`${BASE}/portal/student/practice`}
+              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[var(--color-slate-light)] transition-colors group"
+            >
+              <span className={`badge text-xs ${accuracyColor(t.accuracy)} font-bold`}>{t.accuracy}%</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-[var(--color-navy)] truncate">{t.topic}</div>
+                <div className="text-[11px] text-slate-500 truncate">
+                  {t.subject !== "Mock Test" && <>{t.subject} · </>}
+                  {t.correct}/{t.attempted} correct · ask your teacher to assign a set on this topic
                 </div>
-                <ArrowRight size={14} className="text-slate-300 group-hover:text-[var(--color-teal)] flex-shrink-0" />
-              </Link>
-            </li>
-          );
-        })}
+              </div>
+              <ArrowRight size={14} className="text-slate-300 group-hover:text-[var(--color-teal)] flex-shrink-0" />
+            </Link>
+          </li>
+        ))}
       </ul>
     </div>
   );

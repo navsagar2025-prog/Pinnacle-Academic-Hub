@@ -56,7 +56,8 @@ Across all web and mobile platforms (Pinnacle Demo, Pinnacle Full Platform, Pinn
 - **SEO Overrides**: DB-backed `seoOverrides` for route-specific metadata, editable by admin.
 - **User Management**: Admin interface for managing users and changing roles.
 - **JSON-LD Structured Data**: Implemented for homepage (EducationalOrganization, LocalBusiness) and courses page (ItemList, Course).
-- **Question Bank**: 11,595 MCQ questions across 4 subjects seeded. Includes an AI Question Generator tool for admins to create MCQs via API.
+- **Question Bank**: 11,595 MCQ questions across 4 subjects seeded. Includes an AI Question Generator tool for admins to create MCQs via API. The bank itself is staff-only — students never browse it directly.
+- **Practice Sets**: Teacher/admin-curated bundles of questions from the bank, assigned to entire batches or individual students with optional due dates. Tables: `practice_sets`, `practice_set_questions`, `practice_set_assignments`. Students access curated sets at `/portal/student/practice` and reach individual questions only through their assigned sets, mock tests, or post-attempt review (`studentCanAccessQuestion` enforces this gate). Staff manage sets at `/portal/{admin,teacher}/practice-sets` via the shared `PracticeSetEditor` component (question picker with subject + search filters, batch/student assignment tabs).
 
 ### Pinnacle Mobile App (`artifacts/pinnacle-mobile`):
 - Expo React Native app (iOS, Android, Web).

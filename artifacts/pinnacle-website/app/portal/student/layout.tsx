@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { label: "Assignments", href: "/portal/student/assignments", icon: "ClipboardList" },
   { label: "Study Material", href: "/portal/student/materials", icon: "BookOpen" },
   { label: "Practice Papers", href: "/portal/student/papers", icon: "FileText" },
-  { label: "Question Bank", href: "/portal/student/question-bank", icon: "Library" },
+  { label: "Practice Sets", href: "/portal/student/practice", icon: "Library" },
   { label: "Mock Tests", href: "/portal/student/mock-tests", icon: "Sparkles" },
   { label: "Practice History", href: "/portal/student/practice-history", icon: "History" },
   { label: "Doubt Forum", href: "/portal/student/doubts", icon: "MessageCircleQuestion" },
