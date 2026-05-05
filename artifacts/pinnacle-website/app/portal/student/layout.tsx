@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { label: "Practice Sets", href: "/portal/student/practice", icon: "Library" },
   { label: "Mock Tests", href: "/portal/student/mock-tests", icon: "Sparkles" },
   { label: "Practice History", href: "/portal/student/practice-history", icon: "History" },
+  { label: "Attempt History", href: "/portal/student/question-bank/attempts", icon: "ListChecks" },
   { label: "Doubt Forum", href: "/portal/student/doubts", icon: "MessageCircleQuestion" },
   { label: "Attendance", href: "/portal/student/attendance", icon: "UserCheck" },
   { label: "Results", href: "/portal/student/results", icon: "TrendingUp" },

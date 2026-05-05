@@ -33,31 +33,31 @@ export default async function StudentQuestionDetailPage({
   const [student] = await db.select({ id: students.id }).from(students)
     .where(and(eq(students.userId, user.id), eq(students.isActive, true))).limit(1);
 
-  // Gate access: students can only open a question if at least one practice set
-  // they're assigned to contains it. Otherwise, bounce to the practice landing
-  // page so they don't see the raw bank.
   if (!student) redirect("/portal/student/practice");
-  const canAccess = await studentCanAccessQuestion(student.id, id);
-  if (!canAccess) redirect("/portal/student/practice");
 
-  let bookmarked = false;
-  let priorAttempts: Array<{ id: string; submittedAnswer: string | null; isCorrect: boolean | null; timeSpentSeconds: number | null; createdAt: string }> = [];
-  if (student) {
-    const [bm] = await db.select({ id: questionBookmarks.id }).from(questionBookmarks)
-      .where(and(eq(questionBookmarks.studentId, student.id), eq(questionBookmarks.questionId, id))).limit(1);
-    bookmarked = !!bm;
+  const [bm] = await db.select({ id: questionBookmarks.id }).from(questionBookmarks)
+    .where(and(eq(questionBookmarks.studentId, student.id), eq(questionBookmarks.questionId, id))).limit(1);
+  const bookmarked = !!bm;
 
-    const rows = await db.select({
-      id: questionAttempts.id,
-      submittedAnswer: questionAttempts.submittedAnswer,
-      isCorrect: questionAttempts.isCorrect,
-      timeSpentSeconds: questionAttempts.timeSpentSeconds,
-      createdAt: questionAttempts.createdAt,
-    }).from(questionAttempts)
-      .where(and(eq(questionAttempts.studentId, student.id), eq(questionAttempts.questionId, id)))
-      .orderBy(desc(questionAttempts.createdAt))
-      .limit(20);
-    priorAttempts = rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  const rows = await db.select({
+    id: questionAttempts.id,
+    submittedAnswer: questionAttempts.submittedAnswer,
+    isCorrect: questionAttempts.isCorrect,
+    timeSpentSeconds: questionAttempts.timeSpentSeconds,
+    createdAt: questionAttempts.createdAt,
+  }).from(questionAttempts)
+    .where(and(eq(questionAttempts.studentId, student.id), eq(questionAttempts.questionId, id)))
+    .orderBy(desc(questionAttempts.createdAt))
+    .limit(20);
+  const priorAttempts = rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+
+  // Gate access: students can open a question if (a) it appears in a practice
+  // set they're currently assigned to, OR (b) they've previously attempted it
+  // (review-only). Otherwise, bounce to the practice landing page so they don't
+  // see the raw bank.
+  if (priorAttempts.length === 0) {
+    const canAccess = await studentCanAccessQuestion(student.id, id);
+    if (!canAccess) redirect("/portal/student/practice");
   }
 
   const opts = (q.options as Record<string, string> | null) ?? null;

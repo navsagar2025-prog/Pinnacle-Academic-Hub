@@ -38,6 +38,7 @@ import {
   Library,
   AlertTriangle,
   Trash2,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Library,
   AlertTriangle,
   Trash2,
+  ListChecks,
 };
 
 export interface NavItem {
