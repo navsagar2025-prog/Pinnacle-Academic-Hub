@@ -1,11 +1,12 @@
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions, mockTestAttempts } from "@workspace/db/schema";
-import { eq, asc, sql } from "drizzle-orm";
+import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, students, users } from "@workspace/db/schema";
+import { eq, asc, sql, and, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { TeacherManageTestClient } from "./ManageTestClient";
+import { TestAnalytics } from "./TestAnalytics";
 
 export const metadata = { title: "Manage Test — Teacher Portal" };
 
@@ -21,8 +22,98 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
     .where(eq(mockTestQuestions.testId, id))
     .orderBy(asc(mockTestQuestions.questionNumber));
 
-  const [{ attempts }] = await db.select({ attempts: sql<number>`count(*)::int` })
-    .from(mockTestAttempts).where(eq(mockTestAttempts.testId, id));
+  const allAttempts = await db.select({
+    id: mockTestAttempts.id,
+    studentId: mockTestAttempts.studentId,
+    guestName: mockTestAttempts.guestName,
+    score: mockTestAttempts.score,
+    maxScore: mockTestAttempts.maxScore,
+    correctCount: mockTestAttempts.correctCount,
+    wrongCount: mockTestAttempts.wrongCount,
+    attemptedCount: mockTestAttempts.attemptedCount,
+    totalQuestions: mockTestAttempts.totalQuestions,
+    timeSpentSeconds: mockTestAttempts.timeSpentSeconds,
+    isCompleted: mockTestAttempts.isCompleted,
+    submittedAt: mockTestAttempts.submittedAt,
+    studentName: users.name,
+  })
+    .from(mockTestAttempts)
+    .leftJoin(students, eq(mockTestAttempts.studentId, students.id))
+    .leftJoin(users, eq(students.userId, users.id))
+    .where(eq(mockTestAttempts.testId, id))
+    .orderBy(desc(mockTestAttempts.submittedAt));
+
+  const totalAttempts = allAttempts.length;
+  const completedAttempts = allAttempts.filter((a) => a.isCompleted);
+  const completedCount = completedAttempts.length;
+
+  let averageScore = 0;
+  let averagePercentage = 0;
+  let highestScore = 0;
+  let passRate = 0;
+  let averageTimeMinutes = 0;
+
+  const maxScore = test.marksPerQuestion * questions.length;
+
+  if (completedCount > 0) {
+    const totalScore = completedAttempts.reduce((s, a) => s + a.score, 0);
+    averageScore = Math.round(totalScore / completedCount);
+    highestScore = Math.max(...completedAttempts.map((a) => a.score));
+    const percentages = completedAttempts.map((a) => {
+      const attemptMax = a.maxScore > 0 ? a.maxScore : maxScore;
+      return attemptMax > 0 ? (a.score / attemptMax) * 100 : 0;
+    });
+    averagePercentage = Math.round(percentages.reduce((s, p) => s + p, 0) / completedCount);
+    const passThreshold = 0.4;
+    const passing = completedAttempts.filter((a) => {
+      const attemptMax = a.maxScore > 0 ? a.maxScore : maxScore;
+      return attemptMax > 0 && a.score / attemptMax >= passThreshold;
+    }).length;
+    passRate = Math.round((passing / completedCount) * 100);
+    const totalTime = completedAttempts.reduce((s, a) => s + a.timeSpentSeconds, 0);
+    averageTimeMinutes = Math.round(totalTime / completedCount / 60);
+  }
+
+  let topicBreakdown: { topic: string; totalAnswered: number; correctCount: number; wrongCount: number; accuracy: number }[] = [];
+  if (completedCount > 0) {
+    const topicRows = await db.select({
+      topic: mockTestQuestions.topic,
+      totalAnswered: sql<number>`count(case when ${mockTestAnswers.selectedOption} is not null then 1 end)::int`,
+      correctCount: sql<number>`count(case when ${mockTestAnswers.isCorrect} = true then 1 end)::int`,
+      wrongCount: sql<number>`count(case when ${mockTestAnswers.isCorrect} = false then 1 end)::int`,
+    })
+      .from(mockTestAnswers)
+      .innerJoin(mockTestQuestions, eq(mockTestAnswers.questionId, mockTestQuestions.id))
+      .innerJoin(mockTestAttempts, eq(mockTestAnswers.attemptId, mockTestAttempts.id))
+      .where(and(eq(mockTestAttempts.testId, id), eq(mockTestAttempts.isCompleted, true)))
+      .groupBy(mockTestQuestions.topic)
+      .orderBy(sql`count(case when ${mockTestAnswers.isCorrect} = true then 1 end)::float / nullif(count(case when ${mockTestAnswers.selectedOption} is not null then 1 end), 0) asc`);
+
+    topicBreakdown = topicRows
+      .filter((r) => r.topic && r.totalAnswered > 0)
+      .map((r) => ({
+        topic: r.topic!,
+        totalAnswered: r.totalAnswered,
+        correctCount: r.correctCount,
+        wrongCount: r.wrongCount,
+        accuracy: Math.round((r.correctCount / r.totalAnswered) * 100),
+      }));
+  }
+
+  const studentAttempts = completedAttempts.map((a) => ({
+    id: a.id,
+    studentName: a.studentName || a.guestName || "Anonymous",
+    score: a.score,
+    maxScore: a.maxScore,
+    correctCount: a.correctCount,
+    wrongCount: a.wrongCount,
+    attemptedCount: a.attemptedCount,
+    totalQuestions: a.totalQuestions,
+    timeSpentSeconds: a.timeSpentSeconds,
+    submittedAt: a.submittedAt?.toISOString() ?? null,
+  }));
+
+  const attempts = totalAttempts;
 
   return (
     <div className="space-y-6">
@@ -39,6 +130,22 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
           </div>
         </div>
       </div>
+
+      <TestAnalytics
+        stats={{
+          totalAttempts,
+          completedAttempts: completedCount,
+          averageScore,
+          averagePercentage,
+          maxScore,
+          highestScore,
+          passRate,
+          averageTimeMinutes,
+        }}
+        topicBreakdown={topicBreakdown}
+        studentAttempts={studentAttempts}
+        testTitle={test.title}
+      />
 
       <TeacherManageTestClient
         test={{

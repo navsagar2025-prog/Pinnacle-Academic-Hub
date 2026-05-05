@@ -1,138 +1,85 @@
-# Workspace
+# Overview
 
-## Overview
+This is a pnpm workspace monorepo using TypeScript, designed for an academic coaching institute, Pinnacle Academic Classes. The project encompasses a full-stack web platform, a mobile application, and a robust API server with OCR capabilities. The overarching goal is to provide a comprehensive digital ecosystem for students, parents, teachers, and administrators, enhancing learning, communication, and administrative efficiency.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Key capabilities include:
+- A centralized API server for OCR scanning, document export (PDF/DOCX), and configuration management.
+- A full-fledged Next.js web platform offering public pages, role-based portals (Student, Parent, Teacher, Admin), AI-powered tools, object storage, and advanced content management (question bank, gallery, SEO).
+- A React Native mobile application providing a tailored experience for different user roles, including features like document scanning, offline timetable access, and push notifications.
+- A system for managing academic content, including a vast question bank with AI generation capabilities.
 
-## Stack
+# User Preferences
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+No specific user preferences were provided in the original document.
 
-## Key Commands
+# System Architecture
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+The project is structured as a pnpm workspace monorepo, with each package managing its own dependencies. Node.js 24 and TypeScript 5.9 are the core technologies.
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Core Technologies:
+- **Monorepo Tool**: pnpm workspaces
+- **Package Manager**: pnpm
+- **API Framework**: Express 5
+- **Database**: PostgreSQL with Drizzle ORM
+- **Validation**: Zod (v4) and drizzle-zod
+- **API Codegen**: Orval (from OpenAPI spec)
+- **Build Tool**: esbuild (CJS bundle)
 
-## Artifacts
+## UI/UX and Branding:
+Across all web and mobile platforms (Pinnacle Demo, Pinnacle Full Platform, Pinnacle Mobile App), a consistent brand identity is maintained:
+- **Colors**: Navy (#0A1F5C), Teal (#0D7377), Maroon (#8B1A1A), Gold (#C9A84C)
+- **Fonts**: Playfair Display (headings) and Plus Jakarta Sans (body), with Inter for monospaced text in mobile.
+- **UI Frameworks**: shadcn/ui and Tailwind CSS v4 are used for web interfaces.
 
-### 1. API Server (`artifacts/api-server`)
-- Express 5 + Drizzle ORM + PostgreSQL backend
-- Workflow: `artifacts/api-server: API Server` on port 8080
-- **OCR Router**: Switchable OCR engine backend with 5 adapters (Pix2Text default, SimpleTex, LaTeX-OCR, MathPix, Google Vision)
-- Config persisted in `artifacts/api-server/data/ocr-config.json` (auto-created, JSON file store)
-- Key endpoints:
-  - `POST /api/scan` — OCR scan (multipart image upload, routes to active engine)
-  - `GET /api/settings/ocr` — get active provider + per-provider config (keys sanitized)
-  - `PUT /api/settings/ocr` — switch active provider + update credentials
-  - `POST /api/export/pdf` — generate branded PDF from OCR result (pdf-lib)
-  - `POST /api/export/docx` — generate DOCX from OCR result (docx.js)
-  - `GET /api/health` — status + activeProvider + uptime
-- OCR adapters: `src/ocr/pix2text.ts`, `simpletex.ts`, `latexocr.ts`, `mathpix.ts`, `google-vision.ts`
-- OCR factory: `src/ocr/factory.ts` — reads config, instantiates correct adapter
-- Config store: `src/lib/config-store.ts` — load/save JSON config with env var fallbacks
+## Technical Implementations and Features:
 
-### 2. Mockup Sandbox (`artifacts/mockup-sandbox`)
-- Vite dev server for canvas component previews
-- Workflow: `artifacts/mockup-sandbox: Component Preview Server` on port 8081
+### API Server (`artifacts/api-server`):
+- Express 5 backend with Drizzle ORM and PostgreSQL.
+- **OCR Router**: Supports 5 switchable OCR engines (Pix2Text default, SimpleTex, LaTeX-OCR, MathPix, Google Vision). Configuration is persisted in `ocr-config.json`.
+- **Endpoints**: `/api/scan` (multipart image upload), `/api/settings/ocr` (GET/PUT for config), `/api/export/pdf`, `/api/export/docx`, `/api/health`.
+- OCR adapters are factory-managed based on configuration.
 
-### 3. Pinnacle Proposal (`artifacts/pinnacle-proposal`)
-- 25-slide pitch deck for Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.)
-- React + Vite, slides-style artifact at `/pinnacle-proposal`
-- Workflow: `artifacts/pinnacle-proposal: web` on port 23973
+### Pinnacle Full Platform (`artifacts/pinnacle-website`):
+- Built with Next.js 15 (App Router) and Tailwind CSS v4.
+- **Authentication**: Clerk (`@clerk/nextjs`) for user management, protecting `/portal/*` routes.
+- **Database**: PostgreSQL + Drizzle ORM, with a shared `lib/db` schema. Includes a question bank schema with `tsvector` for full-text search and a pre-push SQL hook for schema management.
+- **Content**: 16 public pages and role-specific portals (Student, Parent, Teacher, Admin).
+- **Teacher Mock Tests**: Teachers can create and manage mock tests with performance analytics (attempt stats, topic-wise breakdown, student attempts table, CSV export). Access and editing permissions are role and subject-based, enforced by API routes.
+- **AI Assistant**: Admin and Teacher portals include an AI workspace powered by Replit AI Integrations (OpenAI, Gemini, Anthropic, OpenRouter) with tools for Notice Writing, Enquiry Response, Study Summarisation, Batch Performance Insights, and Fee Reminders. Uses SSE for streaming.
+- **Object Storage**: GCS-backed via Replit sidecar auth, with presigned PUT URLs for uploads and direct serving of stored files. Supports PDF and image uploads.
+- **API Routes (`/api/v1/`)**: Comprehensive set of APIs for health, courses, notices, enquiries (with CSV export and email triggers), materials, assignments, teachers, upload, storage, AI generation, gallery, SEO, and user management.
+- **Transactional Email**: Resend integration for various email notifications (enquiry acknowledgement, admin alerts, payment confirmation, admission status).
+- **Gallery**: DB-backed `galleryItems` with admin CRUD and public display.
+- **SEO Overrides**: DB-backed `seoOverrides` for route-specific metadata, editable by admin.
+- **User Management**: Admin interface for managing users and changing roles.
+- **JSON-LD Structured Data**: Implemented for homepage (EducationalOrganization, LocalBusiness) and courses page (ItemList, Course).
+- **Question Bank**: 11,595 MCQ questions across 4 subjects seeded. Includes an AI Question Generator tool for admins to create MCQs via API.
 
-### 4. Pinnacle Demo Website (`artifacts/pinnacle-demo`)
-- Full demo website for Pinnacle Academic Classes coaching institute
-- React + Vite + shadcn/ui + Tailwind CSS v4 + wouter routing
-- Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C; Fonts: Playfair Display + Plus Jakarta Sans
-- 30+ pages: 12 public pages + Student/Parent/Teacher portals (15 portal pages)
-- Role selector login (demo mode, no real auth); role stored in localStorage as `pinnacle_role`
-- All portal forms disabled with "Demo mode" tooltip
-- Workflow: `artifacts/pinnacle-demo: web` on port 24694
+### Pinnacle Mobile App (`artifacts/pinnacle-mobile`):
+- Expo React Native app (iOS, Android, Web).
+- **Role-based Access**: 4 roles (Student, Parent, Teacher, Admin) with distinct tab navigations. Role stored in AsyncStorage.
+- **Demo Mode**: Read-only functionality with visual disablement and demo alerts for write actions.
+- **Scan Document**: Uses `expo-camera` for document scanning, OCR API integration, KaTeX WebView preview for LaTeX, and PDF/DOCX export with native sharing.
+- **Push Notifications**: `expo-notifications` integrated for permission requests and demo notifications.
+- **Offline Caching**: Student and Parent timetable screens cache data to AsyncStorage.
 
-#### Key files (Pinnacle Demo):
-- `src/App.tsx` — all 30+ routes (wouter Switch)
-- `src/components/layout/Navbar.tsx` — public navbar with hamburger menu
-- `src/components/layout/PortalLayout.tsx` — role-aware sidebar portal layout
-- `src/pages/Login.tsx` — role selector (Student / Parent / Teacher)
-- `src/index.css` — brand tokens and Tailwind theme
-- `vite.config.ts` — PORT + BASE_PATH env vars
+### Other Artifacts:
+- **Mockup Sandbox (`artifacts/mockup-sandbox`)**: Vite dev server for canvas component previews.
+- **Pinnacle Proposal (`artifacts/pinnacle-proposal`)**: React + Vite based 25-slide pitch deck.
+- **Pinnacle Demo Website (`artifacts/pinnacle-demo`)**: React + Vite + shadcn/ui demo website with 30+ pages and role selector login (demo only).
 
-### 5. Pinnacle Full Platform (`artifacts/pinnacle-website`)
-- **Next.js 15** (App Router) + Tailwind CSS v4 + TypeScript full-stack platform for Pinnacle Academic Classes
-- Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C; Fonts: Playfair Display + Plus Jakarta Sans
-- Workflow: `artifacts/pinnacle-website: web` on port 24697 at `/pinnacle-website`
-- **Auth**: Clerk (`@clerk/nextjs`) — keyless dev mode; middleware protects all `/portal/*` routes
-- **Database**: PostgreSQL + Drizzle ORM (shared `lib/db` schema); seeded with courses, batches, notices, enquiries
-- **16 public pages**: Home, About, Courses, Faculty, Admissions, Results, Notices, Contact, FAQ, Privacy Policy, Terms, Refund Policy, Blog, Gallery, Achievements, Fee Structure
-- **Role portals**: Student (dashboard, timetable, materials, papers, fees, recordings), Parent (dashboard, fees, timetable, notices), Teacher (dashboard, schedule, materials, notices, **mock tests**), Admin (dashboard, students, teachers, batches) — all DB-backed via Drizzle
-- **Teacher Mock Tests**: Teachers can create/manage mock tests from `/portal/teacher/mock-tests`. Regular teachers restricted to their assigned subjects; teachers with `isExaminer=true` or "Examiner" in designation can create tests for all subjects. Teachers can only see/edit/delete their own tests. API routes enforce ownership + subject checks. Admin retains full access to all tests and sees creator name + role badge on test cards.
-- **AI Assistant** (`/portal/admin/ai`, `/portal/teacher/ai`): Multi-model AI workspace powered by Replit AI Integrations (OpenAI, Gemini, Anthropic, OpenRouter); 5 tools: Notice Writer, Enquiry Responder, Study Summariser, Batch Performance Insight, Fee Reminder Composer; SSE streaming; model selector persisted in localStorage; teachers see 3 tools (no enquiry responder or fee reminder)
-- **Object Storage**: GCS-backed file storage via Replit sidecar auth (`lib/server/object-storage.ts`); bucket provisioned; `POST /api/v1/upload` returns presigned PUT URL; uploaded files served via `GET /api/v1/storage/[...path]`; reusable `<FileUpload>` component at `components/upload/FileUpload.tsx`; supports PDFs (max 20 MB) and images (max 5 MB)
-- **File uploads integrated**: Teacher materials (PDF upload replaces URL field), Teacher assignments (new page at `/portal/teacher/assignments` with question paper PDF upload), Admin blog featured image upload, Admin course banner image upload, Admin faculty photo upload
-- **API routes** (`/api/v1/`): health, courses, notices, enquiries (+ `GET /enquiries/export` → CSV download, `PATCH /enquiries/[id]` → admission status + triggers Resend email), materials, assignments, teachers, upload, storage, `POST /api/v1/ai/generate` (SSE streaming), `GET /api/v1/gallery` + `POST` + `PUT/DELETE /gallery/[id]`, `GET+PUT+DELETE /api/v1/seo`, `GET+PUT /api/v1/users` + `PUT /users/[id]` (role change), `POST /api/v1/email/test`
-- **Transactional email** (`lib/server/email.ts`): Resend (`RESEND_API_KEY` secret) — `sendEnquiryAcknowledgement`, `sendAdminEnquiryAlert`, `sendPaymentConfirmation`, `sendAdmissionStatusEmail` (auto-fires on admission status PATCH), `sendTestEmail`; FROM: `noreply@paconline.in`; ADMIN_EMAIL env: `care@paconline.in`
-- **Gallery**: `galleryItems` DB table (title, caption, category, imageUrl, sortOrder, isVisible); admin CRUD at `/portal/admin/gallery`; public `/gallery` page reads from DB with category filter client component (`GalleryGrid.tsx`)
-- **SEO overrides**: `seoOverrides` DB table (route, title, description, focusKeyword, noIndex); admin editor embedded in `/portal/admin/seo` page via `SeoOverridesEditor.tsx` + `PUT /api/v1/seo`
-- **User management**: `/portal/admin/users` page lists all users with inline role-change dropdown; `ChangeRoleButton` + `RoleBadge` in `UserRoleModal.tsx`
-- **JSON-LD structured data**: `EducationalOrganization` + `LocalBusiness` schema on homepage; `ItemList`+`Course` schema on `/courses` page (dynamic, from DB)
-- **Navbar**: "Courses" dropdown (JEE, NEET, 11-12, 9-10, Fee Structure); "More" dropdown (Results, Achievements, Gallery, Blog, Notices, About)
-- **All portal pages** use `requirePortalRole()` which auto-provisions DB user on first Clerk sign-in
-- Seed command: `pnpm --filter @workspace/db run seed`
-- Key files:
-  - `artifacts/pinnacle-website/app/layout.tsx` — ClerkProvider + Playfair/Jakarta fonts
-  - `artifacts/pinnacle-website/app/globals.css` — Tailwind v4 @theme with brand colors (pure CSS, no @apply chaining)
-  - `artifacts/pinnacle-website/middleware.ts` — Clerk route protection for /portal/*
-  - `artifacts/pinnacle-website/lib/data.ts` — All demo/static data (courses, faculty, toppers, testimonials)
-  - `artifacts/pinnacle-website/next.config.ts` — basePath=/pinnacle-website, assetPrefix set
-  - `lib/db/src/schema/index.ts` — Full Drizzle schema (18 tables: users, courses, batches, students, parents, teachers, studyMaterials, practicePapers, feeRecords, notices, schedules, liveClasses, classRecordings, enquiries, assignments, attendance, studentTestResults, **galleryItems**, **seoOverrides**, siteSettings, auditLogs, blogPosts, results)
-- **Question Bank schema** (Postgres `question_bank` schema via Drizzle `pgSchema`): tables `question_bank.question_bank` / `question_bookmarks` / `question_attempts`. The generated `tsvector` column `search_vector` (question_text A, topic B, solution C) and its GIN index are declared in Drizzle schema (via a `customType<tsvector>` + `.generatedAlwaysAs(...)` + `.using("gin", ...)`), so `drizzle-kit push` owns them and won't drop them. A small idempotent SQL hook `lib/db/sql/question-bank-pre-push.sql` runs **before** push to `CREATE SCHEMA IF NOT EXISTS question_bank` and `ALTER TABLE … SET SCHEMA question_bank` for any legacy public tables (data-preserving). The pre-push hook is wired into the `@workspace/db` package's `push` and `push-force` scripts (`pnpm run pre-push && drizzle-kit push …`), so **always run DB pushes via `pnpm --filter @workspace/db run push` / `push-force`** — never invoke `drizzle-kit push` directly, or the data-preserving schema move will be skipped. Drizzle config: `schemaFilter: ["public", "question_bank"]`. API `GET /api/v1/question-bank?search=…` (legacy `?q=` accepted) uses `plainto_tsquery` + `ts_rank` with `created_at DESC` tie-breaker.
-- **Seeded content**: 11,595 MCQ questions across 4 subjects — Physics 2,869 | Chemistry 2,544 | Mathematics 4,181 | Biology 2,001 — covering NCERT/JEE/NEET topics with 4 options, correct answer, solution, difficulty (easy/medium/hard), class grade (11/12), and PYQ-style year tags (2010–2025). Seed generators in `lib/db/src/seed-data/{physics,chemistry,mathematics,biology}.ts` with shared types in `types.ts`. Seed script: `pnpm --filter @workspace/db run seed-questions` (`lib/db/src/seed-questions.ts`, batch size 500). Bulk import also available at `POST /api/v1/question-bank/import`.
-- **AI Question Generator**: Admin tool at `/portal/admin/question-bank` (modal). Uses `question_generator` AI tool via `POST /api/v1/ai/generate` (SSE streaming). Generates MCQs for any subject/topic/class/difficulty. Admin can review, edit, select, and save generated questions to the question bank via `/api/v1/question-bank/import`. Component: `components/ai/QuestionGenerator.tsx`; prompt: `lib/ai/prompts.ts`.
+# External Dependencies
 
-### 6. Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
-- Expo React Native app (iOS + Android + Web) for Pinnacle Academic Classes
-- Brand: Navy #0A1F5C, Teal #0D7377, Maroon #8B1A1A, Gold #C9A84C (same as web)
-- Workflow: `artifacts/pinnacle-mobile: expo` on port 19049
-- 4 roles: Student (5 tabs), Parent (3 tabs), Teacher (5 tabs), Admin (5 tabs)
-- Role stored in AsyncStorage (`pinnacle_role`); role selector on root screen
-- All write-action buttons are visually disabled + trigger Alert.alert("Demo Mode") — read-only demo; Demo Mode banner on all portal screens
-- Scan Document screen: real expo-camera CameraView viewfinder → auto-crop suggestion → OCR API → KaTeX WebView preview for LaTeX → PDF/DOCX export with native share
-- `eas.json`: development (APK + iOS simulator) / preview / production (app-bundle / App Store) profiles
-- TypeScript: 0 errors; all Feather icon names typed via `ComponentProps<typeof Feather>["name"]`; no `as any` casts
-- Brand fonts: Playfair Display (headings) + Plus Jakarta Sans (body) + Inter (mono) loaded in `_layout.tsx`
-- Push notifications: `expo-notifications` wired; permission request + demo welcome notification on first launch
-- Offline timetable cache: Student + Parent timetable screens cache to AsyncStorage; offline/cached indicator shown
-- Dependencies: `expo-file-system/legacy`, `expo-sharing`, `expo-camera`, `expo-notifications`, `react-native-webview`, Playfair Display + Plus Jakarta Sans fonts
-- Key screens by role:
-  - **Student**: Dashboard, Live Classes, Materials, Timetable (offline cache), More → sub-screens: Recordings, Practice Papers (with scores), Fees (history + due)
-  - **Parent**: Dashboard, Fees (payment history + next due), Timetable (offline cache)
-  - **Teacher**: Dashboard, Schedule, Batches, Materials Upload, Scan (CameraView + KaTeX), Notices
-  - **Admin**: Dashboard, Students (searchable list), Finance (overview/due/recent), Notices, More (Teachers + Results + Enquiries + Scan + Settings)
-- Key files:
-  - `app/_layout.tsx` — Root layout; loads Playfair/Jakarta fonts; expo-notifications permission + demo notification
-  - `app/index.tsx` — Role selector (Playfair Display heading); Feather icons typed
-  - `app/(student)/more.tsx` — Navigation hub to Recordings / Papers / Fees
-  - `app/(student)/recordings.tsx` — Recorded lectures (distinct screen, disabled in demo)
-  - `app/(student)/papers.tsx` — Practice papers + test scores (distinct screen)
-  - `app/(student)/fees.tsx` — Fee history + next due + disabled pay button
-  - `app/(student)/timetable.tsx` — Timetable with AsyncStorage offline cache
-  - `app/(teacher)/scan.tsx` — CameraView viewfinder + auto-crop step + OCR + KaTeX WebView + export
-  - `app/(teacher)/notices.tsx` — Teacher notices with type filter + modal detail
-  - `app/(admin)/scan.tsx` — Admin scan (OCR flow, accessible from More)
-  - `app/(admin)/more.tsx` — Admin More: Teachers + Enquiries + Scan link + Settings
-  - `constants/fonts.ts` — Font family constants (Playfair Display / Plus Jakarta Sans / Inter)
-  - `components/DemoBanner.tsx` — Gold "Demo Mode" banner on all portal screens
-  - `components/ScreenContainer.tsx` — Wraps all screens with DemoBanner + safe area
+- **Database**: PostgreSQL
+- **ORM**: Drizzle ORM
+- **Authentication**: Clerk (`@clerk/nextjs`)
+- **AI Integrations**: OpenAI, Google Gemini, Anthropic, OpenRouter (via Replit AI Integrations)
+- **Email Service**: Resend
+- **Object Storage**: Google Cloud Storage (GCS)
+- **OCR Engines**: Pix2Text, SimpleTex, LaTeX-OCR, MathPix, Google Vision
+- **PDF Generation**: pdf-lib
+- **DOCX Generation**: docx.js
+- **Mobile Push Notifications**: Expo Notifications
+- **Mobile Camera Access**: expo-camera
+- **Mobile File System/Sharing**: expo-file-system/legacy, expo-sharing
+- **Mobile Webview**: react-native-webview
