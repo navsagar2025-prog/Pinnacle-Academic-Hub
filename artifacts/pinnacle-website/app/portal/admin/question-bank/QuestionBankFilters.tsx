@@ -1,7 +1,17 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export function QuestionBankFilters({ subjects, years }: { subjects: string[]; years: number[] }) {
+export function QuestionBankFilters({
+  subjects,
+  years,
+  examNames = [],
+  showPyqShortcut = false,
+}: {
+  subjects: string[];
+  years: number[];
+  examNames?: string[];
+  showPyqShortcut?: boolean;
+}) {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -11,7 +21,14 @@ export function QuestionBankFilters({ subjects, years }: { subjects: string[]; y
     router.push(`?${params.toString()}`);
   }
 
+  function togglePyq() {
+    const params = new URLSearchParams(sp.toString());
+    if (params.get("pyq") === "1") params.delete("pyq"); else params.set("pyq", "1");
+    router.push(`?${params.toString()}`);
+  }
+
   const cls = "px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white";
+  const pyqOn = sp.get("pyq") === "1";
 
   return (
     <div className="card flex flex-wrap items-end gap-3">
@@ -48,6 +65,27 @@ export function QuestionBankFilters({ subjects, years }: { subjects: string[]; y
           {years.map((y) => <option key={y}>{y}</option>)}
         </select>
       </div>
+      {examNames.length > 0 && (
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Exam</label>
+          <select className={cls} value={sp.get("examName") ?? ""} onChange={(e) => update("examName", e.target.value)}>
+            <option value="">Any</option>
+            {examNames.map((n) => <option key={n}>{n}</option>)}
+          </select>
+        </div>
+      )}
+      {showPyqShortcut && (
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Quick</label>
+          <button
+            type="button"
+            onClick={togglePyq}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold ${pyqOn ? "bg-[var(--color-gold)] text-[var(--color-navy)]" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            {pyqOn ? "✓ PYQ only" : "Previous Year Qs"}
+          </button>
+        </div>
+      )}
       <div className="flex-1 min-w-[160px]">
         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Search</label>
         <input className={cls + " w-full"} placeholder="Topic or question text…" defaultValue={sp.get("q") ?? ""}

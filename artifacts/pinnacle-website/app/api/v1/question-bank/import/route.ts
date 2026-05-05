@@ -21,6 +21,8 @@ type ValidRow = {
   correctAnswer: string;
   solution: string | null;
   imageUrl: string | null;
+  solutionImageUrl: string | null;
+  examName: string | null;
   marks: number;
 };
 
@@ -88,6 +90,8 @@ function validateRow(raw: RawRow, line: number): { row?: ValidRow; error?: RowEr
       correctAnswer,
       solution: str(raw.solution) || null,
       imageUrl: str(raw.imageUrl) || null,
+      solutionImageUrl: str(raw.solutionImageUrl) || null,
+      examName: str(raw.examName) || null,
       marks,
     },
   };
@@ -157,6 +161,8 @@ export async function POST(req: NextRequest) {
       correctAnswer: r.correctAnswer,
       solution: r.solution,
       imageUrl: r.imageUrl,
+      solutionImageUrl: r.solutionImageUrl,
+      examName: r.examName,
       marks: r.marks,
       createdBy: user.id,
     })),

@@ -19,7 +19,7 @@ const DIFF_COLOR: Record<string, string> = {
 export default async function AdminQuestionBankPage({
   searchParams,
 }: {
-  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; q?: string }>;
+  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; examName?: string; pyq?: string; q?: string }>;
 }) {
   const sp = await searchParams;
 
@@ -30,6 +30,8 @@ export default async function AdminQuestionBankPage({
     if (sp.difficulty && q.difficulty !== sp.difficulty) return false;
     if (sp.type && q.questionType !== sp.type) return false;
     if (sp.year && q.year !== Number(sp.year)) return false;
+    if (sp.examName && q.examName !== sp.examName) return false;
+    if (sp.pyq === "1" && q.year == null) return false;
     if (sp.q) {
       const needle = sp.q.toLowerCase();
       if (!q.questionText.toLowerCase().includes(needle) && !(q.topic ?? "").toLowerCase().includes(needle)) return false;
@@ -39,6 +41,7 @@ export default async function AdminQuestionBankPage({
 
   const subjects = Array.from(new Set(all.map((q) => q.subject))).sort();
   const years = Array.from(new Set(all.map((q) => q.year).filter((y): y is number => !!y))).sort((a, b) => b - a);
+  const examNames = Array.from(new Set(all.map((q) => q.examName).filter((n): n is string => !!n))).sort();
 
   return (
     <div className="space-y-6">
@@ -56,7 +59,7 @@ export default async function AdminQuestionBankPage({
         </div>
       </div>
 
-      <QuestionBankFilters subjects={subjects} years={years} />
+      <QuestionBankFilters subjects={subjects} years={years} examNames={examNames} showPyqShortcut />
 
       {filtered.length === 0 ? (
         <div className="card text-center py-12 text-slate-400">
@@ -73,7 +76,11 @@ export default async function AdminQuestionBankPage({
                   <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
                   {q.topic && <span className="text-slate-500">· {q.topic}</span>}
                   {q.classGrade && <span className="text-slate-400">· Cls {q.classGrade}</span>}
-                  {q.year && <span className="text-slate-400">· {q.year}</span>}
+                  {(q.year || q.examName) && (
+                    <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)]">
+                      PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
+                    </span>
+                  )}
                   <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
                   <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
                 </div>

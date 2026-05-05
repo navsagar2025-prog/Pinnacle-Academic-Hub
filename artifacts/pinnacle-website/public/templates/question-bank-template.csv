@@ -1,5 +1,5 @@
-subject,topic,classGrade,year,difficulty,type,question,A,B,C,D,correct,solution,imageUrl,marks
-Physics,Kinematics,12,2024,medium,mcq,"A ball is dropped from 20 m. What is its speed on impact? (g = 10 m/s²)","10 m/s","20 m/s","14.1 m/s","30 m/s",B,"v = sqrt(2gh) = sqrt(2*10*20) = 20 m/s",,4
-Chemistry,"Periodic Table",11,2024,easy,mcq,"Which element has atomic number 6?","Boron","Carbon","Nitrogen","Oxygen",B,"Carbon is element #6 (group 14, period 2).",,4
-Maths,"Limits",12,2023,hard,short,"Evaluate lim(x→0) sin(x)/x.",,,,,1,"Standard limit: lim(x→0) sin(x)/x = 1.",,4
-Biology,"Cell Biology",11,2024,medium,mcq,"The powerhouse of the cell is the:","Nucleus","Ribosome","Mitochondrion","Golgi body",C,"Mitochondria produce ATP via oxidative phosphorylation.",,4
+subject,topic,classGrade,year,examName,difficulty,type,question,A,B,C,D,correct,solution,imageUrl,solutionImageUrl,marks
+Physics,Kinematics,12,2024,"JEE Main 2024 Shift 1",medium,mcq,"A ball is dropped from 20 m. What is its speed on impact? (g = 10 m/s²)","10 m/s","20 m/s","14.1 m/s","30 m/s",B,"v = sqrt(2gh) = sqrt(2*10*20) = 20 m/s",,,4
+Biology,"Cell Biology",11,2023,"NEET UG 2023",easy,mcq,"The powerhouse of the cell is the:","Nucleus","Ribosome","Mitochondrion","Golgi body",C,"Mitochondria produce ATP via oxidative phosphorylation.",,,4
+Chemistry,"Periodic Table",11,,,easy,mcq,"Which element has atomic number 6?","Boron","Carbon","Nitrogen","Oxygen",B,"Carbon is element #6 (group 14, period 2).",,,4
+Maths,"Limits",12,,,hard,short,"Evaluate lim(x→0) sin(x)/x.",,,,,1,"Standard limit: lim(x→0) sin(x)/x = 1.",,,4

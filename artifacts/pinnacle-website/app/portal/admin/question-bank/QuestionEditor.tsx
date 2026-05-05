@@ -19,6 +19,7 @@ type Initial = {
   solution: string | null;
   imageUrl: string | null;
   solutionImageUrl: string | null;
+  examName: string | null;
   marks: number;
   isPublished: boolean;
 };
@@ -47,6 +48,7 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
     solution: initial?.solution ?? "",
     imageUrl: initial?.imageUrl ?? "",
     solutionImageUrl: initial?.solutionImageUrl ?? "",
+    examName: initial?.examName ?? "",
     marks: initial?.marks?.toString() ?? "4",
     isPublished: initial?.isPublished ?? true,
   });
@@ -66,6 +68,7 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
       solution: form.solution.trim() || null,
       imageUrl: form.imageUrl.trim() || null,
       solutionImageUrl: form.solutionImageUrl.trim() || null,
+      examName: form.examName.trim() || null,
       marks: Number(form.marks) || 4,
       isPublished: form.isPublished,
     };
@@ -116,6 +119,11 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
           <label className="block text-xs font-semibold text-slate-500 mb-1">Year (PYQ)</label>
           <input className={cls} type="number" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} placeholder="2024" />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 mb-1">Exam name (optional, for previous-year questions)</label>
+        <input className={cls} value={form.examName} onChange={(e) => setForm({ ...form, examName: e.target.value })} placeholder="e.g. JEE Main 2024 Shift 1, NEET UG 2023, CBSE Board 2024" />
       </div>
 
       <div className="grid grid-cols-3 gap-3">

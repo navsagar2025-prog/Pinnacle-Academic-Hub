@@ -20,7 +20,7 @@ const DIFF_COLOR: Record<string, string> = {
 export default async function StudentQuestionBankPage({
   searchParams,
 }: {
-  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; q?: string; bookmarked?: string; topic?: string }>;
+  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; examName?: string; pyq?: string; q?: string; bookmarked?: string; topic?: string }>;
 }) {
   const user = await requirePortalRole("student");
   const sp = await searchParams;
@@ -101,6 +101,8 @@ export default async function StudentQuestionBankPage({
     if (sp.difficulty && q.difficulty !== sp.difficulty) return false;
     if (sp.type && q.questionType !== sp.type) return false;
     if (sp.year && q.year !== Number(sp.year)) return false;
+    if (sp.examName && q.examName !== sp.examName) return false;
+    if (sp.pyq === "1" && q.year == null) return false;
     if (sp.topic && (q.topic ?? "").toLowerCase() !== sp.topic.toLowerCase()) return false;
     if (sp.q) {
       const needle = sp.q.toLowerCase();
@@ -112,6 +114,7 @@ export default async function StudentQuestionBankPage({
 
   const subjects = Array.from(new Set(all.map((q) => q.subject))).sort();
   const years = Array.from(new Set(all.map((q) => q.year).filter((y): y is number => !!y))).sort((a, b) => b - a);
+  const examNames = Array.from(new Set(all.map((q) => q.examName).filter((n): n is string => !!n))).sort();
 
   const weakTopics = student ? await getWeakTopics(student.id) : [];
 
@@ -203,7 +206,7 @@ export default async function StudentQuestionBankPage({
 
       <WeakTopicsCard weakTopics={weakTopics} />
 
-      <QuestionBankFilters subjects={subjects} years={years} />
+      <QuestionBankFilters subjects={subjects} years={years} examNames={examNames} showPyqShortcut />
 
       {filtered.length === 0 ? (
         <div className="card text-center py-12 text-slate-400">
@@ -219,7 +222,11 @@ export default async function StudentQuestionBankPage({
                 <div className="flex items-center gap-2 flex-wrap mb-1.5 text-xs">
                   <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
                   {q.topic && <span className="text-slate-500">· {q.topic}</span>}
-                  {q.year && <span className="text-slate-400">· PYQ {q.year}</span>}
+                  {(q.year || q.examName) && (
+                    <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)]">
+                      PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
+                    </span>
+                  )}
                   <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
                   <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
                   {bookmarkSet.has(q.id) && <Bookmark size={12} className="text-[var(--color-gold)] fill-[var(--color-gold)]" />}

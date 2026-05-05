@@ -10,6 +10,8 @@ export async function GET(req: NextRequest) {
   const topic = url.searchParams.get("topic");
   const classGrade = url.searchParams.get("classGrade");
   const year = url.searchParams.get("year");
+  const examName = url.searchParams.get("examName");
+  const pyq = url.searchParams.get("pyq");
   const difficulty = url.searchParams.get("difficulty");
   const type = url.searchParams.get("type");
   // Accept both `search` (preferred) and the legacy `q` parameter.
@@ -22,6 +24,8 @@ export async function GET(req: NextRequest) {
   if (topic) conds.push(eq(questionBank.topic, topic));
   if (classGrade) conds.push(eq(questionBank.classGrade, classGrade));
   if (year) conds.push(eq(questionBank.year, Number(year)));
+  if (examName) conds.push(eq(questionBank.examName, examName));
+  if (pyq === "1") conds.push(sql`${questionBank.year} is not null`);
   if (difficulty) conds.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard"));
   if (type) conds.push(eq(questionBank.questionType, type as "mcq" | "short" | "long" | "numerical"));
   if (search) {
@@ -87,6 +91,7 @@ export async function POST(req: NextRequest) {
     solution: body.solution || null,
     imageUrl: body.imageUrl || null,
     solutionImageUrl: body.solutionImageUrl || null,
+    examName: body.examName || null,
     marks: body.marks ? Number(body.marks) : 4,
     createdBy: user.id,
   }).returning();

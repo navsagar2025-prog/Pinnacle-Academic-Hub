@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  for (const k of ["subject", "topic", "classGrade", "difficulty", "questionType", "questionText", "correctAnswer", "solution", "imageUrl", "solutionImageUrl", "isPublished"] as const) {
+  for (const k of ["subject", "topic", "classGrade", "difficulty", "questionType", "questionText", "correctAnswer", "solution", "imageUrl", "solutionImageUrl", "examName", "isPublished"] as const) {
     if (k in body) updates[k] = body[k];
   }
   if ("year" in body) updates.year = body.year ? Number(body.year) : null;

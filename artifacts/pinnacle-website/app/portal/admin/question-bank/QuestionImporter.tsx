@@ -7,8 +7,9 @@ import * as XLSX from "xlsx";
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 const COLUMNS = [
-  "subject", "topic", "classGrade", "year", "difficulty", "type",
-  "question", "A", "B", "C", "D", "correct", "solution", "imageUrl", "marks",
+  "subject", "topic", "classGrade", "year", "examName", "difficulty", "type",
+  "question", "A", "B", "C", "D", "correct", "solution",
+  "imageUrl", "solutionImageUrl", "marks",
 ];
 
 type RowError = { line: number; message: string };
@@ -89,13 +90,24 @@ export function QuestionImporter() {
   }
 
   function downloadTemplate() {
-    const example = [{
-      subject: "Physics", topic: "Kinematics", classGrade: "12", year: "2024",
-      difficulty: "medium", type: "mcq",
-      question: "A ball is dropped from 20 m. What is its speed on impact? (g = 10 m/s²)",
-      A: "10 m/s", B: "20 m/s", C: "14.1 m/s", D: "30 m/s", correct: "B",
-      solution: "v = √(2gh) = √(2·10·20) = 20 m/s", imageUrl: "", marks: "4",
-    }];
+    const example = [
+      {
+        subject: "Physics", topic: "Kinematics", classGrade: "12", year: "2024",
+        examName: "JEE Main 2024 Shift 1", difficulty: "medium", type: "mcq",
+        question: "A ball is dropped from 20 m. What is its speed on impact? (g = 10 m/s²)",
+        A: "10 m/s", B: "20 m/s", C: "14.1 m/s", D: "30 m/s", correct: "B",
+        solution: "v = √(2gh) = √(2·10·20) = 20 m/s",
+        imageUrl: "", solutionImageUrl: "", marks: "4",
+      },
+      {
+        subject: "Biology", topic: "Cell Biology", classGrade: "11", year: "2023",
+        examName: "NEET UG 2023", difficulty: "easy", type: "mcq",
+        question: "The powerhouse of the cell is the:",
+        A: "Nucleus", B: "Ribosome", C: "Mitochondrion", D: "Golgi body", correct: "C",
+        solution: "Mitochondria produce ATP via oxidative phosphorylation.",
+        imageUrl: "", solutionImageUrl: "", marks: "4",
+      },
+    ];
     const ws = XLSX.utils.json_to_sheet(example, { header: COLUMNS });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Questions");
@@ -125,6 +137,8 @@ export function QuestionImporter() {
                     <li><strong>Required:</strong> subject, question, correct (A/B/C/D for MCQ)</li>
                     <li><strong>type:</strong> mcq, short, long, numerical (default mcq)</li>
                     <li><strong>difficulty:</strong> easy, medium, hard (default medium)</li>
+                    <li><strong>year + examName</strong> are optional — fill them in for previous-year questions (e.g. "JEE Main 2024 Shift 1", "NEET UG 2023")</li>
+                    <li><strong>imageUrl / solutionImageUrl</strong> are optional URLs to a diagram or figure</li>
                     <li>For non-MCQ questions, A–D may be blank and 'correct' is the expected answer text</li>
                   </ul>
                   <div className="mt-2 flex items-center gap-3">

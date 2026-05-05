@@ -529,6 +529,7 @@ export const questionBank = qbSchema.table("question_bank", {
   solution: text("solution"),
   imageUrl: text("image_url"),
   solutionImageUrl: text("solution_image_url"),
+  examName: text("exam_name"),
   marks: integer("marks").default(4).notNull(),
   isPublished: boolean("is_published").default(true).notNull(),
   createdBy: uuid("created_by").references(() => users.id),
@@ -543,6 +544,7 @@ export const questionBank = qbSchema.table("question_bank", {
   index("question_bank_subject_idx").on(t.subject),
   index("question_bank_topic_idx").on(t.topic),
   index("question_bank_year_idx").on(t.year),
+  index("question_bank_exam_name_idx").on(t.examName),
   index("question_bank_search_vector_idx").using("gin", t.searchVector),
 ]);
 
