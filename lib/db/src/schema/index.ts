@@ -378,9 +378,24 @@ export const mockTests = pgTable("mock_tests", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Optional sections within a mock test (e.g. Physics / Chemistry / Maths).
+// A test without rows here is treated as a single un-sectioned test.
+export const mockTestSections = pgTable("mock_test_sections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  ordering: integer("ordering").notNull().default(0),
+  // Per-section instructions shown above the section header on the take page.
+  instructions: text("instructions"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const mockTestQuestions = pgTable("mock_test_questions", {
   id: uuid("id").primaryKey().defaultRandom(),
   testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
+  // Nullable so legacy/un-sectioned questions still work. Set null on delete so
+  // dropping a section keeps its questions but moves them to the "General" group.
+  sectionId: uuid("section_id").references(() => mockTestSections.id, { onDelete: "set null" }),
   questionNumber: integer("question_number").notNull(),
   questionText: text("question_text").notNull(),
   // 'mcq' (single correct), 'multi' (multiple correct), 'numerical' (numeric answer)
@@ -577,6 +592,8 @@ export type MockTest = typeof mockTests.$inferSelect;
 export type InsertMockTest = typeof mockTests.$inferInsert;
 export type MockTestQuestion = typeof mockTestQuestions.$inferSelect;
 export type InsertMockTestQuestion = typeof mockTestQuestions.$inferInsert;
+export type MockTestSection = typeof mockTestSections.$inferSelect;
+export type InsertMockTestSection = typeof mockTestSections.$inferInsert;
 export type MockTestAttempt = typeof mockTestAttempts.$inferSelect;
 export type MockTestAnswer = typeof mockTestAnswers.$inferSelect;
 export type Doubt = typeof doubts.$inferSelect;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
-import { mockTests, mockTestQuestions } from "@workspace/db/schema";
+import { mockTests, mockTestQuestions, mockTestSections } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { validateMockTestImageUrl } from "@/lib/server/image-url";
 
@@ -93,6 +93,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const [{ next }] = await db.select({ next: sql<number>`coalesce(max(${mockTestQuestions.questionNumber}), 0) + 1` })
     .from(mockTestQuestions).where(eq(mockTestQuestions.testId, testId));
 
+  // Map of section name (lowercased) -> id, so CSVs can reference sections by name.
+  const sectionsList = await db.select({ id: mockTestSections.id, name: mockTestSections.name })
+    .from(mockTestSections).where(eq(mockTestSections.testId, testId));
+  const sectionByName = new Map(sectionsList.map((s) => [s.name.trim().toLowerCase(), s.id]));
+
   const toInsert: Array<typeof mockTestQuestions.$inferInsert> = [];
   const errors: string[] = [];
   let counter = next;
@@ -105,6 +110,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       rawType === "multi" || rawType === "numerical" ? rawType : "mcq";
     const topic = cellOrNull(row, "topic");
     const explanation = cellOrNull(row, "explanation");
+    const sectionNameRaw = cellOrNull(row, "section");
+    let sectionId: string | null = null;
+    if (sectionNameRaw) {
+      const found = sectionByName.get(sectionNameRaw.toLowerCase());
+      if (!found) {
+        errors.push(`Row ${i + 1}: section "${sectionNameRaw}" does not exist on this test (create it first)`);
+        continue;
+      }
+      sectionId = found;
+    }
 
     let imageUrl: string | null;
     let optionAImageUrl: string | null;
@@ -185,7 +200,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
 
     toInsert.push({
-      testId, questionNumber: counter++, questionText,
+      testId, sectionId, questionNumber: counter++, questionText,
       questionType,
       optionA, optionB, optionC, optionD,
       correctOption: mcqCorrect,

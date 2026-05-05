@@ -19,6 +19,7 @@ type Question = {
   optionC: string | null;
   optionD: string | null;
   topic: string | null;
+  sectionId: string | null;
   imageUrl: string | null;
   optionAImageUrl: string | null;
   optionBImageUrl: string | null;
@@ -46,11 +47,14 @@ type Resume = {
   savedMarks: string[];
 };
 
+type Section = { id: string; name: string; ordering: number };
+
 export function TakeTestClient({
-  test, questions, resume,
+  test, questions, sections, resume,
 }: {
   test: Test;
   questions: Question[];
+  sections: Section[];
   resume: Resume | null;
 }) {
   const router = useRouter();
@@ -486,28 +490,62 @@ export function TakeTestClient({
             <h3 className="font-semibold text-sm text-[var(--color-navy)]">Questions</h3>
             <span className="text-xs text-slate-400">{answeredCount}/{questions.length}</span>
           </div>
-          <div className="grid grid-cols-5 gap-1.5 mb-3">
-            {questions.map((q, i) => {
-              const state = palette[i];
-              const isCurrent = i === currentIdx;
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => setCurrentIdx(i)}
-                  className={`aspect-square rounded-lg text-xs font-bold transition-all ${
-                    isCurrent ? "ring-2 ring-[var(--color-navy)]" : ""
-                  } ${
-                    state === "answered-marked" ? "bg-purple-500 text-white"
-                    : state === "marked" ? "bg-[var(--color-gold)] text-white"
-                    : state === "answered" ? "bg-[var(--color-teal)] text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
-          </div>
+          {(() => {
+            const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
+            type Group = { name: string; entries: { q: Question; idx: number }[] };
+            const groups: Group[] = [];
+            if (sections.length > 0) {
+              for (const s of sections) groups.push({ name: s.name, entries: [] });
+              const general: Group = { name: "General", entries: [] };
+              questions.forEach((q, i) => {
+                if (q.sectionId && sectionMap.has(q.sectionId)) {
+                  groups.find((g) => g.name === sectionMap.get(q.sectionId!))!.entries.push({ q, idx: i });
+                } else general.entries.push({ q, idx: i });
+              });
+              if (general.entries.length > 0) groups.push(general);
+            } else {
+              groups.push({ name: "", entries: questions.map((q, i) => ({ q, idx: i })) });
+            }
+            return (
+              <div className="space-y-3 mb-3">
+                {groups.filter((g) => g.entries.length > 0).map((g) => {
+                  const ans = g.entries.reduce((acc, e) => acc + (isQuestionAnswered(e.q) ? 1 : 0), 0);
+                  return (
+                    <div key={g.name || "_all"}>
+                      {g.name && (
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-teal)]">{g.name}</span>
+                          <span className="text-[10px] text-slate-400">{ans}/{g.entries.length}</span>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {g.entries.map(({ q, idx }) => {
+                          const state = palette[idx];
+                          const isCurrent = idx === currentIdx;
+                          return (
+                            <button
+                              key={q.id}
+                              onClick={() => setCurrentIdx(idx)}
+                              className={`aspect-square rounded-lg text-xs font-bold transition-all ${
+                                isCurrent ? "ring-2 ring-[var(--color-navy)]" : ""
+                              } ${
+                                state === "answered-marked" ? "bg-purple-500 text-white"
+                                : state === "marked" ? "bg-[var(--color-gold)] text-white"
+                                : state === "answered" ? "bg-[var(--color-teal)] text-white"
+                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {idx + 1}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <div className="space-y-1 text-[10px] text-slate-500">
             <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[var(--color-teal)]" />Answered</div>
             <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[var(--color-gold)]" />Marked for review</div>

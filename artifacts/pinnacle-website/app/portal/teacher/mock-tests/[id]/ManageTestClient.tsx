@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Eye, EyeOff, Upload, Trash2, CalendarClock, Save, Image as ImageIcon, X } from "lucide-react";
 import FileUpload from "@/components/upload/FileUpload";
+import { SectionsManager, type SectionRow } from "@/components/portal/SectionsManager";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -74,7 +75,7 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function TeacherManageTestClient({ test }: { test: Test }) {
+export function TeacherManageTestClient({ test, sections }: { test: Test; sections: SectionRow[] }) {
   const router = useRouter();
   const [published, setPublished] = useState(test.isPublished);
   const [adding, setAdding] = useState(false);
@@ -87,6 +88,7 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
   });
   const [questionType, setQuestionType] = useState<"mcq" | "multi" | "numerical">("mcq");
   const [correctOptions, setCorrectOptions] = useState<Set<"A" | "B" | "C" | "D">>(new Set());
+  const [sectionId, setSectionId] = useState<string>("");
   const [images, setImages] = useState<ImageState>(EMPTY_IMAGES);
 
   async function togglePublished() {
@@ -133,6 +135,7 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
     }
     const payload: Record<string, unknown> = {
       questionType,
+      sectionId: sectionId || null,
       questionText: form.questionText,
       topic: form.topic,
       explanation: form.explanation,
@@ -171,6 +174,7 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
   return (
     <div className="space-y-4">
       <ScheduleEditor testId={test.id} initialStart={test.scheduledStart} initialEnd={test.scheduledEnd} />
+      <SectionsManager testId={test.id} initialSections={sections} />
       <BulkImportCard testId={test.id} onImported={() => router.refresh()} />
       <div className="card flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -292,10 +296,17 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
                 <p className="text-[11px] text-slate-500 sm:col-span-2">Student's response is correct if it falls within ± tolerance of the answer.</p>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input placeholder="Topic (e.g. Kinematics)" value={form.topic}
                 onChange={(e) => setForm({ ...form, topic: e.target.value })}
                 className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+              {sections.length > 0 && (
+                <select value={sectionId} onChange={(e) => setSectionId(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
+                  <option value="">No section (General)</option>
+                  {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              )}
             </div>
             <textarea rows={2} placeholder="Explanation (shown after submission, supports $LaTeX$)" value={form.explanation}
               onChange={(e) => setForm({ ...form, explanation: e.target.value })}

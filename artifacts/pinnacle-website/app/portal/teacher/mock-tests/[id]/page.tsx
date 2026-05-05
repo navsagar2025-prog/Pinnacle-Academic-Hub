@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, students, users } from "@workspace/db/schema";
+import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, mockTestSections, students, users } from "@workspace/db/schema";
 import { eq, asc, sql, and, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -22,6 +22,10 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
   const questions = await db.select().from(mockTestQuestions)
     .where(eq(mockTestQuestions.testId, id))
     .orderBy(asc(mockTestQuestions.questionNumber));
+
+  const sections = await db.select().from(mockTestSections)
+    .where(eq(mockTestSections.testId, id))
+    .orderBy(asc(mockTestSections.ordering), asc(mockTestSections.createdAt));
 
   const allAttempts = await db.select({
     id: mockTestAttempts.id,
@@ -162,6 +166,7 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
           scheduledStart: test.scheduledStart ? test.scheduledStart.toISOString() : null,
           scheduledEnd: test.scheduledEnd ? test.scheduledEnd.toISOString() : null,
         }}
+        sections={sections.map((s) => ({ id: s.id, name: s.name, ordering: s.ordering, instructions: s.instructions }))}
       />
 
       <div className="card">
@@ -171,8 +176,30 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
         {questions.length === 0 ? (
           <p className="text-sm text-slate-400 py-3">No questions yet. Add your first question below.</p>
         ) : (
-          <ol className="space-y-4">
-            {questions.map((q) => (
+          (() => {
+            const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
+            const groups: { name: string; items: typeof questions }[] = [];
+            for (const s of sections) groups.push({ name: s.name, items: [] });
+            const general: typeof questions = [];
+            for (const q of questions) {
+              if (q.sectionId && sectionMap.has(q.sectionId)) {
+                groups.find((g) => g.name === sectionMap.get(q.sectionId!))!.items.push(q);
+              } else general.push(q);
+            }
+            const finalGroups = sections.length > 0
+              ? [...groups, ...(general.length > 0 ? [{ name: "General", items: general }] : [])]
+              : [{ name: "", items: questions }];
+            return (
+        <div className="space-y-6">
+          {finalGroups.map((g) => (
+            <div key={g.name || "_all"}>
+              {g.name && (
+                <div className="text-xs uppercase tracking-wide text-[var(--color-teal)] font-bold mb-2">
+                  {g.name} <span className="text-slate-400 font-normal normal-case">· {g.items.length} question{g.items.length === 1 ? "" : "s"}</span>
+                </div>
+              )}
+              <ol className="space-y-4">
+            {g.items.map((q) => (
               <li key={q.id} className="border border-slate-100 rounded-xl p-4 bg-[var(--color-slate-light)]/30">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex-1 min-w-0">
@@ -225,7 +252,12 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
                 )}
               </li>
             ))}
-          </ol>
+              </ol>
+            </div>
+          ))}
+        </div>
+            );
+          })()
         )}
       </div>
     </div>

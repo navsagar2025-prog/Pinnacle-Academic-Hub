@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
-import { mockTests, mockTestQuestions } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { mockTests, mockTestQuestions, mockTestSections } from "@workspace/db/schema";
+import { eq, sql, and } from "drizzle-orm";
 import { validateMockTestImageUrl } from "@/lib/server/image-url";
 
 const VALID_OPTS = ["A", "B", "C", "D"] as const;
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = await req.json().catch(() => null);
   const {
     questionType: rawType,
+    sectionId: rawSectionId,
     questionText, optionA, optionB, optionC, optionD, correctOption,
     correctOptions: rawCorrectOptions,
     numericalAnswer: rawNumAnswer, numericalTolerance: rawNumTol,
@@ -35,6 +36,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     imageUrl: imageUrlRaw, optionAImageUrl: aImgRaw, optionBImageUrl: bImgRaw,
     optionCImageUrl: cImgRaw, optionDImageUrl: dImgRaw, explanationImageUrl: exImgRaw,
   } = body ?? {};
+
+  // Validate sectionId belongs to this test (or is null/empty for "general").
+  let sectionId: string | null = null;
+  if (typeof rawSectionId === "string" && rawSectionId.trim() !== "") {
+    const [sec] = await db.select({ id: mockTestSections.id }).from(mockTestSections)
+      .where(and(eq(mockTestSections.id, rawSectionId), eq(mockTestSections.testId, testId))).limit(1);
+    if (!sec) return NextResponse.json({ error: "Invalid sectionId — section does not belong to this test" }, { status: 400 });
+    sectionId = sec.id;
+  }
 
   const questionType: "mcq" | "multi" | "numerical" =
     rawType === "multi" || rawType === "numerical" ? rawType : "mcq";
@@ -108,6 +118,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const [created] = await db.insert(mockTestQuestions).values({
     testId,
+    sectionId,
     questionNumber: next,
     questionText: typeof questionText === "string" ? questionText : "",
     questionType,

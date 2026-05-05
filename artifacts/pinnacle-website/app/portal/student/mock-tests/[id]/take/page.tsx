@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, students } from "@workspace/db/schema";
+import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, mockTestSections, students } from "@workspace/db/schema";
 import { eq, and, asc, desc, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { requirePortalRole } from "@/lib/server/portal-auth";
@@ -28,6 +28,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
       optionC: mockTestQuestions.optionC,
       optionD: mockTestQuestions.optionD,
       topic: mockTestQuestions.topic,
+      sectionId: mockTestQuestions.sectionId,
       imageUrl: mockTestQuestions.imageUrl,
       optionAImageUrl: mockTestQuestions.optionAImageUrl,
       optionBImageUrl: mockTestQuestions.optionBImageUrl,
@@ -37,6 +38,12 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
     .from(mockTestQuestions)
     .where(eq(mockTestQuestions.testId, id))
     .orderBy(asc(mockTestQuestions.questionNumber));
+
+  const sections = await db
+    .select({ id: mockTestSections.id, name: mockTestSections.name, ordering: mockTestSections.ordering })
+    .from(mockTestSections)
+    .where(eq(mockTestSections.testId, id))
+    .orderBy(asc(mockTestSections.ordering), asc(mockTestSections.createdAt));
 
   if (questions.length === 0) {
     return (
@@ -120,6 +127,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
         instructions: test.instructions,
       }}
       questions={questions}
+      sections={sections}
       resume={resume}
     />
   );
