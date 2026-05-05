@@ -352,6 +352,70 @@ export async function sendWeeklyParentDigest(params: {
   });
 }
 
+export async function sendMockTestReminder(params: {
+  to: string | string[];
+  studentName?: string;
+  testTitle: string;
+  subject: string;
+  durationMinutes: number;
+  scheduledStart: Date;
+  scheduledEnd?: Date | null;
+  testUrl: string;
+  kind: "open" | "starting_soon";
+}): Promise<SendResult> {
+  const { to, testTitle, subject, durationMinutes, scheduledStart, scheduledEnd, testUrl, kind } = params;
+  const opensWord = kind === "open" ? "is open now" : "opens in 1 hour";
+  const headline = kind === "open" ? "Your mock test is now open" : "Your mock test starts in 1 hour";
+  const startStr = scheduledStart.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+  });
+  const endStr = scheduledEnd
+    ? scheduledEnd.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
+    : null;
+  const subjectLine = kind === "open"
+    ? `Mock Test Open: ${testTitle} — Pinnacle Academic Classes`
+    : `Starting in 1 hour: ${testTitle} — Pinnacle Academic Classes`;
+  const greeting = params.studentName ? `Hi ${escHtml(params.studentName)},` : "Hi,";
+  return send({
+    to,
+    subject: subjectLine,
+    html: emailLayout(`
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0A1F5C;">${headline}</h1>
+      <p style="margin:0 0 16px;color:#475569;font-size:15px;">${greeting}</p>
+      <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6;">
+        Your scheduled mock test <strong style="color:#0A1F5C;">${escHtml(testTitle)}</strong> ${opensWord}.
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+        <tr>
+          <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">SUBJECT</span>
+            <span style="font-size:15px;color:#0A1F5C;font-weight:700;">${escHtml(subject)}</span>
+          </td>
+          <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">
+            <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">DURATION</span>
+            <span style="font-size:15px;color:#0D7377;font-weight:700;">${durationMinutes} min</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px;" ${endStr ? "" : "colspan=\"2\""}>
+            <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">STARTS</span>
+            <span style="font-size:14px;color:#1e293b;">${startStr}</span>
+          </td>
+          ${endStr ? `<td style="padding:12px 16px;border-left:1px solid #e2e8f0;">
+            <span style="font-size:12px;color:#64748b;font-weight:600;display:block;">CLOSES</span>
+            <span style="font-size:14px;color:#1e293b;">${endStr}</span>
+          </td>` : ""}
+        </tr>
+      </table>
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${escHtml(testUrl)}" style="display:inline-block;background:#0A1F5C;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:8px;">${kind === "open" ? "Start Test" : "View Test"}</a>
+      </div>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Make sure you have a stable internet connection. Once started, the timer cannot be paused.</p>
+    `),
+  });
+}
+
 export async function sendTestEmail(to: string): Promise<SendResult> {
   return send({
     to,

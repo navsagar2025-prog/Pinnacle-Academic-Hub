@@ -423,6 +423,19 @@ export const mockTestQuestions = pgTable("mock_test_questions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Tracks reminder emails sent for scheduled mock tests so we don't double-send.
+// `kind` is either 'open' (sent when scheduledStart has just passed) or
+// 'starting_soon' (sent ~1 hour before scheduledStart).
+export const mockTestNotifications = pgTable("mock_test_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
+  kind: text("kind").notNull(),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+}, (t) => ({
+  uniqTestKind: uniqueIndex("mock_test_notifications_test_kind_uniq").on(t.testId, t.kind),
+}));
+
 export const mockTestAttempts = pgTable("mock_test_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   testId: uuid("test_id").references(() => mockTests.id, { onDelete: "cascade" }).notNull(),
@@ -595,6 +608,8 @@ export type MockTestQuestion = typeof mockTestQuestions.$inferSelect;
 export type InsertMockTestQuestion = typeof mockTestQuestions.$inferInsert;
 export type MockTestSection = typeof mockTestSections.$inferSelect;
 export type InsertMockTestSection = typeof mockTestSections.$inferInsert;
+export type MockTestNotification = typeof mockTestNotifications.$inferSelect;
+export type InsertMockTestNotification = typeof mockTestNotifications.$inferInsert;
 export type MockTestAttempt = typeof mockTestAttempts.$inferSelect;
 export type MockTestAnswer = typeof mockTestAnswers.$inferSelect;
 export type Doubt = typeof doubts.$inferSelect;
