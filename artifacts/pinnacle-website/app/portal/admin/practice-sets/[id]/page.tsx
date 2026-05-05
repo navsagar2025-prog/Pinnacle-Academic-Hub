@@ -1,7 +1,7 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { questionBank, batches, students, users } from "@workspace/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -16,8 +16,11 @@ export default async function AdminPracticeSetDetailPage({ params }: { params: P
   const detail = await getSetDetail(id);
   if (!detail) notFound();
 
-  const [allQuestions, allBatches, allStudents] = await Promise.all([
-    db.select().from(questionBank).where(eq(questionBank.isPublished, true)).orderBy(desc(questionBank.createdAt)).limit(2000),
+  // Subjects come from a tiny SELECT DISTINCT instead of pulling 2000 rows;
+  // the picker itself fetches questions from the API on demand.
+  const [allSubjects, allBatches, allStudents] = await Promise.all([
+    db.selectDistinct({ subject: questionBank.subject }).from(questionBank)
+      .where(eq(questionBank.isPublished, true)).orderBy(asc(questionBank.subject)),
     db.select({ id: batches.id, name: batches.name }).from(batches).orderBy(asc(batches.name)),
     db.select({
       id: students.id, rollNumber: students.rollNumber, name: users.name, batchName: batches.name,
@@ -54,10 +57,7 @@ export default async function AdminPracticeSetDetailPage({ params }: { params: P
           studentId: a.studentId, studentName: a.studentName, studentRoll: a.studentRoll,
           dueAt: a.dueAt ? a.dueAt.toISOString() : null,
         }))}
-        candidateQuestions={allQuestions.map((q) => ({
-          id: q.id, subject: q.subject, topic: q.topic, difficulty: q.difficulty,
-          questionType: q.questionType, questionText: q.questionText, year: q.year, examName: q.examName,
-        }))}
+        subjects={allSubjects.map((s) => s.subject)}
         batches={allBatches}
         students={allStudents.map((s) => ({ id: s.id, name: s.name ?? "Unnamed", rollNumber: s.rollNumber, batchName: s.batchName }))}
       />

@@ -16,8 +16,14 @@ export async function GET(req: NextRequest) {
   const type = url.searchParams.get("type");
   // Accept both `search` (preferred) and the legacy `q` parameter.
   const search = (url.searchParams.get("search") ?? url.searchParams.get("q") ?? "").trim();
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? "20")));
+  // Defensive numeric parsing — invalid strings (NaN, "abc") fall back to
+  // sane defaults instead of cascading into offset/limit and crashing.
+  const rawPage = Number(url.searchParams.get("page") ?? "1");
+  const rawPageSize = Number(url.searchParams.get("pageSize") ?? "20");
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+  const pageSize = Number.isFinite(rawPageSize) && rawPageSize >= 1
+    ? Math.min(100, Math.floor(rawPageSize))
+    : 20;
 
   const conds: SQL[] = [eq(questionBank.isPublished, true)];
   if (subject && subject !== "All") conds.push(eq(questionBank.subject, subject));
