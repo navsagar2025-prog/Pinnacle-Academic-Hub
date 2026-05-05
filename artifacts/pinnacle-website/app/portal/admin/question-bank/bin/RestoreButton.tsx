@@ -12,9 +12,18 @@ export function RestoreButton({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
 
   async function restore() {
+    const reason = window.prompt(
+      "Restore this question to the bank?\n\nOptional: a short reason for the audit log.",
+      "",
+    );
+    if (reason === null) return;
     setBusy(true); setError(null);
     try {
-      const res = await fetch(`${BASE}/api/v1/question-bank/${id}/restore`, { method: "POST" });
+      const res = await fetch(`${BASE}/api/v1/question-bank/${id}/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() || undefined }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data?.error ?? "Restore failed");
       startTransition(() => router.refresh());

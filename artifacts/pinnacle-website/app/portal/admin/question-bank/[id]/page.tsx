@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { questionBank } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -10,7 +10,9 @@ export const metadata = { title: "Edit Question — Admin Panel" };
 
 export default async function EditQuestionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [q] = await db.select().from(questionBank).where(eq(questionBank.id, id)).limit(1);
+  // Soft-deleted rows live in the recycle bin and must not be edited here.
+  const [q] = await db.select().from(questionBank)
+    .where(and(eq(questionBank.id, id), isNull(questionBank.deletedAt))).limit(1);
   if (!q) notFound();
   return (
     <div className="space-y-4 max-w-3xl">

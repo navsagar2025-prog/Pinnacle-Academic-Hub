@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { questionAttempts, questionBank, students } from "@workspace/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 export async function GET(_req: NextRequest) {
   const user = await getDbUser();
@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest) {
     })
     .from(questionAttempts)
     .innerJoin(questionBank, eq(questionAttempts.questionId, questionBank.id))
-    .where(eq(questionAttempts.studentId, s.id))
+    .where(and(eq(questionAttempts.studentId, s.id), isNull(questionBank.deletedAt)))
     .groupBy(questionBank.subject);
 
   const byDifficulty = await db
@@ -32,7 +32,7 @@ export async function GET(_req: NextRequest) {
     })
     .from(questionAttempts)
     .innerJoin(questionBank, eq(questionAttempts.questionId, questionBank.id))
-    .where(eq(questionAttempts.studentId, s.id))
+    .where(and(eq(questionAttempts.studentId, s.id), isNull(questionBank.deletedAt)))
     .groupBy(questionBank.difficulty);
 
   const [overall] = await db

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 // DELETE = clear the deletion request (admin declines, or the original
 // requester withdraws). Soft-deleted rows are out of scope here — use the
 // restore endpoint for those.
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getDbUser();
   if (!user) return NextResponse.json({ error: "Login required" }, { status: 401 });
   if (user.role !== "admin" && user.role !== "teacher") {
@@ -102,11 +102,24 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: "Question was deleted by an admin" }, { status: 409 });
   }
 
+  // Optional decline reason — captured here so the audit row carries the
+  // admin's "why" alongside the original request reason.
+  let declineReason: string | null = null;
+  try {
+    const body = await req.json();
+    const r = (body?.reason ?? "").toString().trim();
+    if (r) declineReason = r.slice(0, 1000);
+  } catch { /* body optional */ }
+
   await logQbAudit({
     actorId: user.id,
     actorName: user.name,
     action: "qb.delete.request_cleared",
     entityId: id,
+    details: {
+      originalRequestedBy: existing.deletionRequestedBy,
+      declineReason,
+    },
   });
 
   return NextResponse.json({ success: true });

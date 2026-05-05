@@ -25,10 +25,18 @@ export function PendingActions({ id }: { id: string }) {
   }
 
   async function decline() {
-    if (!confirm("Decline this request? The teacher's flag will be cleared and the question stays in the bank.")) return;
+    const reason = window.prompt(
+      "Decline this request? The teacher's flag will be cleared and the question stays in the bank.\n\nOptional: a short reason for the audit log.",
+      "",
+    );
+    if (reason === null) return;
     setBusy("decline"); setError(null);
     try {
-      const res = await fetch(`${BASE}/api/v1/question-bank/${id}/deletion-request`, { method: "DELETE" });
+      const res = await fetch(`${BASE}/api/v1/question-bank/${id}/deletion-request`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() || undefined }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data?.error ?? "Decline failed");
       startTransition(() => router.refresh());
