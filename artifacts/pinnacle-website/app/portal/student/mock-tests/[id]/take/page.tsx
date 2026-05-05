@@ -67,6 +67,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
     savedMultiAnswers: Record<string, Opt[]>;
     savedNumAnswers: Record<string, number>;
     savedMarks: string[];
+    savedTimes: Record<string, number>;
   } | null = null;
 
   if (enrollment?.studentId) {
@@ -92,6 +93,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
           selectedOptions: mockTestAnswers.selectedOptions,
           numericalResponse: mockTestAnswers.numericalResponse,
           isMarkedForReview: mockTestAnswers.isMarkedForReview,
+          timeSpentSeconds: mockTestAnswers.timeSpentSeconds,
         })
         .from(mockTestAnswers)
         .where(eq(mockTestAnswers.attemptId, inProgress.id));
@@ -99,6 +101,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
       const savedMultiAnswers: Record<string, Opt[]> = {};
       const savedNumAnswers: Record<string, number> = {};
       const savedMarks: string[] = [];
+      const savedTimes: Record<string, number> = {};
       for (const r of saved) {
         if (isOpt(r.selectedOption)) savedAnswers[r.questionId] = r.selectedOption;
         if (Array.isArray(r.selectedOptions)) {
@@ -109,8 +112,11 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
           savedNumAnswers[r.questionId] = r.numericalResponse;
         }
         if (r.isMarkedForReview) savedMarks.push(r.questionId);
+        if (typeof r.timeSpentSeconds === "number" && r.timeSpentSeconds > 0) {
+          savedTimes[r.questionId] = r.timeSpentSeconds;
+        }
       }
-      resume = { attemptId: inProgress.id, secondsLeft, savedAnswers, savedMultiAnswers, savedNumAnswers, savedMarks };
+      resume = { attemptId: inProgress.id, secondsLeft, savedAnswers, savedMultiAnswers, savedNumAnswers, savedMarks, savedTimes };
     }
   }
 

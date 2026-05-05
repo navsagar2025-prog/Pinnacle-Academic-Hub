@@ -45,6 +45,7 @@ type Resume = {
   savedMultiAnswers: Record<string, Option[]>;
   savedNumAnswers: Record<string, number>;
   savedMarks: string[];
+  savedTimes: Record<string, number>;
 };
 
 type Section = { id: string; name: string; ordering: number };
@@ -94,7 +95,32 @@ export function TakeTestClient({
     selectedOptions: Option[] | null;
     numericalResponse: number | null;
     isMarkedForReview: boolean;
+    timeSpentSeconds: number;
   };
+
+  // Per-question accumulated time. Resume hydrates from server.
+  const accumulatedTimeRef = useRef<Record<string, number>>({ ...(resume?.savedTimes ?? {}) });
+  // When the user landed on the current question (ms epoch).
+  const enterTimeRef = useRef<number>(Date.now());
+  // The questionId currently being viewed/timed.
+  const activeQidRef = useRef<string | null>(questions[0]?.id ?? null);
+
+  const flushActiveTime = useCallback(() => {
+    const qid = activeQidRef.current;
+    if (!qid) return 0;
+    const now = Date.now();
+    const delta = Math.max(0, Math.floor((now - enterTimeRef.current) / 1000));
+    if (delta > 0) {
+      accumulatedTimeRef.current[qid] = (accumulatedTimeRef.current[qid] ?? 0) + delta;
+      enterTimeRef.current = now;
+    }
+    return accumulatedTimeRef.current[qid] ?? 0;
+  }, []);
+
+  const cumulativeTimeFor = useCallback((qid: string): number => {
+    if (activeQidRef.current === qid) return flushActiveTime();
+    return accumulatedTimeRef.current[qid] ?? 0;
+  }, [flushActiveTime]);
 
   const sendSave = useCallback(async (qid: string, payload: SavePayload) => {
     const prev = inflightRef.current.get(qid);
@@ -142,8 +168,8 @@ export function TakeTestClient({
       const n = raw !== undefined && raw.trim() !== "" ? Number(raw) : NaN;
       numericalResponse = Number.isFinite(n) ? n : null;
     }
-    return { questionId: q.id, selectedOption, selectedOptions, numericalResponse, isMarkedForReview };
-  }, [answers, multiAnswers, numAnswers]);
+    return { questionId: q.id, selectedOption, selectedOptions, numericalResponse, isMarkedForReview, timeSpentSeconds: cumulativeTimeFor(q.id) };
+  }, [answers, multiAnswers, numAnswers, cumulativeTimeFor]);
 
   const current = questions[currentIdx];
   const answeredCount = useMemo(
@@ -188,6 +214,36 @@ export function TakeTestClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Flush time accumulated on previous question whenever the user navigates,
+  // and persist that question's updated cumulative time to the server.
+  useEffect(() => {
+    if (phase !== "taking") return;
+    const prevQid = activeQidRef.current;
+    if (prevQid && prevQid !== current.id) {
+      flushActiveTime();
+      const prevQ = questions.find((q) => q.id === prevQid);
+      if (prevQ && attemptId) {
+        scheduleSave(prevQid, buildPayload(prevQ, marked.has(prevQid)), true);
+      }
+    }
+    activeQidRef.current = current.id;
+    enterTimeRef.current = Date.now();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx, phase, attemptId]);
+
+  // Periodically persist current question's accumulated time so analytics
+  // remain accurate even if the student stays on one question for a long time.
+  useEffect(() => {
+    if (phase !== "taking" || !attemptId) return;
+    const t = setInterval(() => {
+      flushActiveTime();
+      const qid = activeQidRef.current;
+      const q = qid ? questions.find((qq) => qq.id === qid) : null;
+      if (q) scheduleSave(q.id, buildPayload(q, marked.has(q.id)));
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [phase, attemptId, questions, marked, flushActiveTime, scheduleSave, buildPayload]);
+
   async function startAttempt() {
     setError("");
     const res = await fetch(`${BASE}/api/v1/mock-tests/${test.id}/start`, { method: "POST" });
@@ -200,7 +256,7 @@ export function TakeTestClient({
 
   const blank = (q: Question, mark: boolean): SavePayload => ({
     questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
-    isMarkedForReview: mark,
+    isMarkedForReview: mark, timeSpentSeconds: cumulativeTimeFor(q.id),
   });
 
   function selectMcq(q: Question, opt: Option | null) {
@@ -248,19 +304,21 @@ export function TakeTestClient({
   async function submitAttempt() {
     if (!attemptId || phase === "submitting") return;
     setPhase("submitting");
+    flushActiveTime();
     const timeSpentSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
     // Build a per-type body keyed by question id.
-    const bodyAnswers: Record<string, { selectedOption?: Option | null; selectedOptions?: Option[] | null; numericalResponse?: number | null }> = {};
+    const bodyAnswers: Record<string, { selectedOption?: Option | null; selectedOptions?: Option[] | null; numericalResponse?: number | null; timeSpentSeconds?: number }> = {};
     for (const q of questions) {
+      const qTime = accumulatedTimeRef.current[q.id] ?? 0;
       if (q.questionType === "mcq") {
-        bodyAnswers[q.id] = { selectedOption: answers[q.id] ?? null };
+        bodyAnswers[q.id] = { selectedOption: answers[q.id] ?? null, timeSpentSeconds: qTime };
       } else if (q.questionType === "multi") {
         const arr = multiAnswers[q.id] ?? [];
-        bodyAnswers[q.id] = { selectedOptions: arr.length > 0 ? arr : null };
+        bodyAnswers[q.id] = { selectedOptions: arr.length > 0 ? arr : null, timeSpentSeconds: qTime };
       } else if (q.questionType === "numerical") {
         const raw = numAnswers[q.id];
         const n = raw !== undefined && raw.trim() !== "" ? Number(raw) : NaN;
-        bodyAnswers[q.id] = { numericalResponse: Number.isFinite(n) ? n : null };
+        bodyAnswers[q.id] = { numericalResponse: Number.isFinite(n) ? n : null, timeSpentSeconds: qTime };
       }
     }
     const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/submit`, {

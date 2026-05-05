@@ -453,6 +453,7 @@ export const mockTestAnswers = pgTable("mock_test_answers", {
   isCorrect: boolean("is_correct"),
   marksAwarded: real("marks_awarded").default(0),
   isMarkedForReview: boolean("is_marked_for_review").default(false).notNull(),
+  timeSpentSeconds: integer("time_spent_seconds").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [

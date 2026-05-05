@@ -13,6 +13,7 @@ type ClientAnswer = {
   selectedOption?: Opt | null;
   selectedOptions?: Opt[] | null;
   numericalResponse?: number | null;
+  timeSpentSeconds?: number | null;
 } | Opt | null;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -119,13 +120,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         score += marks;
       }
 
+      // Per-question time: take max of body-supplied cumulative and any saved value.
+      const bodyTimeRaw = bodyEntry && typeof bodyEntry === "object" && bodyEntry.timeSpentSeconds != null
+        ? Number(bodyEntry.timeSpentSeconds)
+        : NaN;
+      const bodyTime = Number.isFinite(bodyTimeRaw) && bodyTimeRaw >= 0
+        ? Math.min(Math.floor(bodyTimeRaw), 60 * 60 * 24)
+        : 0;
+      const savedTime = savedRow?.timeSpentSeconds ?? 0;
+      const qTime = Math.max(bodyTime, savedTime);
+
       await tx.insert(mockTestAnswers).values({
         attemptId, questionId: q.id,
         selectedOption, selectedOptions, numericalResponse,
         isCorrect, marksAwarded: marks,
+        timeSpentSeconds: qTime,
       }).onConflictDoUpdate({
         target: [mockTestAnswers.attemptId, mockTestAnswers.questionId],
-        set: { selectedOption, selectedOptions, numericalResponse, isCorrect, marksAwarded: marks, updatedAt: new Date() },
+        set: { selectedOption, selectedOptions, numericalResponse, isCorrect, marksAwarded: marks, timeSpentSeconds: qTime, updatedAt: new Date() },
       });
     }
 

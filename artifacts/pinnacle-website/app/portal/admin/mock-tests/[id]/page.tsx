@@ -1,10 +1,12 @@
 import { db } from "@workspace/db";
 import { mockTests, mockTestQuestions, mockTestAttempts, mockTestSections } from "@workspace/db/schema";
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import { ManageTestClient } from "./ManageTestClient";
+import { QuestionAnalytics } from "@/components/portal/QuestionAnalytics";
+import { getQuestionAnalytics } from "@/lib/server/question-analytics";
 
 export const metadata = { title: "Manage Test — Admin Panel" };
 
@@ -24,6 +26,12 @@ export default async function AdminMockTestDetailPage({ params }: { params: Prom
 
   const [{ attempts }] = await db.select({ attempts: sql<number>`count(*)::int` })
     .from(mockTestAttempts).where(eq(mockTestAttempts.testId, id));
+
+  const [{ completedCount }] = await db.select({ completedCount: sql<number>`count(*)::int` })
+    .from(mockTestAttempts)
+    .where(and(eq(mockTestAttempts.testId, id), eq(mockTestAttempts.isCompleted, true)));
+
+  const questionAnalytics = completedCount > 0 ? await getQuestionAnalytics(id) : [];
 
   return (
     <div className="space-y-6">
@@ -50,6 +58,10 @@ export default async function AdminMockTestDetailPage({ params }: { params: Prom
         }}
         sections={sections.map((s) => ({ id: s.id, name: s.name, ordering: s.ordering, instructions: s.instructions }))}
       />
+
+      {completedCount > 0 && questionAnalytics.length > 0 && (
+        <QuestionAnalytics rows={questionAnalytics} testTitle={test.title} />
+      )}
 
       <div className="card">
         <h2 className="font-bold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">

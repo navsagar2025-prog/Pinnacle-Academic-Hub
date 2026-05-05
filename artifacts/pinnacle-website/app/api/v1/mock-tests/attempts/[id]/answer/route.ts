@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTestAttempts, mockTestAnswers, mockTestQuestions, students } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 const VALID_OPTS = ["A", "B", "C", "D"] as const;
 type Opt = (typeof VALID_OPTS)[number];
@@ -28,6 +28,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       : Number.isFinite(Number(rawNum)) ? Number(rawNum) : null;
 
   const isMarkedForReview = body?.isMarkedForReview === true;
+  const rawTime = Number(body?.timeSpentSeconds);
+  const timeSpentSeconds = Number.isFinite(rawTime) && rawTime >= 0 ? Math.min(Math.floor(rawTime), 60 * 60 * 24) : 0;
   if (!questionId) return NextResponse.json({ error: "questionId required" }, { status: 400 });
 
   // Run inside a transaction with FOR UPDATE on the attempt row so a concurrent
@@ -62,9 +64,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       isMarkedForReview,
       isCorrect: null,
       marksAwarded: 0,
+      timeSpentSeconds,
     }).onConflictDoUpdate({
       target: [mockTestAnswers.attemptId, mockTestAnswers.questionId],
-      set: { selectedOption, selectedOptions, numericalResponse, isMarkedForReview, updatedAt: new Date() },
+      set: {
+        selectedOption, selectedOptions, numericalResponse, isMarkedForReview,
+        timeSpentSeconds: sql`GREATEST(${mockTestAnswers.timeSpentSeconds}, ${timeSpentSeconds})`,
+        updatedAt: new Date(),
+      },
     });
 
     return { status: 200, body: { success: true } };

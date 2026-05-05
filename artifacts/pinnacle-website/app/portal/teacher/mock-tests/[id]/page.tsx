@@ -7,6 +7,8 @@ import { ChevronLeft, Trash2 } from "lucide-react";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { TeacherManageTestClient } from "./ManageTestClient";
 import { TestAnalytics } from "./TestAnalytics";
+import { QuestionAnalytics } from "@/components/portal/QuestionAnalytics";
+import { getQuestionAnalytics } from "@/lib/server/question-analytics";
 import { RichText } from "@/components/rich/RichText";
 
 export const metadata = { title: "Manage Test — Teacher Portal" };
@@ -105,6 +107,8 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
       }));
   }
 
+  const questionAnalytics = completedCount > 0 ? await getQuestionAnalytics(id) : [];
+
   const studentAttempts = completedAttempts.map((a) => ({
     id: a.id,
     studentName: a.studentName || a.guestName || "Anonymous",
@@ -156,6 +160,10 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
         studentAttempts={studentAttempts}
         testTitle={test.title}
       />
+
+      {completedCount > 0 && questionAnalytics.length > 0 && (
+        <QuestionAnalytics rows={questionAnalytics} testTitle={test.title} />
+      )}
 
       <TeacherManageTestClient
         test={{
