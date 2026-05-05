@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTests, mockTestQuestions, mockTestAttempts, students } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull, desc } from "drizzle-orm";
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   let user;
@@ -38,6 +38,22 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   if (totalQuestions === 0) return NextResponse.json({ error: "Test has no questions yet" }, { status: 400 });
 
   const maxScore = totalQuestions * test.marksPerQuestion;
+
+  // Reuse an existing in-progress attempt instead of creating duplicates if
+  // the student opens the start endpoint twice (e.g. another tab).
+  if (student?.id) {
+    const [existing] = await db.select({ id: mockTestAttempts.id })
+      .from(mockTestAttempts)
+      .where(and(
+        eq(mockTestAttempts.testId, testId),
+        eq(mockTestAttempts.studentId, student.id),
+        eq(mockTestAttempts.isCompleted, false),
+        isNull(mockTestAttempts.submittedAt),
+      ))
+      .orderBy(desc(mockTestAttempts.startedAt))
+      .limit(1);
+    if (existing) return NextResponse.json({ success: true, attemptId: existing.id, resumed: true });
+  }
 
   const [attempt] = await db.insert(mockTestAttempts).values({
     testId,

@@ -1,12 +1,14 @@
 import { db } from "@workspace/db";
-import { mockTests, mockTestQuestions } from "@workspace/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { mockTests, mockTestQuestions, mockTestAttempts, mockTestAnswers, students } from "@workspace/db/schema";
+import { eq, and, asc, desc, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { requirePortalRole } from "@/lib/server/portal-auth";
 import { TakeTestClient } from "./TakeTestClient";
 
 export const metadata = { title: "Take Test — Student Portal" };
 
 export default async function TakeTestPage({ params }: { params: Promise<{ id: string }> }) {
+  const dbUser = await requirePortalRole("student");
   const { id } = await params;
 
   const [test] = await db.select().from(mockTests).where(eq(mockTests.id, id)).limit(1);
@@ -40,6 +42,56 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  // Look for an in-progress attempt the student can resume.
+  const [enrollment] = await db
+    .select({ studentId: students.id })
+    .from(students)
+    .where(and(eq(students.userId, dbUser.id), eq(students.isActive, true)))
+    .limit(1);
+
+  let resume: {
+    attemptId: string;
+    secondsLeft: number;
+    savedAnswers: Record<string, "A" | "B" | "C" | "D">;
+    savedMarks: string[];
+  } | null = null;
+
+  if (enrollment?.studentId) {
+    const [inProgress] = await db
+      .select()
+      .from(mockTestAttempts)
+      .where(and(
+        eq(mockTestAttempts.testId, id),
+        eq(mockTestAttempts.studentId, enrollment.studentId),
+        eq(mockTestAttempts.isCompleted, false),
+        isNull(mockTestAttempts.submittedAt),
+      ))
+      .orderBy(desc(mockTestAttempts.startedAt))
+      .limit(1);
+
+    if (inProgress) {
+      const elapsedSec = Math.floor((Date.now() - new Date(inProgress.startedAt).getTime()) / 1000);
+      const secondsLeft = Math.max(0, test.durationMinutes * 60 - elapsedSec);
+      const saved = await db
+        .select({
+          questionId: mockTestAnswers.questionId,
+          selectedOption: mockTestAnswers.selectedOption,
+          isMarkedForReview: mockTestAnswers.isMarkedForReview,
+        })
+        .from(mockTestAnswers)
+        .where(eq(mockTestAnswers.attemptId, inProgress.id));
+      const savedAnswers: Record<string, "A" | "B" | "C" | "D"> = {};
+      const savedMarks: string[] = [];
+      for (const r of saved) {
+        if (r.selectedOption === "A" || r.selectedOption === "B" || r.selectedOption === "C" || r.selectedOption === "D") {
+          savedAnswers[r.questionId] = r.selectedOption;
+        }
+        if (r.isMarkedForReview) savedMarks.push(r.questionId);
+      }
+      resume = { attemptId: inProgress.id, secondsLeft, savedAnswers, savedMarks };
+    }
+  }
+
   return (
     <TakeTestClient
       test={{
@@ -53,6 +105,7 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
         instructions: test.instructions,
       }}
       questions={questions}
+      resume={resume}
     />
   );
 }

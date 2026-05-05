@@ -9,6 +9,7 @@ import {
   pgEnum,
   jsonb,
   index,
+  uniqueIndex,
   customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -423,8 +424,12 @@ export const mockTestAnswers = pgTable("mock_test_answers", {
   selectedOption: text("selected_option"),
   isCorrect: boolean("is_correct"),
   marksAwarded: integer("marks_awarded").default(0),
+  isMarkedForReview: boolean("is_marked_for_review").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("mock_test_answers_attempt_question_uq").on(t.attemptId, t.questionId),
+]);
 
 export const doubts = pgTable("doubts", {
   id: uuid("id").primaryKey().defaultRandom(),

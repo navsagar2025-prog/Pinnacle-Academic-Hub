@@ -37,25 +37,39 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const negativeMark = -(test.marksPerQuestion * test.negativeMarkingPercent) / 100;
 
+    // Merge autosaved rows with the final body payload (body wins). This way
+    // questions the student answered earlier in the session but didn't include
+    // in the final POST are still scored from the autosaved row.
+    const saved = await tx.select().from(mockTestAnswers).where(eq(mockTestAnswers.attemptId, attemptId));
+    const savedByQ = new Map(saved.map((r) => [r.questionId, r]));
+
     let attemptedCount = 0, correctCount = 0, wrongCount = 0, score = 0;
-    const answerRows: Array<{ attemptId: string; questionId: string; selectedOption: string | null; isCorrect: boolean | null; marksAwarded: number }> = [];
 
     for (const q of questions) {
-      const sel = answers[q.id] ?? null;
-      if (sel === null || sel === undefined) {
-        answerRows.push({ attemptId, questionId: q.id, selectedOption: null, isCorrect: null, marksAwarded: 0 });
-        continue;
-      }
-      attemptedCount++;
-      const isCorrect = sel === q.correctOption;
-      let marks = 0;
-      if (isCorrect) { correctCount++; marks = test.marksPerQuestion; }
-      else { wrongCount++; marks = negativeMark; }
-      score += marks;
-      answerRows.push({ attemptId, questionId: q.id, selectedOption: sel, isCorrect, marksAwarded: marks });
-    }
+      const bodySel = answers[q.id];
+      const sel: "A" | "B" | "C" | "D" | null =
+        bodySel === "A" || bodySel === "B" || bodySel === "C" || bodySel === "D"
+          ? bodySel
+          : (savedByQ.get(q.id)?.selectedOption as "A" | "B" | "C" | "D" | null | undefined) ?? null;
 
-    if (answerRows.length > 0) await tx.insert(mockTestAnswers).values(answerRows);
+      let isCorrect: boolean | null = null;
+      let marks = 0;
+      if (sel) {
+        attemptedCount++;
+        isCorrect = sel === q.correctOption;
+        if (isCorrect) { correctCount++; marks = test.marksPerQuestion; }
+        else { wrongCount++; marks = negativeMark; }
+        score += marks;
+      }
+
+      await tx.insert(mockTestAnswers).values({
+        attemptId, questionId: q.id, selectedOption: sel,
+        isCorrect, marksAwarded: marks,
+      }).onConflictDoUpdate({
+        target: [mockTestAnswers.attemptId, mockTestAnswers.questionId],
+        set: { selectedOption: sel, isCorrect, marksAwarded: marks, updatedAt: new Date() },
+      });
+    }
 
     await tx.update(mockTestAttempts).set({
       submittedAt: new Date(),

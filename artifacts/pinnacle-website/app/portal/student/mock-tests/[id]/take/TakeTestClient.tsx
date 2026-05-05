@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertCircle } from "lucide-react";
+import { Clock, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertCircle, Cloud, CloudOff } from "lucide-react";
 import { RichText } from "@/components/rich/RichText";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 type Question = {
   id: string;
@@ -35,16 +37,65 @@ type Test = {
 
 type Option = "A" | "B" | "C" | "D";
 
-export function TakeTestClient({ test, questions }: { test: Test; questions: Question[] }) {
+export function TakeTestClient({
+  test, questions, resume,
+}: {
+  test: Test;
+  questions: Question[];
+  resume: { attemptId: string; secondsLeft: number; savedAnswers: Record<string, Option>; savedMarks: string[] } | null;
+}) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"ready" | "taking" | "submitting">("ready");
-  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"ready" | "taking" | "submitting">(resume ? "taking" : "ready");
+  const [attemptId, setAttemptId] = useState<string | null>(resume?.attemptId ?? null);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, Option | null>>({});
-  const [marked, setMarked] = useState<Set<string>>(new Set());
-  const [secondsLeft, setSecondsLeft] = useState(test.durationMinutes * 60);
-  const startTimeRef = useRef<number>(0);
+  const [answers, setAnswers] = useState<Record<string, Option | null>>(resume?.savedAnswers ?? {});
+  const [marked, setMarked] = useState<Set<string>>(new Set(resume?.savedMarks ?? []));
+  const [secondsLeft, setSecondsLeft] = useState(resume?.secondsLeft ?? test.durationMinutes * 60);
+  const startTimeRef = useRef<number>(resume ? Date.now() - (test.durationMinutes * 60 - resume.secondsLeft) * 1000 : 0);
   const [error, setError] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  // Per-question debounce timers and in-flight controllers so a change on Q2
+  // never cancels a pending save on Q1.
+  const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const inflightRef = useRef<Map<string, AbortController>>(new Map());
+
+  const saveAnswer = useCallback((questionId: string, selectedOption: Option | null, isMarkedForReview: boolean, immediate = false) => {
+    if (!attemptId) return;
+    const fire = async () => {
+      const prev = inflightRef.current.get(questionId);
+      if (prev) prev.abort();
+      const ctrl = new AbortController();
+      inflightRef.current.set(questionId, ctrl);
+      setSaveState("saving");
+      try {
+        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questionId, selectedOption, isMarkedForReview }),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        setSaveState("saved");
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setSaveState("error");
+      } finally {
+        if (inflightRef.current.get(questionId) === ctrl) inflightRef.current.delete(questionId);
+      }
+    };
+    const existing = saveTimersRef.current.get(questionId);
+    if (existing) clearTimeout(existing);
+    if (immediate) {
+      saveTimersRef.current.delete(questionId);
+      void fire();
+      return;
+    }
+    const t = setTimeout(() => {
+      saveTimersRef.current.delete(questionId);
+      void fire();
+    }, 500);
+    saveTimersRef.current.set(questionId, t);
+  }, [attemptId]);
 
   const current = questions[currentIdx];
   const answeredCount = Object.values(answers).filter((a) => a !== null && a !== undefined).length;
@@ -74,6 +125,23 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
     return () => window.removeEventListener("beforeunload", handler);
   }, [phase]);
 
+  // If we resumed an in-progress attempt, baseline the start ref already
+  // computed above. For a fresh start, set startTimeRef when the attempt is
+  // created.
+  useEffect(() => {
+    if (resume) startTimeRef.current = Date.now() - (test.durationMinutes * 60 - resume.secondsLeft) * 1000;
+  }, [resume, test.durationMinutes]);
+
+  // If a resumed attempt already had no time remaining, submit immediately
+  // instead of waiting for the next 1s timer tick — otherwise the student
+  // could briefly answer questions during expired time.
+  useEffect(() => {
+    if (resume && resume.secondsLeft <= 0 && phase === "taking") {
+      void submitAttempt();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function startAttempt() {
     setError("");
     const res = await fetch(`${BASE}/api/v1/mock-tests/${test.id}/start`, { method: "POST" });
@@ -82,6 +150,21 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
     setAttemptId(data.attemptId);
     startTimeRef.current = Date.now();
     setPhase("taking");
+  }
+
+  function selectAnswer(questionId: string, opt: Option | null) {
+    setAnswers((a) => ({ ...a, [questionId]: opt }));
+    saveAnswer(questionId, opt, marked.has(questionId));
+  }
+
+  function toggleMark(questionId: string) {
+    setMarked((m) => {
+      const n = new Set(m);
+      const next = !n.has(questionId);
+      if (next) n.add(questionId); else n.delete(questionId);
+      saveAnswer(questionId, answers[questionId] ?? null, next, true);
+      return n;
+    });
   }
 
   async function submitAttempt() {
@@ -164,12 +247,30 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
           <div className="text-xs text-slate-400">{test.title}</div>
           <div className="font-bold text-sm text-[var(--color-navy)]">Question {currentIdx + 1} of {questions.length}</div>
         </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm ${
-          secondsLeft < 60 ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] animate-pulse"
-          : secondsLeft < 300 ? "bg-[var(--color-gold)]/15 text-[var(--color-navy)]"
-          : "bg-[var(--color-teal)]/10 text-[var(--color-teal)]"
-        }`}>
-          <Clock size={14} />{mm}:{ss}
+        <div className="flex items-center gap-2">
+          <span
+            aria-live="polite"
+            className={`hidden sm:inline-flex items-center gap-1 text-[11px] ${
+              saveState === "error" ? "text-[var(--color-maroon)]"
+              : saveState === "saving" ? "text-slate-400"
+              : saveState === "saved" ? "text-[var(--color-teal)]"
+              : "text-slate-300"
+            }`}
+            title={saveState === "error" ? "Could not save your last answer — check your connection" : "Your answers are auto-saved"}
+          >
+            {saveState === "error" ? <CloudOff size={12} /> : <Cloud size={12} />}
+            {saveState === "saving" ? "Saving…"
+              : saveState === "saved" ? "Saved"
+              : saveState === "error" ? "Save failed"
+              : "Auto-save"}
+          </span>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm ${
+            secondsLeft < 60 ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] animate-pulse"
+            : secondsLeft < 300 ? "bg-[var(--color-gold)]/15 text-[var(--color-navy)]"
+            : "bg-[var(--color-teal)]/10 text-[var(--color-teal)]"
+          }`}>
+            <Clock size={14} />{mm}:{ss}
+          </div>
         </div>
       </div>
 
@@ -179,11 +280,7 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
           <div className="flex items-center justify-between mb-3 text-xs">
             <span className="text-slate-400">Q{current.questionNumber}{current.topic && ` · ${current.topic}`}</span>
             <button
-              onClick={() => setMarked((m) => {
-                const n = new Set(m);
-                if (n.has(current.id)) n.delete(current.id); else n.add(current.id);
-                return n;
-              })}
+              onClick={() => toggleMark(current.id)}
               className={`flex items-center gap-1 text-xs font-semibold ${marked.has(current.id) ? "text-[var(--color-gold)]" : "text-slate-400 hover:text-[var(--color-gold)]"}`}
             >
               <Flag size={12} />{marked.has(current.id) ? "Marked" : "Mark for Review"}
@@ -206,7 +303,7 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
                   selected ? "border-[var(--color-teal)] bg-[var(--color-teal)]/5" : "border-slate-200 hover:border-slate-300"
                 }`}>
                   <input type="radio" name={current.id} value={opt} checked={selected}
-                    onChange={() => setAnswers((a) => ({ ...a, [current.id]: opt }))}
+                    onChange={() => selectAnswer(current.id, opt)}
                     className="mt-1 accent-[var(--color-teal)]" />
                   <div className="flex-1 min-w-0">
                     <span className="font-mono text-xs text-slate-400 mr-2">{opt}.</span>
@@ -230,7 +327,7 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
               <ChevronLeft size={14} /> Previous
             </button>
             <button
-              onClick={() => setAnswers((a) => ({ ...a, [current.id]: null }))}
+              onClick={() => selectAnswer(current.id, null)}
               className="text-xs text-slate-400 hover:text-slate-600"
             >
               Clear answer
