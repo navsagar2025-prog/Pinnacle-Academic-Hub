@@ -16,6 +16,7 @@
     "@workspace/db": "workspace:*",
     "clsx": "catalog:",
     "drizzle-orm": "catalog:",
+    "katex": "^0.16.45",
     "lucide-react": "catalog:",
     "next": "^15.3.3",
     "openai": "^6.27.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.14",
+    "@types/katex": "^0.16.8",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

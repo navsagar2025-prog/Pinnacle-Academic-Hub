@@ -22,6 +22,11 @@ export default async function TakeTestPage({ params }: { params: Promise<{ id: s
       optionC: mockTestQuestions.optionC,
       optionD: mockTestQuestions.optionD,
       topic: mockTestQuestions.topic,
+      imageUrl: mockTestQuestions.imageUrl,
+      optionAImageUrl: mockTestQuestions.optionAImageUrl,
+      optionBImageUrl: mockTestQuestions.optionBImageUrl,
+      optionCImageUrl: mockTestQuestions.optionCImageUrl,
+      optionDImageUrl: mockTestQuestions.optionDImageUrl,
     })
     .from(mockTestQuestions)
     .where(eq(mockTestQuestions.testId, id))

@@ -7,6 +7,7 @@ import { ChevronLeft, Trash2 } from "lucide-react";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { TeacherManageTestClient } from "./ManageTestClient";
 import { TestAnalytics } from "./TestAnalytics";
+import { RichText } from "@/components/rich/RichText";
 
 export const metadata = { title: "Manage Test — Teacher Portal" };
 
@@ -174,24 +175,40 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
             {questions.map((q) => (
               <li key={q.id} className="border border-slate-100 rounded-xl p-4 bg-[var(--color-slate-light)]/30">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="text-xs text-slate-400 mb-1">Q{q.questionNumber} {q.topic && `· ${q.topic}`}</div>
-                    <p className="font-medium text-[var(--color-navy)] text-sm">{q.questionText}</p>
+                    <div className="font-medium text-[var(--color-navy)] text-sm">
+                      <RichText>{q.questionText}</RichText>
+                    </div>
+                    {q.imageUrl && (
+                      <img src={q.imageUrl} alt="" className="max-h-40 rounded border border-slate-200 mt-2" />
+                    )}
                   </div>
                   <TeacherDeleteQuestion testId={test.id} questionId={q.id} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
                   {(["A", "B", "C", "D"] as const).map((opt) => {
                     const text = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }[opt];
+                    const optImg = { A: q.optionAImageUrl, B: q.optionBImageUrl, C: q.optionCImageUrl, D: q.optionDImageUrl }[opt];
                     const correct = opt === q.correctOption;
                     return (
                       <div key={opt} className={`text-xs p-2 rounded-lg ${correct ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)] font-semibold" : "text-slate-600"}`}>
-                        <span className="font-mono mr-1.5">{opt}.</span>{text}{correct && " ✓"}
+                        <span className="font-mono mr-1.5">{opt}.</span>
+                        {text && <RichText>{text}</RichText>}
+                        {optImg && <img src={optImg} alt={`Option ${opt}`} className="max-h-20 rounded border border-slate-100 mt-1" />}
+                        {correct && " ✓"}
                       </div>
                     );
                   })}
                 </div>
-                {q.explanation && <p className="text-xs text-slate-500 mt-2 italic">Explanation: {q.explanation}</p>}
+                {(q.explanation || q.explanationImageUrl) && (
+                  <div className="text-xs text-slate-500 mt-2 italic">
+                    Explanation: {q.explanation && <RichText>{q.explanation}</RichText>}
+                    {q.explanationImageUrl && (
+                      <img src={q.explanationImageUrl} alt="" className="max-h-32 rounded border border-slate-100 mt-1" />
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ol>

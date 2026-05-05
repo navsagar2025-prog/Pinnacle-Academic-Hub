@@ -389,6 +389,11 @@ export const mockTestQuestions = pgTable("mock_test_questions", {
   topic: text("topic"),
   explanation: text("explanation"),
   imageUrl: text("image_url"),
+  optionAImageUrl: text("option_a_image_url"),
+  optionBImageUrl: text("option_b_image_url"),
+  optionCImageUrl: text("option_c_image_url"),
+  optionDImageUrl: text("option_d_image_url"),
+  explanationImageUrl: text("explanation_image_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

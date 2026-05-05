@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertCircle } from "lucide-react";
+import { RichText } from "@/components/rich/RichText";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -14,6 +15,11 @@ type Question = {
   optionC: string;
   optionD: string;
   topic: string | null;
+  imageUrl: string | null;
+  optionAImageUrl: string | null;
+  optionBImageUrl: string | null;
+  optionCImageUrl: string | null;
+  optionDImageUrl: string | null;
 };
 
 type Test = {
@@ -183,10 +189,17 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
               <Flag size={12} />{marked.has(current.id) ? "Marked" : "Mark for Review"}
             </button>
           </div>
-          <p className="text-[var(--color-navy)] font-medium mb-5">{current.questionText}</p>
+          <div className="text-[var(--color-navy)] font-medium mb-3">
+            <RichText>{current.questionText}</RichText>
+          </div>
+          {current.imageUrl && (
+            <img src={current.imageUrl} alt="Question diagram"
+              className="max-w-full max-h-72 rounded-lg border border-slate-100 mb-5 mx-auto block" />
+          )}
           <div className="space-y-2">
             {(["A", "B", "C", "D"] as const).map((opt) => {
               const text = { A: current.optionA, B: current.optionB, C: current.optionC, D: current.optionD }[opt];
+              const optImg = { A: current.optionAImageUrl, B: current.optionBImageUrl, C: current.optionCImageUrl, D: current.optionDImageUrl }[opt];
               const selected = answers[current.id] === opt;
               return (
                 <label key={opt} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
@@ -195,9 +208,13 @@ export function TakeTestClient({ test, questions }: { test: Test; questions: Que
                   <input type="radio" name={current.id} value={opt} checked={selected}
                     onChange={() => setAnswers((a) => ({ ...a, [current.id]: opt }))}
                     className="mt-1 accent-[var(--color-teal)]" />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <span className="font-mono text-xs text-slate-400 mr-2">{opt}.</span>
-                    <span className="text-sm text-slate-700">{text}</span>
+                    {text && <RichText className="text-sm text-slate-700">{text}</RichText>}
+                    {optImg && (
+                      <img src={optImg} alt={`Option ${opt}`}
+                        className="max-h-40 rounded border border-slate-100 mt-1.5" />
+                    )}
                   </div>
                 </label>
               );

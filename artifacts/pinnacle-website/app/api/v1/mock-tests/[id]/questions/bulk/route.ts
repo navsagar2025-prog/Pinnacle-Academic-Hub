@@ -3,6 +3,7 @@ import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { mockTests, mockTestQuestions } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { validateMockTestImageUrl } from "@/lib/server/image-url";
 
 function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
@@ -87,19 +88,49 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const errors: string[] = [];
   let counter = next;
 
+  const opt = (name: string) => idx(name) >= 0 ? (row: string[]) => row[idx(name)]?.trim() || null : () => null;
+  const getImage = {
+    q:  opt("imageurl"),
+    a:  opt("optionaimageurl"),
+    b:  opt("optionbimageurl"),
+    c:  opt("optioncimageurl"),
+    d:  opt("optiondimageurl"),
+    ex: opt("explanationimageurl"),
+  };
+  const optHas = (txt: string | undefined, img: string | null) => Boolean((txt && txt.trim()) || img);
+
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const questionText = row[idx("questiontext")]?.trim();
-    const optionA = row[idx("optiona")]?.trim();
-    const optionB = row[idx("optionb")]?.trim();
-    const optionC = row[idx("optionc")]?.trim();
-    const optionD = row[idx("optiond")]?.trim();
+    const questionText = row[idx("questiontext")]?.trim() ?? "";
+    const optionA = row[idx("optiona")]?.trim() ?? "";
+    const optionB = row[idx("optionb")]?.trim() ?? "";
+    const optionC = row[idx("optionc")]?.trim() ?? "";
+    const optionD = row[idx("optiond")]?.trim() ?? "";
     const correctOption = row[idx("correctoption")]?.trim().toUpperCase();
     const topic = idx("topic") >= 0 ? row[idx("topic")]?.trim() || null : null;
     const explanation = idx("explanation") >= 0 ? row[idx("explanation")]?.trim() || null : null;
+    let imageUrl: string | null;
+    let optionAImageUrl: string | null;
+    let optionBImageUrl: string | null;
+    let optionCImageUrl: string | null;
+    let optionDImageUrl: string | null;
+    let explanationImageUrl: string | null;
+    try {
+      imageUrl            = validateMockTestImageUrl(getImage.q(row));
+      optionAImageUrl     = validateMockTestImageUrl(getImage.a(row));
+      optionBImageUrl     = validateMockTestImageUrl(getImage.b(row));
+      optionCImageUrl     = validateMockTestImageUrl(getImage.c(row));
+      optionDImageUrl     = validateMockTestImageUrl(getImage.d(row));
+      explanationImageUrl = validateMockTestImageUrl(getImage.ex(row));
+    } catch (err) {
+      errors.push(`Row ${i + 1}: ${err instanceof Error ? err.message : "invalid image URL"}`);
+      continue;
+    }
 
-    if (!questionText || !optionA || !optionB || !optionC || !optionD) {
-      errors.push(`Row ${i + 1}: missing question or option`);
+    const hasQuestion = questionText.trim() || imageUrl;
+    if (!hasQuestion || !optHas(optionA, optionAImageUrl) || !optHas(optionB, optionBImageUrl) ||
+        !optHas(optionC, optionCImageUrl) || !optHas(optionD, optionDImageUrl)) {
+      errors.push(`Row ${i + 1}: missing question or option (each needs text or image URL)`);
       continue;
     }
     if (!["A", "B", "C", "D"].includes(correctOption)) {
@@ -111,6 +142,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       testId, questionNumber: counter++, questionText,
       optionA, optionB, optionC, optionD, correctOption,
       topic, explanation,
+      imageUrl, optionAImageUrl, optionBImageUrl, optionCImageUrl, optionDImageUrl, explanationImageUrl,
     });
   }
 

@@ -4,6 +4,7 @@ import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Target, Clock, CheckCircle2, XCircle, MinusCircle, ChevronLeft } from "lucide-react";
+import { RichText } from "@/components/rich/RichText";
 
 export const metadata = { title: "Test Result — Student Portal" };
 
@@ -127,10 +128,17 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
                      : <span className="text-xs text-[var(--color-maroon)] inline-flex items-center gap-1"><XCircle size={12} />Wrong ({ans?.marksAwarded})</span>}
                   </div>
                 </div>
-                <p className="font-medium text-[var(--color-navy)] text-sm mb-3">{q.questionText}</p>
+                <div className="font-medium text-[var(--color-navy)] text-sm mb-2">
+                  <RichText>{q.questionText}</RichText>
+                </div>
+                {q.imageUrl && (
+                  <img src={q.imageUrl} alt="Question diagram"
+                    className="max-h-56 rounded-lg border border-slate-100 mb-3 mx-auto block" />
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   {(["A", "B", "C", "D"] as const).map((opt) => {
                     const text = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }[opt];
+                    const optImg = { A: q.optionAImageUrl, B: q.optionBImageUrl, C: q.optionCImageUrl, D: q.optionDImageUrl }[opt];
                     const isCorrect = opt === q.correctOption;
                     const isSelected = sel === opt;
                     return (
@@ -139,17 +147,24 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
                         : isSelected ? "bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] font-semibold"
                         : "text-slate-600"
                       }`}>
-                        <span className="font-mono mr-1.5">{opt}.</span>{text}
+                        <span className="font-mono mr-1.5">{opt}.</span>
+                        {text && <RichText>{text}</RichText>}
+                        {optImg && <img src={optImg} alt={`Option ${opt}`} className="max-h-24 rounded border border-slate-100 mt-1" />}
                         {isCorrect && " ✓"}
                         {isSelected && !isCorrect && " ← your answer"}
                       </div>
                     );
                   })}
                 </div>
-                {q.explanation && (
-                  <p className="text-xs text-slate-600 mt-3 bg-blue-50 rounded-lg p-2">
-                    <span className="font-semibold text-blue-800">Explanation: </span>{q.explanation}
-                  </p>
+                {(q.explanation || q.explanationImageUrl) && (
+                  <div className="text-xs text-slate-600 mt-3 bg-blue-50 rounded-lg p-2">
+                    <span className="font-semibold text-blue-800">Explanation: </span>
+                    {q.explanation && <RichText>{q.explanation}</RichText>}
+                    {q.explanationImageUrl && (
+                      <img src={q.explanationImageUrl} alt="Explanation"
+                        className="max-h-56 rounded border border-blue-100 mt-2 mx-auto block bg-white" />
+                    )}
+                  </div>
                 )}
               </li>
             );

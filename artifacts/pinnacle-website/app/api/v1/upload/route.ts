@@ -13,6 +13,7 @@ const VALID_CATEGORIES: UploadCategory[] = [
   "faculty_photo",
   "course_banner",
   "blog_image",
+  "mock_test_image",
 ];
 
 const ADMIN_ONLY_CATEGORIES: UploadCategory[] = [

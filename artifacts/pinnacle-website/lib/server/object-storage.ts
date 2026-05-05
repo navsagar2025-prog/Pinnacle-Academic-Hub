@@ -77,14 +77,16 @@ export type UploadCategory =
   | "assignment_pdf"  // public — students can download
   | "faculty_photo"   // public — shown on public faculty page
   | "course_banner"   // public — shown on public courses page
-  | "blog_image";     // public — shown on public blog page
+  | "blog_image"      // public — shown on public blog page
+  | "mock_test_image"; // public — diagrams/figures inside mock-test questions
 
 const CATEGORY_SUBPATH: Record<UploadCategory, string> = {
-  material_pdf:   "public/materials",
-  assignment_pdf: "public/assignments",
-  faculty_photo:  "public/faculty",
-  course_banner:  "public/courses",
-  blog_image:     "public/blog",
+  material_pdf:    "public/materials",
+  assignment_pdf:  "public/assignments",
+  faculty_photo:   "public/faculty",
+  course_banner:   "public/courses",
+  blog_image:      "public/blog",
+  mock_test_image: "public/mock-tests",
 };
 
 /**
@@ -99,8 +101,8 @@ export function validateCategoryMime(
   const PDF = ["application/pdf"];
   const IMAGES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
 
-  const allowedMimes: string[] =
-    category === "material_pdf" || category === "assignment_pdf" ? PDF : IMAGES;
+  const isPdf = category === "material_pdf" || category === "assignment_pdf";
+  const allowedMimes: string[] = isPdf ? PDF : IMAGES;
 
   if (!allowedMimes.includes(contentType)) {
     return {
