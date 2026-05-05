@@ -48,6 +48,7 @@ export function BulkQuestionList({
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [unflaggedWarning, setUnflaggedWarning] = useState<{ unflagged: number; total: number } | null>(null);
   const [topicPrompt, setTopicPrompt] = useState(false);
   const [topicValue, setTopicValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -140,18 +141,23 @@ export function BulkQuestionList({
     }
   }
 
-  async function applyDelete() {
+  async function applyDelete(ackNoTeacherRequest = false) {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`${BASE}/api/v1/question-bank/bulk`, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(targetBody()),
+        body: JSON.stringify({ ...targetBody(), ackNoTeacherRequest }),
       });
       const data = await res.json();
+      if (res.status === 409 && data?.error === "no_teacher_request") {
+        setUnflaggedWarning({ unflagged: data.unflaggedCount, total: data.totalCount });
+        return;
+      }
       if (!res.ok || !data.success) throw new Error(data.error ?? "Bulk delete failed");
       setConfirmDelete(false);
+      setUnflaggedWarning(null);
       clearSelection();
       startTransition(() => router.refresh());
     } catch (e) {
@@ -296,19 +302,38 @@ export function BulkQuestionList({
         })}
       </div>
 
-      {confirmDelete && (
+      {confirmDelete && !unflaggedWarning && (
         <Modal onClose={() => setConfirmDelete(false)}>
-          <h2 className="font-bold text-lg text-[var(--color-navy)]">Delete {effectiveCount.toLocaleString()} questions?</h2>
+          <h2 className="font-bold text-lg text-[var(--color-navy)]">Move {effectiveCount.toLocaleString()} questions to the bin?</h2>
           <p className="text-sm text-slate-600 mt-2">
-            This permanently removes the selected questions from the bank. This action cannot be undone.
+            Students lose access immediately. Items stay recoverable for 7 days from the Recycle Bin, then auto-purge.
           </p>
           <div className="mt-4 flex items-center justify-end gap-2">
             <button onClick={() => setConfirmDelete(false)} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-50">
               Cancel
             </button>
-            <button onClick={applyDelete} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-[var(--color-maroon)] text-white hover:opacity-90 inline-flex items-center gap-1.5 disabled:opacity-50">
+            <button onClick={() => applyDelete(false)} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-[var(--color-maroon)] text-white hover:opacity-90 inline-flex items-center gap-1.5 disabled:opacity-50">
               {busy && <Loader2 size={14} className="animate-spin" />}
-              <Trash2 size={14} /> Delete {effectiveCount.toLocaleString()}
+              <Trash2 size={14} /> Move {effectiveCount.toLocaleString()} to bin
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {unflaggedWarning && (
+        <Modal onClose={() => { setUnflaggedWarning(null); setConfirmDelete(false); }}>
+          <h2 className="font-bold text-lg text-[var(--color-maroon)]">No teacher request on {unflaggedWarning.unflagged} of {unflaggedWarning.total}</h2>
+          <p className="text-sm text-slate-600 mt-2">
+            Pinnacle policy is to delete only after a teacher or examiner flags a question with a reason.
+            Continue anyway? This will be recorded in the audit log.
+          </p>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <button onClick={() => { setUnflaggedWarning(null); setConfirmDelete(false); }} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={() => applyDelete(true)} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-[var(--color-maroon)] text-white hover:opacity-90 inline-flex items-center gap-1.5 disabled:opacity-50">
+              {busy && <Loader2 size={14} className="animate-spin" />}
+              <Trash2 size={14} /> Delete anyway
             </button>
           </div>
         </Modal>

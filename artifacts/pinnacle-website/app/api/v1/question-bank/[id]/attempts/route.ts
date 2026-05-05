@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { questionAttempts, questionBank, students } from "@workspace/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 async function studentIdFor(userId: string) {
   const [s] = await db.select({ id: students.id })
@@ -27,7 +27,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     id: questionBank.id,
     correctAnswer: questionBank.correctAnswer,
     questionType: questionBank.questionType,
-  }).from(questionBank).where(eq(questionBank.id, questionId)).limit(1);
+  }).from(questionBank)
+    .where(and(eq(questionBank.id, questionId), isNull(questionBank.deletedAt)))
+    .limit(1);
   if (!q) return NextResponse.json({ error: "Question not found" }, { status: 404 });
 
   let isCorrect: boolean | null = null;

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { questionBank } from "@workspace/db/schema";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { logQbAuditBulk } from "@/lib/server/question-bank-deletion";
 
 type Filter = {
   subject?: string | null;
@@ -40,9 +41,17 @@ async function requireAdminOrTeacher() {
   return { user };
 }
 
-// POST = expand a filter into the full id list, used by the
-// "select all matching filter" affordance. We return ids only (not full rows)
-// to keep the payload small even for 11k+ matches.
+async function requireAdmin() {
+  const user = await getDbUser();
+  if (!user) return { error: NextResponse.json({ error: "Login required" }, { status: 401 }) };
+  if (user.role !== "admin") {
+    return { error: NextResponse.json({ error: "Admins only — teachers must request deletion" }, { status: 403 }) };
+  }
+  return { user };
+}
+
+// POST = expand a filter into the full id list (powers "select all matching
+// filter"). Skips soft-deleted rows.
 export async function POST(req: NextRequest) {
   const auth = await requireAdminOrTeacher();
   if ("error" in auth) return auth.error;
@@ -50,7 +59,10 @@ export async function POST(req: NextRequest) {
   if (!body || body.action !== "list-ids") {
     return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
   }
-  const where = buildWhere(body.filter as Filter | undefined);
+  const filterWhere = buildWhere(body.filter as Filter | undefined);
+  const where = filterWhere
+    ? and(filterWhere, isNull(questionBank.deletedAt))
+    : isNull(questionBank.deletedAt);
   const rows = await db.select({ id: questionBank.id }).from(questionBank).where(where);
   return NextResponse.json({ success: true, ids: rows.map((r) => r.id), total: rows.length });
 }
@@ -91,24 +103,65 @@ export async function PATCH(req: NextRequest) {
   if ("error" in where) return where.error;
   if (where.empty) return NextResponse.json({ success: true, updated: 0 });
 
-  const updated = await db.update(questionBank).set(updates).where(where.where).returning({ id: questionBank.id });
+  const updated = await db.update(questionBank).set(updates)
+    .where(and(where.where, isNull(questionBank.deletedAt)))
+    .returning({ id: questionBank.id });
   return NextResponse.json({ success: true, updated: updated.length });
 }
 
-// DELETE = bulk delete. Same selection semantics as PATCH.
+// DELETE = ADMIN-ONLY soft-delete (move to bin). Hard delete is impossible
+// from the UI — only the daily purge cron removes data permanently.
+//
+// `ackNoTeacherRequest=true` in the body acknowledges the warning when the
+// admin deletes questions that nobody flagged. The default-false behaviour
+// returns 409 with which ids are unflagged so the UI can show the warning.
 export async function DELETE(req: NextRequest) {
-  const auth = await requireAdminOrTeacher();
+  const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+
   const where = await resolveTargetWhere(body);
   if ("error" in where) return where.error;
   if (where.empty) return NextResponse.json({ success: true, deleted: 0 });
 
-  const deleted = await db.delete(questionBank).where(where.where).returning({ id: questionBank.id });
-  return NextResponse.json({ success: true, deleted: deleted.length });
+  const baseWhere = and(where.where, isNull(questionBank.deletedAt));
+  const targets = await db.select({
+    id: questionBank.id,
+    deletionRequestedAt: questionBank.deletionRequestedAt,
+    deletionRequestedBy: questionBank.deletionRequestedBy,
+    deletionReason: questionBank.deletionReason,
+  }).from(questionBank).where(baseWhere);
+
+  if (targets.length === 0) return NextResponse.json({ success: true, deleted: 0 });
+
+  const unflagged = targets.filter((t) => !t.deletionRequestedAt);
+  if (unflagged.length > 0 && !body.ackNoTeacherRequest) {
+    return NextResponse.json({
+      error: "no_teacher_request",
+      message: `${unflagged.length} of ${targets.length} questions have no teacher deletion request.`,
+      unflaggedCount: unflagged.length,
+      totalCount: targets.length,
+    }, { status: 409 });
+  }
+
+  const now = new Date();
+  const ids = targets.map((t) => t.id);
+  await db.update(questionBank)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(inArray(questionBank.id, ids));
+
+  await logQbAuditBulk({
+    actorId: auth.user.id,
+    actorName: auth.user.name,
+    action: "qb.delete.bulk_approved",
+    ids,
+    details: { withTeacherRequest: targets.length - unflagged.length, withoutTeacherRequest: unflagged.length },
+  });
+
+  return NextResponse.json({ success: true, deleted: ids.length });
 }
 
 type ResolveResult =
@@ -116,8 +169,6 @@ type ResolveResult =
   | { empty: true; where?: undefined }
   | { empty: false; where: SQL };
 
-// Picks ids vs filter, validates, and returns a SQL WHERE the caller can use.
-// Centralised so PATCH and DELETE share identical selection rules.
 async function resolveTargetWhere(body: { ids?: unknown; filter?: unknown }): Promise<ResolveResult> {
   if (Array.isArray(body.ids)) {
     const ids = body.ids.filter((x): x is string => typeof x === "string" && x.length > 0);

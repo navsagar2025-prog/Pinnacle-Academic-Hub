@@ -36,6 +36,8 @@ import {
   MessageCircleQuestion,
   History,
   Library,
+  AlertTriangle,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -70,6 +72,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   MessageCircleQuestion,
   History,
   Library,
+  AlertTriangle,
+  Trash2,
 };
 
 export interface NavItem {
@@ -77,6 +81,7 @@ export interface NavItem {
   href: string;
   icon: string;
   divider?: boolean;
+  badge?: number;
 }
 
 interface PortalShellProps {
@@ -158,7 +163,12 @@ export function PortalShell({
                 )}
               >
                 <IconComponent size={17} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge != null && item.badge > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--color-maroon)] text-white text-[10px] font-bold">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

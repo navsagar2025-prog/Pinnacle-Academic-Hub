@@ -18,6 +18,7 @@ async function findDuplicateForDraft(
   const snippet = text.split(/\s+/).slice(0, 40).join(" ");
   const conds: SQL[] = [
     eq(questionBank.isPublished, true),
+    sql`${questionBank.deletedAt} is null`,
     eq(questionBank.subject, draft.subject),
     sql`${questionBank.searchVector} @@ plainto_tsquery('english', ${snippet})`,
   ];

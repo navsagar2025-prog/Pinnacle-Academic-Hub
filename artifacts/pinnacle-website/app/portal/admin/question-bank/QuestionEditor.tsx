@@ -131,9 +131,21 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
   }
 
   async function destroy() {
-    if (!initial || !confirm("Delete this question? This cannot be undone.")) return;
-    const res = await fetch(`${BASE}/api/v1/question-bank/${initial.id}`, { method: "DELETE" });
+    if (!initial) return;
+    if (!confirm("Move this question to the recycle bin? Students will lose access immediately and it auto-purges in 7 days.")) return;
+    let res = await fetch(`${BASE}/api/v1/question-bank/${initial.id}`, { method: "DELETE" });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.error === "no_teacher_request") {
+        if (!confirm("No teacher has requested this deletion. Delete anyway?")) return;
+        res = await fetch(`${BASE}/api/v1/question-bank/${initial.id}?ackNoTeacherRequest=1`, { method: "DELETE" });
+      }
+    }
     if (res.ok) { router.push("/portal/admin/question-bank"); router.refresh(); }
+    else {
+      const data = await res.json().catch(() => ({}));
+      setError(data?.error ?? "Delete failed");
+    }
   }
 
   const cls = "w-full px-3 py-2 rounded-lg border border-slate-200 text-sm";

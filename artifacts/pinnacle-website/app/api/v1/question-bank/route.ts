@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     ? Math.min(100, Math.floor(rawPageSize))
     : 20;
 
-  const conds: SQL[] = [eq(questionBank.isPublished, true)];
+  const conds: SQL[] = [eq(questionBank.isPublished, true), sql`${questionBank.deletedAt} is null`];
   if (subject && subject !== "All") conds.push(eq(questionBank.subject, subject));
   if (topic) conds.push(eq(questionBank.topic, topic));
   if (classGrade) conds.push(eq(questionBank.classGrade, classGrade));

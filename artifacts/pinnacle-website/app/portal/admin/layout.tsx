@@ -1,5 +1,8 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { db } from "@workspace/db";
+import { questionBank } from "@workspace/db/schema";
+import { and, isNotNull, isNull, sql } from "drizzle-orm";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/portal/admin", icon: "LayoutDashboard" },
@@ -15,6 +18,8 @@ const NAV_ITEMS = [
   { label: "Results & Toppers", href: "/portal/admin/results", icon: "Trophy" },
   { label: "Test Scores", href: "/portal/admin/test-scores", icon: "ClipboardList" },
   { label: "Question Bank", href: "/portal/admin/question-bank", icon: "BookOpen" },
+  { label: "Pending Deletions", href: "/portal/admin/question-bank/pending", icon: "AlertTriangle" },
+  { label: "QB Recycle Bin", href: "/portal/admin/question-bank/bin", icon: "Trash2" },
   { label: "Practice Sets", href: "/portal/admin/practice-sets", icon: "Library" },
   { label: "Mock Tests", href: "/portal/admin/mock-tests", icon: "Sparkles" },
   { label: "Doubt Q&A", href: "/portal/admin/doubts", icon: "MessageCircleQuestion" },
@@ -34,9 +39,33 @@ const NAV_ITEMS = [
 
 export default async function AdminPortalLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePortalRole("admin");
+
+  // Live badge counts so admins can see deletion-governance work without
+  // navigating into the question-bank section.
+  const [{ pending }, { binned }] = await Promise.all([
+    db.select({ pending: sql<number>`count(*)::int` })
+      .from(questionBank)
+      .where(and(isNotNull(questionBank.deletionRequestedAt), isNull(questionBank.deletedAt)))
+      .then((r) => r[0] ?? { pending: 0 }),
+    db.select({ binned: sql<number>`count(*)::int` })
+      .from(questionBank)
+      .where(isNotNull(questionBank.deletedAt))
+      .then((r) => r[0] ?? { binned: 0 }),
+  ]);
+
+  const navItems = NAV_ITEMS.map((item) => {
+    if (item.href === "/portal/admin/question-bank/pending" && pending > 0) {
+      return { ...item, badge: pending };
+    }
+    if (item.href === "/portal/admin/question-bank/bin" && binned > 0) {
+      return { ...item, badge: binned };
+    }
+    return item;
+  });
+
   return (
     <PortalShell
-      navItems={NAV_ITEMS}
+      navItems={navItems}
       portalLabel="Admin Panel"
       userName={user.name}
       userRole="admin"

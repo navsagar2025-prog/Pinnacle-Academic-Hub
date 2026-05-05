@@ -1,7 +1,7 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { questionBank, questionBookmarks, questionAttempts, students } from "@workspace/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -20,7 +20,9 @@ export default async function StudentQuestionDetailPage({
   const user = await requirePortalRole("student");
   const { id } = await params;
   const sp = await searchParams;
-  const [q] = await db.select().from(questionBank).where(eq(questionBank.id, id)).limit(1);
+  const [q] = await db.select().from(questionBank)
+    .where(and(eq(questionBank.id, id), sql`${questionBank.deletedAt} is null`))
+    .limit(1);
   if (!q) notFound();
 
   const [student] = await db.select({ id: students.id }).from(students)

@@ -234,7 +234,7 @@ export async function getSetDetail(setId: string): Promise<SetDetail | null> {
     })
     .from(practiceSetQuestions)
     .innerJoin(questionBank, eq(practiceSetQuestions.questionId, questionBank.id))
-    .where(eq(practiceSetQuestions.setId, setId))
+    .where(and(eq(practiceSetQuestions.setId, setId), sql`${questionBank.deletedAt} is null`))
     .orderBy(practiceSetQuestions.sortOrder, practiceSetQuestions.createdAt);
 
   const aRows = await db

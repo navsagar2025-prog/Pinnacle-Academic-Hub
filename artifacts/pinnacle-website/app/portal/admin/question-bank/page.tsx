@@ -38,7 +38,7 @@ export default async function AdminQuestionBankPage({
   const sp = await searchParams;
   const requestedPage = Math.max(1, Number(sp.page ?? "1") || 1);
 
-  const conds: SQL[] = [];
+  const conds: SQL[] = [sql`${questionBank.deletedAt} is null`];
   if (sp.subject && sp.subject !== "All") conds.push(eq(questionBank.subject, sp.subject));
   if (sp.topic) conds.push(eq(questionBank.topic, sp.topic));
   if (sp.difficulty) conds.push(eq(questionBank.difficulty, sp.difficulty as "easy" | "medium" | "hard"));
@@ -53,7 +53,7 @@ export default async function AdminQuestionBankPage({
   // Topic-distribution / topic-dropdown queries are scoped to the same filters
   // EXCEPT the topic itself — the point of the side panel is to let users
   // switch between topics, so we need every topic's count for the subject.
-  const topicConds: SQL[] = [];
+  const topicConds: SQL[] = [sql`${questionBank.deletedAt} is null`];
   if (sp.subject && sp.subject !== "All") topicConds.push(eq(questionBank.subject, sp.subject));
   if (sp.difficulty) topicConds.push(eq(questionBank.difficulty, sp.difficulty as "easy" | "medium" | "hard"));
   if (sp.type) topicConds.push(eq(questionBank.questionType, sp.type as "mcq" | "short" | "long" | "numerical"));
@@ -76,10 +76,10 @@ export default async function AdminQuestionBankPage({
     topicCountsRows,
     savedViews,
   ] = await Promise.all([
-    db.selectDistinct({ subject: questionBank.subject }).from(questionBank).orderBy(questionBank.subject),
-    db.selectDistinct({ year: questionBank.year }).from(questionBank).where(sql`${questionBank.year} is not null`).orderBy(desc(questionBank.year)),
-    db.selectDistinct({ examName: questionBank.examName }).from(questionBank).where(sql`${questionBank.examName} is not null`).orderBy(questionBank.examName),
-    db.select({ grandTotal: sql<number>`count(*)::int` }).from(questionBank),
+    db.selectDistinct({ subject: questionBank.subject }).from(questionBank).where(sql`${questionBank.deletedAt} is null`).orderBy(questionBank.subject),
+    db.selectDistinct({ year: questionBank.year }).from(questionBank).where(and(sql`${questionBank.year} is not null`, sql`${questionBank.deletedAt} is null`)).orderBy(desc(questionBank.year)),
+    db.selectDistinct({ examName: questionBank.examName }).from(questionBank).where(and(sql`${questionBank.examName} is not null`, sql`${questionBank.deletedAt} is null`)).orderBy(questionBank.examName),
+    db.select({ grandTotal: sql<number>`count(*)::int` }).from(questionBank).where(sql`${questionBank.deletedAt} is null`),
     db.select({ total: sql<number>`count(*)::int` }).from(questionBank).where(where),
     // Topic dropdown values: scoped to subject (+ other filters) but NOT the
     // current topic, so admins can always switch to another topic.

@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const count = Math.min(100, Math.max(1, Number(body.count) || 20));
 
-  const conds: SQL[] = [eq(questionBank.isPublished, true), eq(questionBank.questionType, "mcq")];
+  const conds: SQL[] = [eq(questionBank.isPublished, true), eq(questionBank.questionType, "mcq"), sql`${questionBank.deletedAt} is null`];
   if (body.subject !== "Mixed") conds.push(eq(questionBank.subject, String(body.subject)));
   if (body.classGrade) conds.push(eq(questionBank.classGrade, String(body.classGrade)));
   if (body.difficulty && body.difficulty !== "mixed") conds.push(eq(questionBank.difficulty, body.difficulty));

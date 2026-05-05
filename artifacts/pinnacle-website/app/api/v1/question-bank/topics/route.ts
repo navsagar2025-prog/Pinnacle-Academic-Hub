@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       count: sql<number>`count(*)::int`,
     })
       .from(questionBank)
-      .where(and(eq(questionBank.subject, subject), sql`${questionBank.topic} is not null`))
+      .where(and(eq(questionBank.subject, subject), sql`${questionBank.topic} is not null`, sql`${questionBank.deletedAt} is null`))
       .groupBy(questionBank.topic)
       .orderBy(sql`count(*) desc`);
     const counts = rows
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await db.selectDistinct({ topic: questionBank.topic })
     .from(questionBank)
-    .where(and(eq(questionBank.subject, subject), sql`${questionBank.topic} is not null`))
+    .where(and(eq(questionBank.subject, subject), sql`${questionBank.topic} is not null`, sql`${questionBank.deletedAt} is null`))
     .orderBy(questionBank.topic);
   const topics = rows.map((r) => r.topic).filter((t): t is string => !!t);
   return NextResponse.json({ topics });

@@ -535,6 +535,14 @@ export const questionBank = qbSchema.table("question_bank", {
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Two-stage deletion governance. Teachers/examiners flag a question with
+  // (deletionRequestedAt, deletionRequestedBy, deletionReason); admins
+  // approve by stamping deletedAt (soft-delete → 7-day bin). Auto-purged
+  // by the daily cron once deletedAt < now()-7d.
+  deletionRequestedAt: timestamp("deletion_requested_at"),
+  deletionRequestedBy: uuid("deletion_requested_by").references(() => users.id),
+  deletionReason: text("deletion_reason"),
+  deletedAt: timestamp("deleted_at"),
   // Generated tsvector for full-text search: question_text (A) > topic (B) > solution (C).
   // Stored generated column — Postgres only supports STORED, which Drizzle emits by default.
   searchVector: tsvector("search_vector").generatedAlwaysAs(
@@ -545,6 +553,8 @@ export const questionBank = qbSchema.table("question_bank", {
   index("question_bank_topic_idx").on(t.topic),
   index("question_bank_year_idx").on(t.year),
   index("question_bank_exam_name_idx").on(t.examName),
+  index("question_bank_deleted_at_idx").on(t.deletedAt),
+  index("question_bank_deletion_requested_at_idx").on(t.deletionRequestedAt),
   index("question_bank_search_vector_idx").using("gin", t.searchVector),
 ]);
 
