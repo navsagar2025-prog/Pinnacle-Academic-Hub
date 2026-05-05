@@ -64,6 +64,9 @@ type Initial = {
   examName: string | null;
   marks: number;
   isPublished: boolean;
+  deletionRequestedAt?: Date | string | null;
+  deletionReason?: string | null;
+  deletionRequestedBy?: string | null;
 };
 
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "Other"];
@@ -132,12 +135,18 @@ export function QuestionEditor({ initial }: { initial?: Initial }) {
 
   async function destroy() {
     if (!initial) return;
-    if (!confirm("Move this question to the recycle bin? Students will lose access immediately and it auto-purges in 7 days.")) return;
+    // When a teacher has flagged this question, surface the requester reason
+    // in the confirmation so the admin reviews context before approving.
+    const hasRequest = !!initial.deletionRequestedAt;
+    const prompt = hasRequest
+      ? `Approve this deletion and move the question to the recycle bin?\n\nFlagged reason:\n"${initial.deletionReason ?? "(no reason given)"}"\n\nStudents lose access immediately; auto-purges in 7 days.`
+      : "Move this question to the recycle bin? Students will lose access immediately and it auto-purges in 7 days.";
+    if (!confirm(prompt)) return;
     let res = await fetch(`${BASE}/api/v1/question-bank/${initial.id}`, { method: "DELETE" });
     if (res.status === 409) {
       const data = await res.json().catch(() => ({}));
       if (data?.error === "no_teacher_request") {
-        if (!confirm("No teacher has requested this deletion. Delete anyway?")) return;
+        if (!confirm("Pinnacle policy: deletions normally follow a teacher flag. No teacher has flagged this question. Delete anyway? This will be recorded in the audit log.")) return;
         res = await fetch(`${BASE}/api/v1/question-bank/${initial.id}?ackNoTeacherRequest=1`, { method: "DELETE" });
       }
     }

@@ -24,6 +24,8 @@ export type BulkItem = {
   year: number | null;
   examName: string | null;
   isPublished: boolean;
+  deletionRequestedAt: Date | string | null;
+  deletionReason: string | null;
 };
 
 type Filter = Record<string, string | undefined>;
@@ -302,23 +304,44 @@ export function BulkQuestionList({
         })}
       </div>
 
-      {confirmDelete && !unflaggedWarning && (
+      {confirmDelete && !unflaggedWarning && (() => {
+        // Show how many of the visible-page selected rows are already flagged
+        // by a teacher. We can only inspect rows on the current page; for
+        // "select all matching" the warning modal still surfaces the true
+        // unflagged count from the server.
+        const selectedItems = items.filter((i) => selected.has(i.id));
+        const flagged = selectedItems.filter((i) => i.deletionRequestedAt);
+        const sampleReason = flagged.find((i) => i.deletionReason)?.deletionReason ?? null;
+        return (
         <Modal onClose={() => setConfirmDelete(false)}>
-          <h2 className="font-bold text-lg text-[var(--color-navy)]">Move {effectiveCount.toLocaleString()} questions to the bin?</h2>
+          <h2 className="font-bold text-lg text-[var(--color-navy)]">Approve and move {effectiveCount.toLocaleString()} to the bin?</h2>
           <p className="text-sm text-slate-600 mt-2">
             Students lose access immediately. Items stay recoverable for 7 days from the Recycle Bin, then auto-purge.
           </p>
+          {flagged.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
+              <div className="font-semibold">
+                {flagged.length} of {selectedItems.length} on this page were flagged by a teacher.
+              </div>
+              {sampleReason && (
+                <div className="mt-1 text-amber-800 line-clamp-2">
+                  Sample reason: &ldquo;{sampleReason}&rdquo;
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-4 flex items-center justify-end gap-2">
             <button onClick={() => setConfirmDelete(false)} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-50">
               Cancel
             </button>
             <button onClick={() => applyDelete(false)} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-[var(--color-maroon)] text-white hover:opacity-90 inline-flex items-center gap-1.5 disabled:opacity-50">
               {busy && <Loader2 size={14} className="animate-spin" />}
-              <Trash2 size={14} /> Move {effectiveCount.toLocaleString()} to bin
+              <Trash2 size={14} /> Approve · move {effectiveCount.toLocaleString()} to bin
             </button>
           </div>
         </Modal>
-      )}
+        );
+      })()}
 
       {unflaggedWarning && (
         <Modal onClose={() => { setUnflaggedWarning(null); setConfirmDelete(false); }}>

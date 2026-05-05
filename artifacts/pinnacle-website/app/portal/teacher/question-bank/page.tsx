@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { questionBank } from "@workspace/db/schema";
-import { and, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { requirePortalRole } from "@/lib/server/portal-auth";
+import { notDeleted } from "@/lib/server/question-bank-deletion";
 import { TeacherQuestionList } from "./TeacherQuestionList";
 
 export const metadata = { title: "Question Bank — Teacher Portal" };
@@ -18,7 +19,7 @@ export default async function TeacherQuestionBankPage({
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
 
-  const conds: SQL[] = [isNull(questionBank.deletedAt)];
+  const conds: SQL[] = [notDeleted];
   if (sp.subject && sp.subject !== "All") conds.push(eq(questionBank.subject, sp.subject));
   const search = (sp.q ?? "").trim();
   if (search) conds.push(sql`search_vector @@ plainto_tsquery('english', ${search})`);

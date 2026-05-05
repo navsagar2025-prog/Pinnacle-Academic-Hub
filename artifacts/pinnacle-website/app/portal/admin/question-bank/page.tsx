@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { questionBank, questionBankSavedViews } from "@workspace/db/schema";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
+import { notDeleted } from "@/lib/server/question-bank-deletion";
 import { Sparkles, Plus } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "./QuestionBankFilters";
@@ -38,7 +39,7 @@ export default async function AdminQuestionBankPage({
   const sp = await searchParams;
   const requestedPage = Math.max(1, Number(sp.page ?? "1") || 1);
 
-  const conds: SQL[] = [sql`${questionBank.deletedAt} is null`];
+  const conds: SQL[] = [notDeleted];
   if (sp.subject && sp.subject !== "All") conds.push(eq(questionBank.subject, sp.subject));
   if (sp.topic) conds.push(eq(questionBank.topic, sp.topic));
   if (sp.difficulty) conds.push(eq(questionBank.difficulty, sp.difficulty as "easy" | "medium" | "hard"));
@@ -53,7 +54,7 @@ export default async function AdminQuestionBankPage({
   // Topic-distribution / topic-dropdown queries are scoped to the same filters
   // EXCEPT the topic itself — the point of the side panel is to let users
   // switch between topics, so we need every topic's count for the subject.
-  const topicConds: SQL[] = [sql`${questionBank.deletedAt} is null`];
+  const topicConds: SQL[] = [notDeleted];
   if (sp.subject && sp.subject !== "All") topicConds.push(eq(questionBank.subject, sp.subject));
   if (sp.difficulty) topicConds.push(eq(questionBank.difficulty, sp.difficulty as "easy" | "medium" | "hard"));
   if (sp.type) topicConds.push(eq(questionBank.questionType, sp.type as "mcq" | "short" | "long" | "numerical"));
@@ -127,7 +128,20 @@ export default async function AdminQuestionBankPage({
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + PAGE_SIZE, total);
 
-  const items = total === 0 ? [] : await db.select().from(questionBank).where(where).orderBy(
+  const items = total === 0 ? [] : await db.select({
+    id: questionBank.id,
+    subject: questionBank.subject,
+    topic: questionBank.topic,
+    classGrade: questionBank.classGrade,
+    difficulty: questionBank.difficulty,
+    questionType: questionBank.questionType,
+    questionText: questionBank.questionText,
+    year: questionBank.year,
+    examName: questionBank.examName,
+    isPublished: questionBank.isPublished,
+    deletionRequestedAt: questionBank.deletionRequestedAt,
+    deletionReason: questionBank.deletionReason,
+  }).from(questionBank).where(where).orderBy(
     ...(search
       ? [sql`ts_rank(search_vector, plainto_tsquery('english', ${search})) DESC`, desc(questionBank.createdAt)]
       : [desc(questionBank.createdAt)]),
