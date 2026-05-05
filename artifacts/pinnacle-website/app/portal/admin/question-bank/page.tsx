@@ -10,16 +10,11 @@ import QuestionGenerator from "@/components/ai/QuestionGenerator";
 import { QuestionBankPagination } from "./QuestionBankPagination";
 import { TopicDistribution } from "./TopicDistribution";
 import { SavedViews } from "./SavedViews";
+import { BulkQuestionList, type BulkItem } from "./BulkQuestionList";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 
 export const metadata = { title: "Question Bank — Admin Panel" };
 
-const TYPE_LABEL: Record<string, string> = { mcq: "MCQ", short: "Short", long: "Long", numerical: "Numerical" };
-const DIFF_COLOR: Record<string, string> = {
-  easy: "bg-green-50 text-green-700",
-  medium: "bg-amber-50 text-amber-700",
-  hard: "bg-rose-50 text-rose-700",
-};
 const PAGE_SIZE = 25;
 
 type SP = {
@@ -184,28 +179,21 @@ export default async function AdminQuestionBankPage({
             </div>
           ) : (
             <>
-              <div className="space-y-3">
-                {items.map((q) => (
-                  <Link key={q.id} href={`/portal/admin/question-bank/${q.id}`}
-                    className="card hover:shadow-elevated transition-all flex items-start gap-4 group">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5 text-xs">
-                        <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
-                        {q.topic && <span className="text-slate-500">· {q.topic}</span>}
-                        {q.classGrade && <span className="text-slate-400">· Cls {q.classGrade}</span>}
-                        <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
-                        <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
-                      </div>
-                      <p className="text-sm text-[var(--color-navy)] line-clamp-2">{q.questionText}</p>
-                    </div>
-                    {(q.year || q.examName) && (
-                      <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)] shrink-0 self-start whitespace-nowrap">
-                        PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
+              <BulkQuestionList
+                items={items as BulkItem[]}
+                total={total}
+                filter={{
+                  subject: sp.subject,
+                  topic: sp.topic,
+                  difficulty: sp.difficulty,
+                  type: sp.type,
+                  year: sp.year,
+                  examName: sp.examName,
+                  pyq: sp.pyq,
+                  q: sp.q,
+                }}
+                topicOptions={topics}
+              />
               <QuestionBankPagination page={page} totalPages={totalPages} />
             </>
           )}
