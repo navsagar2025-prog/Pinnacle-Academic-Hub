@@ -127,9 +127,14 @@ export function QuestionImporter() {
                     <li><strong>difficulty:</strong> easy, medium, hard (default medium)</li>
                     <li>For non-MCQ questions, A–D may be blank and 'correct' is the expected answer text</li>
                   </ul>
-                  <button onClick={downloadTemplate} className="mt-2 text-xs text-[var(--color-teal)] hover:underline inline-flex items-center gap-1 font-semibold">
-                    <Download size={12} /> Download template (.xlsx)
-                  </button>
+                  <div className="mt-2 flex items-center gap-3">
+                    <button onClick={downloadTemplate} className="text-xs text-[var(--color-teal)] hover:underline inline-flex items-center gap-1 font-semibold">
+                      <Download size={12} /> Download template (.xlsx)
+                    </button>
+                    <a href={`${BASE}/templates/question-bank-template.csv`} download className="text-xs text-[var(--color-teal)] hover:underline inline-flex items-center gap-1 font-semibold">
+                      <Download size={12} /> Download template (.csv)
+                    </a>
+                  </div>
                 </div>
               )}
 

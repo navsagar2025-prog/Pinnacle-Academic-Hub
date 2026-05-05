@@ -311,6 +311,9 @@ function BulkImportCard({ testId, onImported }: { testId: string; onImported: ()
             <Upload size={16} className="text-[var(--color-teal)]" />Bulk Import Questions
           </h2>
           <p className="text-xs text-slate-500 mt-1">Paste CSV or upload a .csv file. Required: <code>questionText</code>. For MCQ also <code>optionA-D + correctOption</code>. For multi: <code>questionType=multi</code> + <code>correctOptions=A|C</code>. For numerical: <code>questionType=numerical</code> + <code>numericalAnswer</code> (optional <code>numericalTolerance</code>). Other optional: topic, explanation, image columns. Wrap math with <code>$…$</code>.</p>
+          <a href={`${BASE}/templates/mock-test-questions-template.csv`} download className="inline-flex items-center gap-1 mt-2 text-xs text-[var(--color-teal)] font-semibold hover:underline">
+            ⬇ Download sample CSV template
+          </a>
         </div>
         <button onClick={() => setOpen((o) => !o)} className="text-xs text-[var(--color-teal)] font-semibold hover:underline">
           {open ? "Hide" : "Open importer"}
