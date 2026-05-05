@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { mockTests, mockTestQuestions, mockTestAttempts, batches, courses } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { Sparkles, FileQuestion, Users, Clock } from "lucide-react";
+import { Sparkles, FileQuestion, Users, Clock, CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { requirePortalRole, getTeacherPermissions } from "@/lib/server/portal-auth";
 import { TeacherCreateTestButton } from "./CreateTestModal";
@@ -22,6 +22,8 @@ export default async function TeacherMockTestsPage() {
       marksPerQuestion: mockTests.marksPerQuestion,
       isPublished: mockTests.isPublished,
       isPublic: mockTests.isPublic,
+      scheduledStart: mockTests.scheduledStart,
+      scheduledEnd: mockTests.scheduledEnd,
       batchName: batches.name,
       questionCount: sql<number>`(select count(*)::int from ${mockTestQuestions} where ${mockTestQuestions.testId} = ${mockTests.id})`,
       attemptCount: sql<number>`(select count(*)::int from ${mockTestAttempts} where ${mockTestAttempts.testId} = ${mockTests.id})`,
@@ -69,21 +71,44 @@ export default async function TeacherMockTestsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tests.map((t) => (
+          {tests.map((t) => {
+            const now = Date.now();
+            const startMs = t.scheduledStart ? new Date(t.scheduledStart).getTime() : null;
+            const endMs = t.scheduledEnd ? new Date(t.scheduledEnd).getTime() : null;
+            const isScheduledFuture = t.isPublished && startMs !== null && now < startMs;
+            const isScheduledOpen = t.isPublished && startMs !== null && endMs !== null && now >= startMs && now <= endMs;
+            const isScheduledClosed = t.isPublished && endMs !== null && now > endMs;
+            return (
             <Link
               key={t.id}
               href={`/portal/teacher/mock-tests/${t.id}`}
               className="card hover:shadow-elevated transition-all group"
             >
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-3 gap-2">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] group-hover:text-[var(--color-teal)] transition-colors line-clamp-2">{t.title}</h3>
                   <p className="text-xs text-slate-500 mt-1">{t.subject} · {t.examType}</p>
                 </div>
-                <span className={`badge text-[10px] uppercase ${t.isPublished ? "bg-[var(--color-teal)]/10 text-[var(--color-teal)]" : "bg-slate-100 text-slate-500"}`}>
-                  {t.isPublished ? "Live" : "Draft"}
-                </span>
+                {!t.isPublished ? (
+                  <span className="badge text-[10px] uppercase bg-slate-100 text-slate-500">Draft</span>
+                ) : isScheduledFuture ? (
+                  <span className="badge text-[10px] uppercase bg-[var(--color-gold)]/10 text-[var(--color-gold)] flex items-center gap-1">
+                    <CalendarClock size={10} />Scheduled
+                  </span>
+                ) : isScheduledClosed ? (
+                  <span className="badge text-[10px] uppercase bg-slate-100 text-slate-500">Closed</span>
+                ) : (
+                  <span className="badge text-[10px] uppercase bg-[var(--color-teal)]/10 text-[var(--color-teal)]">
+                    {isScheduledOpen ? "Open Now" : "Live"}
+                  </span>
+                )}
               </div>
+              {t.scheduledStart && t.scheduledEnd && (
+                <p className="text-[11px] text-slate-500 mb-2 flex items-center gap-1">
+                  <CalendarClock size={11} className="text-[var(--color-teal)]" />
+                  {new Date(t.scheduledStart).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} → {new Date(t.scheduledEnd).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                </p>
+              )}
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-xs">
                 <div className="text-center">
                   <div className="font-bold text-[var(--color-navy)] flex items-center justify-center gap-1">
@@ -105,7 +130,8 @@ export default async function TeacherMockTestsPage() {
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

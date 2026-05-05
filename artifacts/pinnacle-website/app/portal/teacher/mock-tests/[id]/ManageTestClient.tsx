@@ -1,11 +1,26 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Eye, EyeOff, Upload, Trash2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Upload, Trash2, CalendarClock, Save } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
-type Test = { id: string; title: string; isPublished: boolean; isPublic: boolean };
+type Test = {
+  id: string;
+  title: string;
+  isPublished: boolean;
+  isPublic: boolean;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+};
+
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export function TeacherManageTestClient({ test }: { test: Test }) {
   const router = useRouter();
@@ -57,6 +72,7 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
 
   return (
     <div className="space-y-4">
+      <ScheduleEditor testId={test.id} initialStart={test.scheduledStart} initialEnd={test.scheduledEnd} />
       <BulkImportCard testId={test.id} onImported={() => router.refresh()} />
       <div className="card flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -126,6 +142,80 @@ export function TeacherManageTestClient({ test }: { test: Test }) {
             </button>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ScheduleEditor({ testId, initialStart, initialEnd }: { testId: string; initialStart: string | null; initialEnd: string | null }) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(Boolean(initialStart || initialEnd));
+  const [start, setStart] = useState(toLocalInput(initialStart));
+  const [end, setEnd] = useState(toLocalInput(initialEnd));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  async function save() {
+    setError(""); setMsg("");
+    const payload = enabled
+      ? { scheduledStart: start ? new Date(start).toISOString() : null, scheduledEnd: end ? new Date(end).toISOString() : null }
+      : { scheduledStart: null, scheduledEnd: null };
+    if (enabled) {
+      if (!start || !end) { setError("Pick both an opens-at and closes-at time."); return; }
+      if (new Date(end).getTime() <= new Date(start).getTime()) { setError("Schedule end must be after start."); return; }
+    }
+    setSaving(true);
+    const res = await fetch(`${BASE}/api/v1/mock-tests/${testId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Failed to save schedule");
+      return;
+    }
+    setMsg(enabled ? "Schedule saved." : "Schedule cleared.");
+    router.refresh();
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] flex items-center gap-2">
+            <CalendarClock size={16} className="text-[var(--color-teal)]" />Schedule
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Limit when students can start this test. Leave off for an always-open test.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-semibold text-[var(--color-navy)] cursor-pointer">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded" />
+          Schedule a window
+        </label>
+      </div>
+      {enabled && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Opens at</label>
+            <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Closes at</label>
+            <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</p>}
+      {msg && <p className="text-[var(--color-teal)] text-sm bg-[var(--color-teal)]/10 rounded-lg px-3 py-2 mt-3">{msg}</p>}
+      <div className="flex justify-end mt-3">
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] disabled:opacity-50 flex items-center gap-1.5">
+          <Save size={14} />{saving ? "Saving…" : "Save schedule"}
+        </button>
       </div>
     </div>
   );

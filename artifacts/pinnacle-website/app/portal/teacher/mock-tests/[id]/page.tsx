@@ -127,6 +127,11 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
             <p className="text-slate-500 text-sm mt-1">
               {test.subject} · {test.examType} · {test.durationMinutes} min · {test.marksPerQuestion} marks/q · −{test.negativeMarkingPercent}% negative · {attempts} attempt{attempts === 1 ? "" : "s"}
             </p>
+            {test.scheduledStart && test.scheduledEnd && (
+              <p className="text-xs text-[var(--color-teal)] mt-1 font-semibold">
+                Scheduled: {new Date(test.scheduledStart).toLocaleString()} → {new Date(test.scheduledEnd).toLocaleString()}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -153,6 +158,8 @@ export default async function TeacherMockTestDetailPage({ params }: { params: Pr
           title: test.title,
           isPublished: test.isPublished,
           isPublic: test.isPublic,
+          scheduledStart: test.scheduledStart ? test.scheduledStart.toISOString() : null,
+          scheduledEnd: test.scheduledEnd ? test.scheduledEnd.toISOString() : null,
         }}
       />
 

@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const { title, subject, examType, batchId, durationMinutes, marksPerQuestion, negativeMarkingPercent, instructions, isPublic } = body ?? {};
+  const { title, subject, examType, batchId, durationMinutes, marksPerQuestion, negativeMarkingPercent, instructions, isPublic, scheduledStart, scheduledEnd } = body ?? {};
   if (!title || !subject) return NextResponse.json({ error: "title and subject are required" }, { status: 400 });
 
   if (user.role === "teacher") {
@@ -96,6 +96,14 @@ export async function POST(req: NextRequest) {
     if (!perms.allowedSubjects.includes(subject)) {
       return NextResponse.json({ error: `You can only create tests for: ${perms.allowedSubjects.join(", ")}` }, { status: 403 });
     }
+  }
+
+  const startDate = scheduledStart ? new Date(scheduledStart) : null;
+  const endDate = scheduledEnd ? new Date(scheduledEnd) : null;
+  if (startDate && isNaN(startDate.getTime())) return NextResponse.json({ error: "Invalid scheduledStart" }, { status: 400 });
+  if (endDate && isNaN(endDate.getTime())) return NextResponse.json({ error: "Invalid scheduledEnd" }, { status: 400 });
+  if (startDate && endDate && endDate.getTime() <= startDate.getTime()) {
+    return NextResponse.json({ error: "Schedule end must be after start" }, { status: 400 });
   }
 
   const [created] = await db.insert(mockTests).values({
@@ -108,6 +116,8 @@ export async function POST(req: NextRequest) {
     negativeMarkingPercent: Number(negativeMarkingPercent) || 25,
     instructions: instructions ?? null,
     isPublic: Boolean(isPublic),
+    scheduledStart: startDate,
+    scheduledEnd: endDate,
     createdBy: user.id,
   }).returning();
 

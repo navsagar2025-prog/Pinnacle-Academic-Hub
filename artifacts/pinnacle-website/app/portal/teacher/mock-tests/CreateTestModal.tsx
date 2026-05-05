@@ -41,16 +41,34 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
     toYear: "",
     count: 20,
     isPublished: false,
+    scheduled: false,
+    scheduledStart: "",
+    scheduledEnd: "",
   });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError("");
+    if (form.scheduled) {
+      if (!form.scheduledStart || !form.scheduledEnd) {
+        setLoading(false);
+        setError("Please choose both a start and end time, or turn off scheduling.");
+        return;
+      }
+      if (new Date(form.scheduledEnd).getTime() <= new Date(form.scheduledStart).getTime()) {
+        setLoading(false);
+        setError("Schedule end must be after start.");
+        return;
+      }
+    }
+    const schedulePayload = form.scheduled
+      ? { scheduledStart: new Date(form.scheduledStart).toISOString(), scheduledEnd: new Date(form.scheduledEnd).toISOString() }
+      : { scheduledStart: null, scheduledEnd: null };
     if (mode === "manual") {
       const res = await fetch(`${BASE}/api/v1/mock-tests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, batchId: form.batchId || null }),
+        body: JSON.stringify({ ...form, batchId: form.batchId || null, ...schedulePayload }),
       });
       const data = await res.json();
       setLoading(false);
@@ -76,6 +94,7 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
           toYear: form.toYear ? Number(form.toYear) : null,
           count: form.count,
           isPublished: form.isPublished,
+          ...schedulePayload,
         }),
       });
       const data = await res.json();
@@ -208,6 +227,28 @@ function TeacherCreateTestModal({ batches, allowedSubjects, onClose }: { batches
             <label className="block text-xs font-semibold text-slate-500 mb-1">Instructions (optional)</label>
             <textarea rows={2} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })}
               placeholder="Read each question carefully. No calculator allowed." className={input + " resize-none"} />
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.scheduled} onChange={(e) => setForm({ ...form, scheduled: e.target.checked })} className="rounded" />
+              <span className="text-sm font-semibold text-[var(--color-navy)]">Schedule a time window for this test</span>
+            </label>
+            {form.scheduled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Opens at</label>
+                  <input type="datetime-local" required value={form.scheduledStart}
+                    onChange={(e) => setForm({ ...form, scheduledStart: e.target.value })} className={input} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Closes at</label>
+                  <input type="datetime-local" required value={form.scheduledEnd}
+                    onChange={(e) => setForm({ ...form, scheduledEnd: e.target.value })} className={input} />
+                </div>
+                <p className="col-span-2 text-[11px] text-slate-500">Students can only start the test inside this window. Times use your local timezone.</p>
+              </div>
+            )}
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer">

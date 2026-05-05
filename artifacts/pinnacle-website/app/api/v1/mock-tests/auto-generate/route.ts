@@ -38,6 +38,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No questions in the bank match those filters. Add MCQs first." }, { status: 400 });
   }
 
+  const startDate = body.scheduledStart ? new Date(body.scheduledStart) : null;
+  const endDate = body.scheduledEnd ? new Date(body.scheduledEnd) : null;
+  if (startDate && isNaN(startDate.getTime())) return NextResponse.json({ error: "Invalid scheduledStart" }, { status: 400 });
+  if (endDate && isNaN(endDate.getTime())) return NextResponse.json({ error: "Invalid scheduledEnd" }, { status: 400 });
+  if (startDate && endDate && endDate.getTime() <= startDate.getTime()) {
+    return NextResponse.json({ error: "Schedule end must be after start" }, { status: 400 });
+  }
+
   const [test] = await db.insert(mockTests).values({
     title: String(body.title),
     subject: String(body.subject),
@@ -49,6 +57,8 @@ export async function POST(req: NextRequest) {
     instructions: body.instructions ?? null,
     isPublic: Boolean(body.isPublic),
     isPublished: Boolean(body.isPublished),
+    scheduledStart: startDate,
+    scheduledEnd: endDate,
     createdBy: user.id,
   }).returning();
 

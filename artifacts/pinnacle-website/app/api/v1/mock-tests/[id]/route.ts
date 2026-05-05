@@ -39,6 +39,35 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   for (const k of ["title", "subject", "examType", "batchId", "durationMinutes", "marksPerQuestion", "negativeMarkingPercent", "instructions", "isPublished", "isPublic"]) {
     if (k in body) allowed_fields[k] = body[k];
   }
+
+  const scheduleTouched = "scheduledStart" in body || "scheduledEnd" in body;
+  for (const k of ["scheduledStart", "scheduledEnd"] as const) {
+    if (k in body) {
+      const v = body[k];
+      if (v === null || v === "") {
+        allowed_fields[k] = null;
+      } else {
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return NextResponse.json({ error: `Invalid ${k}` }, { status: 400 });
+        allowed_fields[k] = d;
+      }
+    }
+  }
+
+  if (scheduleTouched) {
+    const [existing] = await db.select({ scheduledStart: mockTests.scheduledStart, scheduledEnd: mockTests.scheduledEnd })
+      .from(mockTests).where(eq(mockTests.id, id)).limit(1);
+    const effectiveStart = "scheduledStart" in body
+      ? (allowed_fields.scheduledStart as Date | null | undefined) ?? null
+      : existing?.scheduledStart ?? null;
+    const effectiveEnd = "scheduledEnd" in body
+      ? (allowed_fields.scheduledEnd as Date | null | undefined) ?? null
+      : existing?.scheduledEnd ?? null;
+    if (effectiveStart && effectiveEnd && effectiveEnd.getTime() <= effectiveStart.getTime()) {
+      return NextResponse.json({ error: "Schedule end must be after start" }, { status: 400 });
+    }
+  }
+
   allowed_fields.updatedAt = new Date();
 
   const [updated] = await db.update(mockTests).set(allowed_fields).where(eq(mockTests.id, id)).returning();

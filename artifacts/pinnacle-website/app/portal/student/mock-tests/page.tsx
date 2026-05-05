@@ -2,8 +2,8 @@ import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { mockTests, mockTestQuestions, mockTestAttempts, students } from "@workspace/db/schema";
 import { eq, and, or, isNull, desc, sql } from "drizzle-orm";
-import { Sparkles, Clock, FileQuestion, CheckCircle2, AlertCircle } from "lucide-react";
-import Link from "next/link";
+import { Sparkles, AlertCircle } from "lucide-react";
+import { StudentTestCard } from "./StudentTestCard";
 
 export const metadata = { title: "Mock Tests — Student Portal" };
 
@@ -29,6 +29,8 @@ export default async function StudentMockTestsPage() {
       durationMinutes: mockTests.durationMinutes,
       marksPerQuestion: mockTests.marksPerQuestion,
       questionCount: sql<number>`(select count(*)::int from ${mockTestQuestions} where ${mockTestQuestions.testId} = ${mockTests.id})`,
+      scheduledStart: mockTests.scheduledStart,
+      scheduledEnd: mockTests.scheduledEnd,
     })
     .from(mockTests)
     .where(and(eq(mockTests.isPublished, true), audienceFilter))
@@ -79,58 +81,22 @@ export default async function StudentMockTestsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tests.map((t) => {
             const last = lastAttemptByTest.get(t.id);
-            const taken = last?.isCompleted;
             return (
-              <div key={t.id} className="card hover:shadow-elevated transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)] line-clamp-2">{t.title}</h3>
-                    <p className="text-xs text-slate-500 mt-1">{t.subject} · {t.examType}</p>
-                  </div>
-                  {taken && (
-                    <span className="badge text-[10px] uppercase bg-[var(--color-teal)]/10 text-[var(--color-teal)]">
-                      <CheckCircle2 size={10} className="inline mr-0.5" />Done
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 py-3 border-t border-b border-slate-100 text-xs mb-3">
-                  <div className="text-center">
-                    <div className="font-bold text-[var(--color-navy)] flex items-center justify-center gap-1">
-                      <FileQuestion size={12} />{t.questionCount ?? 0}
-                    </div>
-                    <div className="text-slate-400 mt-0.5">Questions</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-[var(--color-navy)] flex items-center justify-center gap-1">
-                      <Clock size={12} />{t.durationMinutes}m
-                    </div>
-                    <div className="text-slate-400 mt-0.5">Duration</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-[var(--color-navy)]">
-                      {((t.questionCount ?? 0) * t.marksPerQuestion)}
-                    </div>
-                    <div className="text-slate-400 mt-0.5">Max Marks</div>
-                  </div>
-                </div>
-                {taken ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm">
-                      <span className="text-slate-500">Last score: </span>
-                      <span className="font-bold text-[var(--color-navy)]">{last.score}/{last.maxScore}</span>
-                    </div>
-                    <Link href={`/portal/student/mock-tests/${t.id}/result/${last.id}`}
-                      className="text-xs text-[var(--color-teal)] font-semibold hover:underline">
-                      View Report →
-                    </Link>
-                  </div>
-                ) : (
-                  <Link href={`/portal/student/mock-tests/${t.id}/take`}
-                    className="block w-full text-center btn-gold py-2 text-sm">
-                    Start Test
-                  </Link>
-                )}
-              </div>
+              <StudentTestCard
+                key={t.id}
+                test={{
+                  id: t.id,
+                  title: t.title,
+                  subject: t.subject,
+                  examType: t.examType ?? "Mixed",
+                  durationMinutes: t.durationMinutes,
+                  marksPerQuestion: t.marksPerQuestion,
+                  questionCount: t.questionCount ?? 0,
+                  scheduledStart: t.scheduledStart ? t.scheduledStart.toISOString() : null,
+                  scheduledEnd: t.scheduledEnd ? t.scheduledEnd.toISOString() : null,
+                }}
+                lastAttempt={last ? { id: last.id, score: last.score, maxScore: last.maxScore, isCompleted: last.isCompleted } : null}
+              />
             );
           })}
         </div>
