@@ -26,7 +26,7 @@ The project is structured as a pnpm workspace monorepo, with each package managi
 - **Build Tool**: esbuild (CJS bundle)
 
 ## UI/UX and Branding:
-Across all web and mobile platforms (Pinnacle Demo, Pinnacle Full Platform, Pinnacle Mobile App), a consistent brand identity is maintained:
+Across the Pinnacle Full Platform and Pinnacle Mobile App, a consistent brand identity is maintained:
 - **Colors**: Navy (#0A1F5C), Teal (#0D7377), Maroon (#8B1A1A), Gold (#C9A84C)
 - **Fonts**: Playfair Display (headings) and Plus Jakarta Sans (body), with Inter for monospaced text in mobile.
 - **UI Frameworks**: shadcn/ui and Tailwind CSS v4 are used for web interfaces.
@@ -70,7 +70,6 @@ Across all web and mobile platforms (Pinnacle Demo, Pinnacle Full Platform, Pinn
 ### Other Artifacts:
 - **Mockup Sandbox (`artifacts/mockup-sandbox`)**: Vite dev server for canvas component previews.
 - **Pinnacle Proposal (`artifacts/pinnacle-proposal`)**: React + Vite based 25-slide pitch deck.
-- **Pinnacle Demo Website (`artifacts/pinnacle-demo`)**: React + Vite + shadcn/ui demo website with 30+ pages and role selector login (demo only).
 
 # External Dependencies
 
