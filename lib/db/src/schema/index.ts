@@ -612,6 +612,22 @@ export const practiceSetAssignments = pgTable("practice_set_assignments", {
   index("practice_set_assignments_student_idx").on(t.studentId),
 ]);
 
+// Per-admin saved filter combinations for the Question Bank screen. The
+// `queryString` is the URL search-params string (without the leading `?`)
+// captured at save time — replaying the view is a `router.push(?<query>)`.
+// Scoped per-user via `userId` so each admin only sees their own views.
+export const questionBankSavedViews = pgTable("question_bank_saved_views", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  queryString: text("query_string").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("question_bank_saved_views_user_idx").on(t.userId),
+  uniqueIndex("question_bank_saved_views_user_name_uq").on(t.userId, t.name),
+]);
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),
@@ -675,3 +691,5 @@ export type PracticeSet = typeof practiceSets.$inferSelect;
 export type InsertPracticeSet = typeof practiceSets.$inferInsert;
 export type PracticeSetQuestion = typeof practiceSetQuestions.$inferSelect;
 export type PracticeSetAssignment = typeof practiceSetAssignments.$inferSelect;
+export type QuestionBankSavedView = typeof questionBankSavedViews.$inferSelect;
+export type InsertQuestionBankSavedView = typeof questionBankSavedViews.$inferInsert;

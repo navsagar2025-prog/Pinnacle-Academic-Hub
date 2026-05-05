@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { questionBank } from "@workspace/db/schema";
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { questionBank, questionBankSavedViews } from "@workspace/db/schema";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { Sparkles, Plus } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "./QuestionBankFilters";
@@ -9,6 +9,8 @@ import { QuestionPdfImporter } from "./QuestionPdfImporter";
 import QuestionGenerator from "@/components/ai/QuestionGenerator";
 import { QuestionBankPagination } from "./QuestionBankPagination";
 import { TopicDistribution } from "./TopicDistribution";
+import { SavedViews } from "./SavedViews";
+import { requirePortalRole } from "@/lib/server/portal-auth";
 
 export const metadata = { title: "Question Bank — Admin Panel" };
 
@@ -37,6 +39,7 @@ export default async function AdminQuestionBankPage({
 }: {
   searchParams: Promise<SP>;
 }) {
+  const adminUser = await requirePortalRole("admin");
   const sp = await searchParams;
   const requestedPage = Math.max(1, Number(sp.page ?? "1") || 1);
 
@@ -76,6 +79,7 @@ export default async function AdminQuestionBankPage({
     [{ total }],
     topicsRows,
     topicCountsRows,
+    savedViews,
   ] = await Promise.all([
     db.selectDistinct({ subject: questionBank.subject }).from(questionBank).orderBy(questionBank.subject),
     db.selectDistinct({ year: questionBank.year }).from(questionBank).where(sql`${questionBank.year} is not null`).orderBy(desc(questionBank.year)),
@@ -102,6 +106,16 @@ export default async function AdminQuestionBankPage({
           .groupBy(questionBank.topic)
           .orderBy(sql`count(*) desc`)
       : Promise.resolve([] as { topic: string | null; count: number }[]),
+    // Per-admin saved filter combinations — small list, sorted by name for
+    // predictable dropdown ordering.
+    db.select({
+      id: questionBankSavedViews.id,
+      name: questionBankSavedViews.name,
+      queryString: questionBankSavedViews.queryString,
+    })
+      .from(questionBankSavedViews)
+      .where(eq(questionBankSavedViews.userId, adminUser.id))
+      .orderBy(asc(questionBankSavedViews.name)),
   ]);
 
   const subjects = subjectsRows.map((r) => r.subject);
@@ -141,13 +155,18 @@ export default async function AdminQuestionBankPage({
         </div>
       </div>
 
-      <QuestionBankFilters
-        subjects={subjects}
-        topics={topics}
-        years={years}
-        examNames={examNames}
-        showPyqShortcut
-      />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <QuestionBankFilters
+            subjects={subjects}
+            topics={topics}
+            years={years}
+            examNames={examNames}
+            showPyqShortcut
+          />
+        </div>
+        <SavedViews initialViews={savedViews} />
+      </div>
 
       <div className="grid lg:grid-cols-[1fr_260px] gap-5 items-start">
         <div className="space-y-3 min-w-0">
