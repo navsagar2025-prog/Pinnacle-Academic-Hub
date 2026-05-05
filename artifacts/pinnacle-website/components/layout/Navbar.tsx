@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 // Allowed Clerk client UI import — display components only, no auth logic.
-// When migrating away from Clerk, swap these four for your provider's equivalents.
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+// When migrating away from Clerk, swap these for your provider's equivalents.
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Menu, X, BookOpen, Phone, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CONTACT } from "@/lib/contact";
@@ -64,14 +64,13 @@ export default function Navbar() {
               Enrol Now
             </Link>
             <SignedOut>
-              {/* Single Sign In for all roles — /portal auto-routes
+              {/* Single Sign In for all roles — /sign-in is the common
+                  Clerk-hosted page; after auth, /portal auto-routes
                   students, parents, teachers, and admins to the right
                   dashboard based on the user's DB role. */}
-              <SignInButton mode="modal">
-                <button className="text-white/90 hover:text-[var(--color-gold)] transition-colors font-semibold">
-                  Student / Parent / Teacher Login
-                </button>
-              </SignInButton>
+              <Link href="/sign-in" className="text-white/90 hover:text-[var(--color-gold)] transition-colors font-semibold">
+                Student / Parent / Teacher Login
+              </Link>
             </SignedOut>
             <SignedIn>
               {/* Use Next.js Link so basePath (/pinnacle-website) is auto-prefixed
@@ -158,11 +157,9 @@ export default function Navbar() {
         {/* Right side */}
         <div className="hidden lg:flex items-center gap-3">
           <SignedOut>
-            <SignInButton mode="modal">
-              <button className="px-4 py-2 rounded-lg text-sm font-semibold text-[var(--color-navy)] border border-[var(--color-navy)]/20 hover:border-[var(--color-navy)] transition-colors">
-                Sign In
-              </button>
-            </SignInButton>
+            <Link href="/sign-in" className="px-4 py-2 rounded-lg text-sm font-semibold text-[var(--color-navy)] border border-[var(--color-navy)]/20 hover:border-[var(--color-navy)] transition-colors">
+              Sign In
+            </Link>
           </SignedOut>
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
@@ -203,11 +200,13 @@ export default function Navbar() {
           ))}
           <div className="pt-2 border-t border-slate-100 space-y-2">
             <SignedOut>
-              <SignInButton mode="modal">
-                <button className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-[var(--color-navy)] border border-[var(--color-navy)]/20 hover:border-[var(--color-navy)]">
-                  Sign In
-                </button>
-              </SignInButton>
+              <Link
+                href="/sign-in"
+                onClick={() => setMobileOpen(false)}
+                className="block w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold text-[var(--color-navy)] border border-[var(--color-navy)]/20 hover:border-[var(--color-navy)]"
+              >
+                Sign In
+              </Link>
             </SignedOut>
             <SignedIn>
               <div className="flex items-center gap-3 px-3 py-2">
