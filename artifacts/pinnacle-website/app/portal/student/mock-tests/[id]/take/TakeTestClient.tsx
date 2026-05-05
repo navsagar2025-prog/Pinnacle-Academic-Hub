@@ -84,69 +84,62 @@ export function TakeTestClient({
     return Boolean(answers[q.id]);
   }, [answers, multiAnswers, numAnswers]);
 
-  // Build the autosave payload for a given question from the latest state.
-  const buildPayload = useCallback((q: Question, isMarkedForReview: boolean) => {
-    const payload: {
-      questionId: string;
-      selectedOption: Option | null;
-      selectedOptions: Option[] | null;
-      numericalResponse: number | null;
-      isMarkedForReview: boolean;
-    } = {
-      questionId: q.id,
-      selectedOption: null, selectedOptions: null, numericalResponse: null,
-      isMarkedForReview,
-    };
-    if (q.questionType === "mcq") payload.selectedOption = answers[q.id] ?? null;
+  type SavePayload = {
+    questionId: string;
+    selectedOption: Option | null;
+    selectedOptions: Option[] | null;
+    numericalResponse: number | null;
+    isMarkedForReview: boolean;
+  };
+
+  const sendSave = useCallback(async (qid: string, payload: SavePayload) => {
+    const prev = inflightRef.current.get(qid);
+    if (prev) prev.abort();
+    const ctrl = new AbortController();
+    inflightRef.current.set(qid, ctrl);
+    setSaveState("saving");
+    try {
+      const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setSaveState("saved");
+    } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setSaveState("error");
+    } finally {
+      if (inflightRef.current.get(qid) === ctrl) inflightRef.current.delete(qid);
+    }
+  }, [attemptId]);
+
+  const scheduleSave = useCallback((qid: string, payload: SavePayload, immediate = false) => {
+    if (!attemptId) return;
+    const existing = saveTimersRef.current.get(qid);
+    if (existing) clearTimeout(existing);
+    saveTimersRef.current.delete(qid);
+    if (immediate) { void sendSave(qid, payload); return; }
+    const t = setTimeout(() => { saveTimersRef.current.delete(qid); void sendSave(qid, payload); }, 500);
+    saveTimersRef.current.set(qid, t);
+  }, [attemptId, sendSave]);
+
+  const buildPayload = useCallback((q: Question, isMarkedForReview: boolean): SavePayload => {
+    let selectedOption: Option | null = null;
+    let selectedOptions: Option[] | null = null;
+    let numericalResponse: number | null = null;
+    if (q.questionType === "mcq") selectedOption = answers[q.id] ?? null;
     else if (q.questionType === "multi") {
       const arr = multiAnswers[q.id] ?? [];
-      payload.selectedOptions = arr.length > 0 ? arr : null;
+      selectedOptions = arr.length > 0 ? arr : null;
     } else if (q.questionType === "numerical") {
       const raw = numAnswers[q.id];
       const n = raw !== undefined && raw.trim() !== "" ? Number(raw) : NaN;
-      payload.numericalResponse = Number.isFinite(n) ? n : null;
+      numericalResponse = Number.isFinite(n) ? n : null;
     }
-    return payload;
+    return { questionId: q.id, selectedOption, selectedOptions, numericalResponse, isMarkedForReview };
   }, [answers, multiAnswers, numAnswers]);
-
-  const saveAnswerForQuestion = useCallback((q: Question, isMarkedForReview: boolean, immediate = false) => {
-    if (!attemptId) return;
-    const payload = buildPayload(q, isMarkedForReview);
-    const fire = async () => {
-      const prev = inflightRef.current.get(q.id);
-      if (prev) prev.abort();
-      const ctrl = new AbortController();
-      inflightRef.current.set(q.id, ctrl);
-      setSaveState("saving");
-      try {
-        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        setSaveState("saved");
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setSaveState("error");
-      } finally {
-        if (inflightRef.current.get(q.id) === ctrl) inflightRef.current.delete(q.id);
-      }
-    };
-    const existing = saveTimersRef.current.get(q.id);
-    if (existing) clearTimeout(existing);
-    if (immediate) {
-      saveTimersRef.current.delete(q.id);
-      void fire();
-      return;
-    }
-    const t = setTimeout(() => {
-      saveTimersRef.current.delete(q.id);
-      void fire();
-    }, 500);
-    saveTimersRef.current.set(q.id, t);
-  }, [attemptId, buildPayload]);
 
   const current = questions[currentIdx];
   const answeredCount = useMemo(
@@ -201,95 +194,38 @@ export function TakeTestClient({
     setPhase("taking");
   }
 
+  const blank = (q: Question, mark: boolean): SavePayload => ({
+    questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
+    isMarkedForReview: mark,
+  });
+
   function selectMcq(q: Question, opt: Option | null) {
     setAnswers((a) => ({ ...a, [q.id]: opt }));
-    // Use a microtask so state is committed before we read it.
-    queueMicrotask(() => saveAnswerForQuestion(q, marked.has(q.id)));
+    scheduleSave(q.id, { ...blank(q, marked.has(q.id)), selectedOption: opt });
   }
 
   function toggleMulti(q: Question, opt: Option) {
     setMultiAnswers((m) => {
       const arr = m[q.id] ?? [];
-      const has = arr.includes(opt);
-      const next = has ? arr.filter((o) => o !== opt) : [...arr, opt].sort() as Option[];
-      const updated = { ...m, [q.id]: next };
-      queueMicrotask(() => {
-        // Build payload from the latest map directly to avoid stale state.
-        if (!attemptId) return;
-        const payload = {
-          questionId: q.id,
-          selectedOption: null,
-          selectedOptions: next.length > 0 ? next : null,
-          numericalResponse: null,
-          isMarkedForReview: marked.has(q.id),
-        };
-        scheduleSave(q.id, payload);
-      });
-      return updated;
+      const next = (arr.includes(opt) ? arr.filter((o) => o !== opt) : [...arr, opt].sort()) as Option[];
+      scheduleSave(q.id, { ...blank(q, marked.has(q.id)), selectedOptions: next.length > 0 ? next : null });
+      return { ...m, [q.id]: next };
     });
   }
 
   function setNumeric(q: Question, raw: string) {
     setNumAnswers((m) => ({ ...m, [q.id]: raw }));
-    queueMicrotask(() => {
-      if (!attemptId) return;
-      const n = raw.trim() !== "" ? Number(raw) : NaN;
-      const payload = {
-        questionId: q.id,
-        selectedOption: null,
-        selectedOptions: null,
-        numericalResponse: Number.isFinite(n) ? n : null,
-        isMarkedForReview: marked.has(q.id),
-      };
-      scheduleSave(q.id, payload);
-    });
+    const n = raw.trim() !== "" ? Number(raw) : NaN;
+    scheduleSave(q.id, { ...blank(q, marked.has(q.id)), numericalResponse: Number.isFinite(n) ? n : null });
   }
-
-  // Generic scheduled save used by multi + numerical handlers (which need to
-  // bypass the stale-state buildPayload path).
-  const scheduleSave = useCallback((qid: string, payload: object) => {
-    if (!attemptId) return;
-    const existing = saveTimersRef.current.get(qid);
-    if (existing) clearTimeout(existing);
-    const fire = async () => {
-      const prev = inflightRef.current.get(qid);
-      if (prev) prev.abort();
-      const ctrl = new AbortController();
-      inflightRef.current.set(qid, ctrl);
-      setSaveState("saving");
-      try {
-        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        setSaveState("saved");
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setSaveState("error");
-      } finally {
-        if (inflightRef.current.get(qid) === ctrl) inflightRef.current.delete(qid);
-      }
-    };
-    const t = setTimeout(() => { saveTimersRef.current.delete(qid); void fire(); }, 500);
-    saveTimersRef.current.set(qid, t);
-  }, [attemptId]);
 
   function clearCurrent(q: Question) {
     if (q.questionType === "multi") {
       setMultiAnswers((m) => ({ ...m, [q.id]: [] }));
-      queueMicrotask(() => scheduleSave(q.id, {
-        questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
-        isMarkedForReview: marked.has(q.id),
-      }));
+      scheduleSave(q.id, blank(q, marked.has(q.id)));
     } else if (q.questionType === "numerical") {
       setNumAnswers((m) => ({ ...m, [q.id]: "" }));
-      queueMicrotask(() => scheduleSave(q.id, {
-        questionId: q.id, selectedOption: null, selectedOptions: null, numericalResponse: null,
-        isMarkedForReview: marked.has(q.id),
-      }));
+      scheduleSave(q.id, blank(q, marked.has(q.id)));
     } else {
       selectMcq(q, null);
     }
@@ -300,40 +236,10 @@ export function TakeTestClient({
       const n = new Set(m);
       const next = !n.has(q.id);
       if (next) n.add(q.id); else n.delete(q.id);
-      // Save immediately, mark only — keep current answer payload.
-      const payload = buildPayload(q, next);
-      scheduleSaveImmediate(q.id, payload);
+      scheduleSave(q.id, buildPayload(q, next), true);
       return n;
     });
   }
-
-  const scheduleSaveImmediate = useCallback((qid: string, payload: object) => {
-    if (!attemptId) return;
-    const existing = saveTimersRef.current.get(qid);
-    if (existing) { clearTimeout(existing); saveTimersRef.current.delete(qid); }
-    void (async () => {
-      const prev = inflightRef.current.get(qid);
-      if (prev) prev.abort();
-      const ctrl = new AbortController();
-      inflightRef.current.set(qid, ctrl);
-      setSaveState("saving");
-      try {
-        const res = await fetch(`${BASE}/api/v1/mock-tests/attempts/${attemptId}/answer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        setSaveState("saved");
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setSaveState("error");
-      } finally {
-        if (inflightRef.current.get(qid) === ctrl) inflightRef.current.delete(qid);
-      }
-    })();
-  }, [attemptId]);
 
   async function submitAttempt() {
     if (!attemptId || phase === "submitting") return;
