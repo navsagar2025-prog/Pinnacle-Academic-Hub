@@ -222,11 +222,6 @@ export default async function StudentQuestionBankPage({
                 <div className="flex items-center gap-2 flex-wrap mb-1.5 text-xs">
                   <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
                   {q.topic && <span className="text-slate-500">· {q.topic}</span>}
-                  {(q.year || q.examName) && (
-                    <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)]">
-                      PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
-                    </span>
-                  )}
                   <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
                   <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
                   {bookmarkSet.has(q.id) && <Bookmark size={12} className="text-[var(--color-gold)] fill-[var(--color-gold)]" />}
@@ -244,6 +239,11 @@ export default async function StudentQuestionBankPage({
                 </div>
                 <p className="text-sm text-[var(--color-navy)] line-clamp-2">{q.questionText}</p>
               </div>
+              {(q.year || q.examName) && (
+                <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)] shrink-0 self-start whitespace-nowrap">
+                  PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
+                </span>
+              )}
             </Link>
           ))}
         </div>

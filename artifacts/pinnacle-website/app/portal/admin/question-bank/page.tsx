@@ -76,16 +76,16 @@ export default async function AdminQuestionBankPage({
                   <span className="badge bg-[var(--color-navy)]/10 text-[var(--color-navy)]">{q.subject}</span>
                   {q.topic && <span className="text-slate-500">· {q.topic}</span>}
                   {q.classGrade && <span className="text-slate-400">· Cls {q.classGrade}</span>}
-                  {(q.year || q.examName) && (
-                    <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)]">
-                      PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
-                    </span>
-                  )}
                   <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
                   <span className="badge bg-slate-100 text-slate-600">{TYPE_LABEL[q.questionType]}</span>
                 </div>
                 <p className="text-sm text-[var(--color-navy)] line-clamp-2">{q.questionText}</p>
               </div>
+              {(q.year || q.examName) && (
+                <span className="badge bg-[var(--color-gold)]/15 text-[var(--color-navy)] shrink-0 self-start whitespace-nowrap">
+                  PYQ{q.examName ? ` · ${q.examName}` : ""}{q.year ? ` · ${q.year}` : ""}
+                </span>
+              )}
             </Link>
           ))}
         </div>
