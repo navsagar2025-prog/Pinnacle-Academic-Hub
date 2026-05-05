@@ -63,11 +63,23 @@ export default function Navbar() {
             <Link href="/admissions" className="bg-[var(--color-gold)] text-[var(--color-navy)] px-3 py-0.5 rounded text-xs font-bold hover:bg-[var(--color-gold-light)] transition-colors">
               Enrol Now
             </Link>
+            <SignedOut>
+              {/* Single Sign In for all roles — /portal auto-routes
+                  students, parents, teachers, and admins to the right
+                  dashboard based on the user's DB role. */}
+              <SignInButton mode="modal">
+                <button className="text-white/90 hover:text-[var(--color-gold)] transition-colors font-semibold">
+                  Student / Parent / Teacher Login
+                </button>
+              </SignInButton>
+            </SignedOut>
             <SignedIn>
               {/* Use Next.js Link so basePath (/pinnacle-website) is auto-prefixed
                   — a raw <a href="/portal/student"> would route to whichever
-                  artifact is mounted at the root path on the proxy. */}
-              <Link href="/portal/student" className="text-white/80 hover:text-white transition-colors">My Portal</Link>
+                  artifact is mounted at the root path on the proxy.
+                  Use /portal (not /portal/student) so the redirect page
+                  forwards each role to the correct dashboard. */}
+              <Link href="/portal" className="text-white/80 hover:text-white transition-colors">My Portal</Link>
             </SignedIn>
           </div>
         </div>
