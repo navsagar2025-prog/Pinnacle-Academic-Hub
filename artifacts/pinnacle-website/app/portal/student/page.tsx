@@ -4,12 +4,13 @@ import {
   students, liveClasses, classRecordings, studyMaterials,
   practicePapers, feeRecords, batches, courses,
 } from "@workspace/db/schema";
-import { questionAttempts, mockTestAttempts } from "@workspace/db/schema";
-import { eq, and, gt, desc, asc, sql, or, gte } from "drizzle-orm";
+import { questionAttempts, mockTestAttempts, mockTests } from "@workspace/db/schema";
+import { eq, and, gt, desc, asc, sql, or, gte, isNull } from "drizzle-orm";
 import { Video, BookOpen, Clock, CreditCard, Bell, ChevronRight, Play, Calendar, AlertCircle, Flame } from "lucide-react";
 import Link from "next/link";
 import { WeakTopicsCard } from "@/components/portal/WeakTopicsCard";
 import { getWeakTopics } from "@/lib/server/weak-topics";
+import { UpcomingScheduledTests } from "./UpcomingScheduledTests";
 
 export const metadata = { title: "Student Dashboard" };
 
@@ -78,6 +79,37 @@ export default async function StudentDashboard() {
     : 0;
 
   const weakTopics = enrollment?.studentId ? await getWeakTopics(enrollment.studentId, { limit: 4 }) : [];
+
+  const audienceFilter = enrollment?.batchId
+    ? or(eq(mockTests.batchId, enrollment.batchId), isNull(mockTests.batchId))
+    : isNull(mockTests.batchId);
+  const upcomingScheduledTestsRaw = await db
+    .select({
+      id: mockTests.id,
+      title: mockTests.title,
+      subject: mockTests.subject,
+      examType: mockTests.examType,
+      durationMinutes: mockTests.durationMinutes,
+      scheduledStart: mockTests.scheduledStart,
+    })
+    .from(mockTests)
+    .where(and(
+      eq(mockTests.isPublished, true),
+      audienceFilter,
+      gt(mockTests.scheduledStart, new Date()),
+    ))
+    .orderBy(asc(mockTests.scheduledStart))
+    .limit(3);
+  const upcomingScheduledTests = upcomingScheduledTestsRaw
+    .filter((t) => t.scheduledStart !== null)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      subject: t.subject,
+      examType: t.examType ?? "Mixed",
+      durationMinutes: t.durationMinutes,
+      scheduledStart: (t.scheduledStart as Date).toISOString(),
+    }));
 
   // Practice streak: count of consecutive days (ending today, IST) with at
   // least one question-bank attempt OR mock-test attempt.
@@ -239,6 +271,8 @@ export default async function StudentDashboard() {
           )}
         </div>
       </div>
+
+      <UpcomingScheduledTests tests={upcomingScheduledTests} />
 
       {streak > 0 && (
         <div className="card flex items-center gap-4 border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-amber-50">

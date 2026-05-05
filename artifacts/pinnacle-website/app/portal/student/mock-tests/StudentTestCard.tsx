@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, FileQuestion, CheckCircle2, CalendarClock, Lock } from "lucide-react";
+import { formatRemaining } from "./format-remaining";
 
 export type StudentTestCardProps = {
   test: {
@@ -17,19 +18,6 @@ export type StudentTestCardProps = {
   };
   lastAttempt: { id: string; score: number; maxScore: number; isCompleted: boolean } | null;
 };
-
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return "0s";
-  const totalSec = Math.floor(ms / 1000);
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  return `${seconds}s`;
-}
 
 export function StudentTestCard({ test, lastAttempt }: StudentTestCardProps) {
   const taken = !!lastAttempt?.isCompleted;
