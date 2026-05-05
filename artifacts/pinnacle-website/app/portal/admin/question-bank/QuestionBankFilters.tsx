@@ -53,6 +53,19 @@ export function QuestionBankFilters({ subjects, years }: { subjects: string[]; y
         <input className={cls + " w-full"} placeholder="Topic or question text…" defaultValue={sp.get("q") ?? ""}
           onKeyDown={(e) => { if (e.key === "Enter") update("q", (e.target as HTMLInputElement).value); }} />
       </div>
+      {sp.get("topic") && (
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Topic</label>
+          <button
+            type="button"
+            onClick={() => update("topic", "")}
+            className="px-3 py-2 rounded-lg bg-[var(--color-maroon)]/10 text-[var(--color-maroon)] text-sm font-semibold flex items-center gap-1.5 hover:bg-[var(--color-maroon)]/20"
+          >
+            {sp.get("topic")}
+            <span className="text-xs opacity-60">×</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

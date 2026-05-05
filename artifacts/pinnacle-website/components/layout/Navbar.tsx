@@ -30,6 +30,7 @@ const NAV_LINKS = [
     href: "#",
     children: [
       { label: "Results & Toppers", href: "/results" },
+      { label: "Weekly Leaderboard", href: "/leaderboard" },
       { label: "Achievements", href: "/achievements" },
       { label: "Gallery", href: "/gallery" },
       { label: "Blog & Tips", href: "/blog" },

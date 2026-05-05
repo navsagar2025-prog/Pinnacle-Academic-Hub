@@ -2,13 +2,13 @@ import { db } from "@workspace/db";
 import { siteSettings } from "@workspace/db/schema";
 import { Settings } from "lucide-react";
 import { SettingsForm } from "./SettingsForm";
+import { SendDigestButton } from "@/components/portal/SendDigestButton";
 
 export const metadata = { title: "Settings — Admin Panel" };
 
 export default async function AdminSettingsPage() {
   const rows = await db.select().from(siteSettings);
   const settings = Object.fromEntries(rows.map((r) => [r.key, r.value ?? ""]));
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -21,6 +21,7 @@ export default async function AdminSettingsPage() {
         </div>
       </div>
       <SettingsForm settings={settings} />
+      <SendDigestButton />
     </div>
   );
 }

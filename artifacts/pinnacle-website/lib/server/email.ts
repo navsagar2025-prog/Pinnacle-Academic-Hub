@@ -276,6 +276,82 @@ export async function sendLowAttendanceAlert(params: {
   });
 }
 
+export async function sendWeeklyParentDigest(params: {
+  to: string;
+  parentName: string;
+  studentName: string;
+  weekStart: Date;
+  weekEnd: Date;
+  attendance: { present: number; absent: number; late: number; total: number };
+  mockTests: Array<{ title: string; score: number; maxScore: number; date: Date }>;
+  upcomingClasses: Array<{ subject: string; topic: string | null; scheduledAt: Date }>;
+  pendingFees: { count: number; totalAmount: number };
+}): Promise<SendResult> {
+  const fmtDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const fmtDateTime = (d: Date) => d.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const a = params.attendance;
+  const attPct = a.total > 0 ? Math.round(((a.present + a.late * 0.5) / a.total) * 100) : null;
+  const attRow = a.total === 0
+    ? `<tr><td colspan="2" style="padding:12px;color:#94a3b8;font-size:13px;text-align:center;">No attendance records this week.</td></tr>`
+    : `<tr>
+         <td style="padding:14px 16px;text-align:center;">
+           <div style="font-size:28px;font-weight:800;color:${attPct! >= 75 ? "#059669" : "#b45309"};">${attPct}%</div>
+           <div style="font-size:11px;color:#64748b;">attendance</div>
+         </td>
+         <td style="padding:14px 16px;text-align:center;border-left:1px solid #e2e8f0;font-size:13px;color:#475569;">
+           Present: <strong>${a.present}</strong> · Absent: <strong>${a.absent}</strong> · Late: <strong>${a.late}</strong>
+         </td>
+       </tr>`;
+  const testsBlock = params.mockTests.length === 0
+    ? `<p style="margin:0;color:#94a3b8;font-size:13px;">No tests taken this week.</p>`
+    : `<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        ${params.mockTests.map((t) => {
+          const pct = t.maxScore > 0 ? Math.round((t.score / t.maxScore) * 100) : 0;
+          const color = pct >= 75 ? "#059669" : pct >= 50 ? "#b45309" : "#b91c1c";
+          return `<tr>
+            <td style="padding:10px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;">
+              <div style="font-weight:600;">${escHtml(t.title)}</div>
+              <div style="font-size:11px;color:#94a3b8;">${fmtDate(t.date)}</div>
+            </td>
+            <td style="padding:10px 14px;text-align:right;border-bottom:1px solid #f1f5f9;">
+              <div style="font-weight:700;color:${color};">${t.score}/${t.maxScore}</div>
+              <div style="font-size:11px;color:${color};">${pct}%</div>
+            </td>
+          </tr>`;
+        }).join("")}
+       </table>`;
+  const upcomingBlock = params.upcomingClasses.length === 0
+    ? `<p style="margin:0;color:#94a3b8;font-size:13px;">No live classes scheduled in the next 7 days.</p>`
+    : `<ul style="margin:0;padding:0 0 0 18px;color:#475569;font-size:13px;line-height:1.7;">
+        ${params.upcomingClasses.map((c) => `<li><strong>${escHtml(c.subject)}</strong>${c.topic ? ` — ${escHtml(c.topic)}` : ""} <span style="color:#94a3b8;">· ${fmtDateTime(c.scheduledAt)}</span></li>`).join("")}
+       </ul>`;
+  const feesBlock = params.pendingFees.count > 0
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 18px;margin-bottom:24px;">
+         <div style="font-weight:700;color:#b91c1c;font-size:14px;">Fees due: ₹${params.pendingFees.totalAmount.toLocaleString("en-IN")}</div>
+         <div style="font-size:12px;color:#7f1d1d;margin-top:2px;">${params.pendingFees.count} pending instalment${params.pendingFees.count > 1 ? "s" : ""} — please clear at the parent portal.</div>
+       </div>`
+    : "";
+  return send({
+    to: params.to,
+    subject: `${params.studentName}'s weekly progress — Pinnacle Academic Classes`,
+    html: emailLayout(`
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;color:#0A1F5C;">Weekly progress for ${escHtml(params.studentName)}</h1>
+      <p style="margin:0 0 24px;color:#64748b;font-size:13px;">${fmtDate(params.weekStart)} — ${fmtDate(params.weekEnd)} · Dear ${escHtml(params.parentName)},</p>
+      ${feesBlock}
+      <h2 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#0A1F5C;">📅 Attendance this week</h2>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">${attRow}</table>
+      <h2 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#0A1F5C;">📝 Mock tests this week</h2>
+      <div style="margin-bottom:24px;">${testsBlock}</div>
+      <h2 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#0A1F5C;">🎓 Upcoming live classes</h2>
+      <div style="margin-bottom:24px;">${upcomingBlock}</div>
+      <div style="text-align:center;margin-top:8px;">
+        <a href="${SITE_URL}/portal/parent" style="display:inline-block;background:#0A1F5C;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:8px;">Open Parent Portal</a>
+      </div>
+      <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;text-align:center;">You receive this digest every Sunday. Manage notifications from your parent portal.</p>
+    `),
+  });
+}
+
 export async function sendTestEmail(to: string): Promise<SendResult> {
   return send({
     to,

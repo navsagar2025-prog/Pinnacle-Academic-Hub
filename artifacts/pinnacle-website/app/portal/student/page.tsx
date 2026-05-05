@@ -4,9 +4,12 @@ import {
   students, liveClasses, classRecordings, studyMaterials,
   practicePapers, feeRecords, batches, courses,
 } from "@workspace/db/schema";
-import { eq, and, gt, desc, asc, sql } from "drizzle-orm";
-import { Video, BookOpen, Clock, CreditCard, Bell, ChevronRight, Play, Calendar, AlertCircle } from "lucide-react";
+import { questionAttempts, mockTestAttempts } from "@workspace/db/schema";
+import { eq, and, gt, desc, asc, sql, or, gte } from "drizzle-orm";
+import { Video, BookOpen, Clock, CreditCard, Bell, ChevronRight, Play, Calendar, AlertCircle, Flame } from "lucide-react";
 import Link from "next/link";
+import { WeakTopicsCard } from "@/components/portal/WeakTopicsCard";
+import { getWeakTopics } from "@/lib/server/weak-topics";
 
 export const metadata = { title: "Student Dashboard" };
 
@@ -73,6 +76,47 @@ export default async function StudentDashboard() {
         .where(and(eq(feeRecords.studentId, enrollment.studentId), sql`status IN ('due','overdue')`))
         .then((r) => r[0]?.c ?? 0)
     : 0;
+
+  const weakTopics = enrollment?.studentId ? await getWeakTopics(enrollment.studentId, { limit: 4 }) : [];
+
+  // Practice streak: count of consecutive days (ending today, IST) with at
+  // least one question-bank attempt OR mock-test attempt.
+  let streak = 0;
+  if (enrollment?.studentId) {
+    const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    const [qbDays, mockDays] = await Promise.all([
+      db.select({ d: sql<string>`(${questionAttempts.createdAt} at time zone 'Asia/Kolkata')::date::text` })
+        .from(questionAttempts)
+        .where(and(eq(questionAttempts.studentId, enrollment.studentId), gte(questionAttempts.createdAt, since)))
+        .groupBy(sql`(${questionAttempts.createdAt} at time zone 'Asia/Kolkata')::date`),
+      db.select({ d: sql<string>`(${mockTestAttempts.startedAt} at time zone 'Asia/Kolkata')::date::text` })
+        .from(mockTestAttempts)
+        .where(and(eq(mockTestAttempts.studentId, enrollment.studentId), gte(mockTestAttempts.startedAt, since)))
+        .groupBy(sql`(${mockTestAttempts.startedAt} at time zone 'Asia/Kolkata')::date`),
+    ]);
+    const days = new Set<string>();
+    for (const r of qbDays) days.add(r.d);
+    for (const r of mockDays) days.add(r.d);
+    // en-CA gives YYYY-MM-DD which matches Postgres ::date::text output exactly,
+    // and respecting timeZone avoids any UTC conversion drift.
+    const istKey = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    const todayKey = istKey(new Date());
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = istKey(d);
+      if (days.has(key)) streak++;
+      else if (i === 0) continue;  // grace if user hasn't practiced yet today
+      else break;
+    }
+    // If today wasn't practiced AND yesterday wasn't either, the streak is broken.
+    if (streak > 0 && !days.has(todayKey)) {
+      const yKey = istKey(new Date(Date.now() - 86400000));
+      if (!days.has(yKey)) streak = 0;
+    }
+  }
+  // Suppress unused-import warning for `or` (kept for future filters).
+  void or;
 
   const SUBJECT_COLORS: Record<string, string> = {
     Physics: "bg-[var(--color-navy)]/10 text-[var(--color-navy)]",
@@ -195,6 +239,25 @@ export default async function StudentDashboard() {
           )}
         </div>
       </div>
+
+      {streak > 0 && (
+        <div className="card flex items-center gap-4 border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-amber-50">
+          <div className="w-12 h-12 rounded-full bg-orange-500 text-white flex items-center justify-center flex-shrink-0">
+            <Flame size={22} fill="currentColor" />
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-[var(--color-navy)] flex items-center gap-2">
+              {streak}-day practice streak
+              <span className="text-xs font-normal text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
+                {streak >= 30 ? "🏆 Legendary" : streak >= 14 ? "🔥 On fire" : streak >= 7 ? "💪 Strong" : "Keep going"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">Practice today to keep your streak alive — every session counts toward exam readiness.</p>
+          </div>
+        </div>
+      )}
+
+      {weakTopics.length > 0 && <WeakTopicsCard weakTopics={weakTopics} variant="compact" />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[

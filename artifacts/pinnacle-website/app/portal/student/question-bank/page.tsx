@@ -5,6 +5,8 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { Sparkles, Bookmark, CheckCircle2, Target, Clock, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "../../admin/question-bank/QuestionBankFilters";
+import { WeakTopicsCard } from "@/components/portal/WeakTopicsCard";
+import { getWeakTopics } from "@/lib/server/weak-topics";
 
 export const metadata = { title: "Question Bank — Student Portal" };
 
@@ -18,7 +20,7 @@ const DIFF_COLOR: Record<string, string> = {
 export default async function StudentQuestionBankPage({
   searchParams,
 }: {
-  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; q?: string; bookmarked?: string }>;
+  searchParams: Promise<{ subject?: string; difficulty?: string; type?: string; year?: string; q?: string; bookmarked?: string; topic?: string }>;
 }) {
   const user = await requirePortalRole("student");
   const sp = await searchParams;
@@ -99,6 +101,7 @@ export default async function StudentQuestionBankPage({
     if (sp.difficulty && q.difficulty !== sp.difficulty) return false;
     if (sp.type && q.questionType !== sp.type) return false;
     if (sp.year && q.year !== Number(sp.year)) return false;
+    if (sp.topic && (q.topic ?? "").toLowerCase() !== sp.topic.toLowerCase()) return false;
     if (sp.q) {
       const needle = sp.q.toLowerCase();
       if (!q.questionText.toLowerCase().includes(needle) && !(q.topic ?? "").toLowerCase().includes(needle)) return false;
@@ -109,6 +112,8 @@ export default async function StudentQuestionBankPage({
 
   const subjects = Array.from(new Set(all.map((q) => q.subject))).sort();
   const years = Array.from(new Set(all.map((q) => q.year).filter((y): y is number => !!y))).sort((a, b) => b - a);
+
+  const weakTopics = student ? await getWeakTopics(student.id) : [];
 
   return (
     <div className="space-y-6">
@@ -195,6 +200,8 @@ export default async function StudentQuestionBankPage({
           </div>
         </div>
       )}
+
+      <WeakTopicsCard weakTopics={weakTopics} />
 
       <QuestionBankFilters subjects={subjects} years={years} />
 
