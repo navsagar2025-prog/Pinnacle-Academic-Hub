@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
@@ -189,7 +190,7 @@ export default async function ResultsPage() {
               Your Name Could Be Here Next Year
             </h2>
             <p className="text-white/70 mb-6">Join Pinnacle today and start building the rank you deserve.</p>
-            <a href="/admissions" className="btn-gold px-10 py-3.5 text-base">Enrol Now</a>
+            <Link href="/admissions" className="btn-gold px-10 py-3.5 text-base">Enrol Now</Link>
           </div>
         </section>
       </main>

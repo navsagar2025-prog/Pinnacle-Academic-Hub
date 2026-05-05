@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
@@ -41,7 +42,7 @@ export default function FAQPage() {
           </div>
           <div className="text-center mt-10">
             <p className="text-slate-600 mb-3">Still have questions?</p>
-            <a href="/contact" className="btn-secondary px-8 py-3">Contact Us</a>
+            <Link href="/contact" className="btn-secondary px-8 py-3">Contact Us</Link>
           </div>
         </section>
       </main>

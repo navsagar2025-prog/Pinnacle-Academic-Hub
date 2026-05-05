@@ -60,11 +60,14 @@ export default function Navbar() {
             <span className="hidden md:inline">Unit of KCK Corporate Services Pvt. Ltd.</span>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/admissions" className="bg-[var(--color-gold)] text-[var(--color-navy)] px-3 py-0.5 rounded text-xs font-bold hover:bg-[var(--color-gold-light)] transition-colors">
+            <Link href="/admissions" className="bg-[var(--color-gold)] text-[var(--color-navy)] px-3 py-0.5 rounded text-xs font-bold hover:bg-[var(--color-gold-light)] transition-colors">
               Enrol Now
-            </a>
+            </Link>
             <SignedIn>
-              <a href="/portal/student" className="text-white/80 hover:text-white transition-colors">My Portal</a>
+              {/* Use Next.js Link so basePath (/pinnacle-website) is auto-prefixed
+                  — a raw <a href="/portal/student"> would route to whichever
+                  artifact is mounted at the root path on the proxy. */}
+              <Link href="/portal/student" className="text-white/80 hover:text-white transition-colors">My Portal</Link>
             </SignedIn>
           </div>
         </div>
@@ -152,10 +155,10 @@ export default function Navbar() {
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>
-          <a href="/admissions" className="btn-primary text-sm py-2">
+          <Link href="/admissions" className="btn-primary text-sm py-2">
             <BookOpen size={15} />
             Book Demo Class
-          </a>
+          </Link>
         </div>
 
         {/* Mobile menu toggle */}
@@ -200,10 +203,10 @@ export default function Navbar() {
                 <span className="text-sm text-slate-600">My Account</span>
               </div>
             </SignedIn>
-            <a href="/admissions" className="btn-primary w-full justify-center py-2.5">
+            <Link href="/admissions" className="btn-primary w-full justify-center py-2.5">
               <BookOpen size={15} />
               Book Demo Class
-            </a>
+            </Link>
           </div>
         </div>
       )}

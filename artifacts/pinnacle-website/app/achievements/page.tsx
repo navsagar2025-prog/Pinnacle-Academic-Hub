@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
@@ -137,7 +138,7 @@ export default function AchievementsPage() {
           <div className="max-w-2xl mx-auto px-4">
             <h2 className="font-[family-name:var(--font-playfair)] text-white text-2xl font-bold mb-3">Write Your Own Success Story</h2>
             <p className="text-white/70 mb-6">Admissions open for 2026–27. Limited seats in all batches.</p>
-            <a href="/admissions" className="btn-primary py-3 px-8">Apply Now</a>
+            <Link href="/admissions" className="btn-primary py-3 px-8">Apply Now</Link>
           </div>
         </section>
       </main>

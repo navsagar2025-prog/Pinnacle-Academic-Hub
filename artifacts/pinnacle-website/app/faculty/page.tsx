@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
@@ -77,7 +78,7 @@ export default function FacultyPage() {
               Experience the Teaching Difference
             </h2>
             <p className="text-white/70 mb-6">Attend a free demo class to experience our faculty's teaching style firsthand.</p>
-            <a href="/admissions" className="btn-gold px-10 py-3.5 text-base">Book Free Demo Class</a>
+            <Link href="/admissions" className="btn-gold px-10 py-3.5 text-base">Book Free Demo Class</Link>
           </div>
         </section>
       </main>
