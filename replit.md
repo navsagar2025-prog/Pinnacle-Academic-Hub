@@ -65,6 +65,28 @@ A consistent brand identity is maintained across all platforms:
 - **Mockup Sandbox (`artifacts/mockup-sandbox`)**: Vite dev server for canvas component previews.
 - **Pinnacle Proposal (`artifacts/pinnacle-proposal`)**: React + Vite based 25-slide pitch deck.
 
+## Cron / Scheduled Jobs
+
+The Next.js platform exposes scheduler-friendly endpoints under `artifacts/pinnacle-website/app/api/v1/cron/*`. They are not driven by an in-process cron — they expect an external scheduler (Replit Scheduled Deployment recommended) to issue an HTTP `POST` with `Authorization: Bearer $CRON_SECRET`. If `CRON_SECRET` is unset, every cron route fail-closes with `503`.
+
+| Endpoint | Frequency | Purpose |
+| --- | --- | --- |
+| `POST /api/v1/cron/auto-publish-mock-tests` | every 5 min | Flip `isPublished` once `scheduledStart` passes. |
+| `POST /api/v1/cron/mock-test-reminders` | every 5 min | Email reminders for tests starting in ~60 min / just opened. |
+| `POST /api/v1/cron/parent-digest` | weekly (Mon 07:00) | Compose & send weekly parent digests. |
+| `POST /api/v1/cron/purge-deleted-questions` | **daily (03:15 UTC)** | Hard-delete question-bank rows whose `deletedAt` is older than 7 days. |
+
+### Daily auto-purge of deleted questions
+
+Set up a Replit Scheduled Deployment (or any external cron) that runs **once per day** and executes:
+
+```bash
+curl -fsS -X POST "$SITE_URL/api/v1/cron/purge-deleted-questions" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+The route always writes a heartbeat row to `audit_logs` (`action=qb.delete.cron_run`, `entityType=cron`, `entityId=purge-deleted-questions`) with `{ purged, cutoff, purgeAfterDays }` in `details`, even on days when no rows are eligible. Admins can confirm the job is alive at `/portal/admin/question-bank/bin`, which displays a green "healthy" banner with the last-run timestamp and rows-purged count, or an amber "stale" warning if no run has been recorded in the last 36 hours.
+
 # External Dependencies
 
 - **Database**: PostgreSQL

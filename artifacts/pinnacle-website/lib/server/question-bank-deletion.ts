@@ -16,7 +16,11 @@ export type QbAuditAction =
   | "qb.delete.approved"
   | "qb.delete.bulk_approved"
   | "qb.delete.restored"
-  | "qb.delete.purged";
+  | "qb.delete.purged"
+  | "qb.delete.cron_run";
+
+/** Stable identifier used in audit_logs for the daily purge cron heartbeat. */
+export const PURGE_CRON_AUDIT_ENTITY_ID = "purge-deleted-questions";
 
 export async function logQbAudit(opts: {
   actorId: string | null;

@@ -1,16 +1,44 @@
 import { db } from "@workspace/db";
-import { questionBank, users } from "@workspace/db/schema";
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { questionBank, users, auditLogs } from "@workspace/db/schema";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import Link from "next/link";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, Clock, Trash2 } from "lucide-react";
 import { RestoreButton } from "./RestoreButton";
-import { PURGE_AFTER_DAYS } from "@/lib/server/question-bank-deletion";
+import {
+  PURGE_AFTER_DAYS,
+  PURGE_CRON_AUDIT_ENTITY_ID,
+} from "@/lib/server/question-bank-deletion";
 
 export const metadata = { title: "Recycle Bin — Admin Panel" };
 
 export default async function BinPage() {
   await requirePortalRole("admin");
+
+  const [lastCronRun] = await db
+    .select({
+      createdAt: auditLogs.createdAt,
+      details: auditLogs.details,
+    })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.action, "qb.delete.cron_run"),
+        eq(auditLogs.entityType, "cron"),
+        eq(auditLogs.entityId, PURGE_CRON_AUDIT_ENTITY_ID),
+      ),
+    )
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(1);
+
+  const lastPurgedCount =
+    lastCronRun?.details && typeof (lastCronRun.details as { purged?: unknown }).purged === "number"
+      ? ((lastCronRun.details as { purged: number }).purged)
+      : null;
+  const hoursSinceRun = lastCronRun
+    ? (Date.now() - new Date(lastCronRun.createdAt).getTime()) / (60 * 60 * 1000)
+    : null;
+  const cronStale = hoursSinceRun === null || hoursSinceRun > 36;
 
   const rows = await db
     .select({
@@ -41,6 +69,37 @@ export default async function BinPage() {
         <p className="text-slate-500 text-sm mt-1">
           Soft-deleted questions stay here for {PURGE_AFTER_DAYS} days, then auto-purge. Restore anytime to bring them back to the bank.
         </p>
+      </div>
+
+      <div
+        className={`card flex items-start gap-3 text-xs ${
+          cronStale
+            ? "border-amber-300 bg-amber-50 text-amber-900"
+            : "border-emerald-200 bg-emerald-50 text-emerald-900"
+        }`}
+      >
+        <Clock size={16} className="mt-0.5 shrink-0" />
+        <div className="space-y-0.5">
+          <div className="font-semibold">
+            Daily auto-purge job:{" "}
+            {lastCronRun ? (cronStale ? "stale — last run was over 36h ago" : "healthy") : "has never run yet"}
+          </div>
+          <div>
+            {lastCronRun ? (
+              <>
+                Last run <b>{new Date(lastCronRun.createdAt).toLocaleString()}</b>
+                {lastPurgedCount !== null ? (
+                  <> · purged <b>{lastPurgedCount}</b> question{lastPurgedCount === 1 ? "" : "s"}</>
+                ) : null}
+              </>
+            ) : (
+              <>
+                Schedule a daily POST to <code className="bg-white/60 px-1 py-0.5 rounded">/api/v1/cron/purge-deleted-questions</code> with{" "}
+                <code className="bg-white/60 px-1 py-0.5 rounded">Authorization: Bearer $CRON_SECRET</code>.
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {rows.length === 0 ? (

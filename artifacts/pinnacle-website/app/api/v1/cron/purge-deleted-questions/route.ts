@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { questionBank } from "@workspace/db/schema";
+import { questionBank, auditLogs } from "@workspace/db/schema";
 import { and, isNotNull, lt, sql } from "drizzle-orm";
-import { PURGE_AFTER_DAYS, logQbAuditBulk } from "@/lib/server/question-bank-deletion";
+import {
+  PURGE_AFTER_DAYS,
+  PURGE_CRON_AUDIT_ENTITY_ID,
+  logQbAuditBulk,
+} from "@/lib/server/question-bank-deletion";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +42,21 @@ export async function POST(req: NextRequest) {
     action: "qb.delete.purged",
     ids: purged.map((p) => p.id),
     details: { cutoff: cutoff.toISOString() },
+  });
+
+  // Always record a heartbeat row so admins can confirm the daily job is alive,
+  // even on days when zero rows were eligible for purge.
+  await db.insert(auditLogs).values({
+    actorId: null,
+    actorName: "system:purge-cron",
+    action: "qb.delete.cron_run",
+    entityType: "cron",
+    entityId: PURGE_CRON_AUDIT_ENTITY_ID,
+    details: {
+      purged: purged.length,
+      cutoff: cutoff.toISOString(),
+      purgeAfterDays: PURGE_AFTER_DAYS,
+    },
   });
 
   console.log(`[purge-deleted-questions] purged ${purged.length} questions older than ${PURGE_AFTER_DAYS}d`);
