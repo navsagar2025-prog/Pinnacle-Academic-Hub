@@ -1,7 +1,7 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { questionBank, questionBookmarks, questionAttempts, students } from "@workspace/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -20,10 +20,15 @@ export default async function StudentQuestionDetailPage({
   const user = await requirePortalRole("student");
   const { id } = await params;
   const sp = await searchParams;
+  // Fetch the question regardless of soft-delete state. If it has been
+  // removed, we still want students to land on a placeholder so their prior
+  // attempts (and the contribution to their stats) remain reviewable — but
+  // we suppress the body, options, correct answer and solution.
   const [q] = await db.select().from(questionBank)
-    .where(and(eq(questionBank.id, id), sql`${questionBank.deletedAt} is null`))
+    .where(eq(questionBank.id, id))
     .limit(1);
   if (!q) notFound();
+  const isDeleted = q.deletedAt !== null;
 
   const [student] = await db.select({ id: students.id }).from(students)
     .where(and(eq(students.userId, user.id), eq(students.isActive, true))).limit(1);
@@ -74,13 +79,14 @@ export default async function StudentQuestionDetailPage({
           year: q.year,
           difficulty: q.difficulty,
           questionType: q.questionType,
-          questionText: q.questionText,
-          imageUrl: q.imageUrl,
-          options: opts,
-          correctAnswer: q.correctAnswer,
-          solution: q.solution,
-          solutionImageUrl: q.solutionImageUrl,
+          questionText: isDeleted ? "" : q.questionText,
+          imageUrl: isDeleted ? null : q.imageUrl,
+          options: isDeleted ? null : opts,
+          correctAnswer: isDeleted ? "" : q.correctAnswer,
+          solution: isDeleted ? null : q.solution,
+          solutionImageUrl: isDeleted ? null : q.solutionImageUrl,
         }}
+        isDeleted={isDeleted}
         initialBookmarked={bookmarked}
         initialAttempts={priorAttempts}
       />

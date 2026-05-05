@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Bookmark, Eye, CheckCircle2, XCircle, History } from "lucide-react";
+import { Bookmark, Eye, CheckCircle2, XCircle, History, AlertCircle } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -35,10 +35,12 @@ type PriorAttempt = {
 
 export function PracticeView({
   question: q,
+  isDeleted = false,
   initialBookmarked,
   initialAttempts,
 }: {
   question: Q;
+  isDeleted?: boolean;
   initialBookmarked: boolean;
   initialAttempts: PriorAttempt[];
 }) {
@@ -139,16 +141,33 @@ export function PracticeView({
             {q.year && <span className="text-slate-400">· PYQ {q.year}</span>}
             <span className={`badge ${DIFF_COLOR[q.difficulty]}`}>{q.difficulty}</span>
           </div>
-          <button onClick={toggleBookmark} disabled={bmLoading}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${bookmarked ? "border-[var(--color-gold)] bg-[var(--color-gold)]/10 text-[var(--color-gold)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-            <Bookmark size={13} className={bookmarked ? "fill-[var(--color-gold)]" : ""} />
-            {bookmarked ? "Bookmarked" : "Bookmark"}
-          </button>
+          {!isDeleted && (
+            <button onClick={toggleBookmark} disabled={bmLoading}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${bookmarked ? "border-[var(--color-gold)] bg-[var(--color-gold)]/10 text-[var(--color-gold)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+              <Bookmark size={13} className={bookmarked ? "fill-[var(--color-gold)]" : ""} />
+              {bookmarked ? "Bookmarked" : "Bookmark"}
+            </button>
+          )}
         </div>
-        <p className="text-[var(--color-navy)] whitespace-pre-line">{q.questionText}</p>
-        {q.imageUrl && <img src={q.imageUrl} alt="Question diagram" className="max-w-full rounded-lg border border-slate-100" />}
 
-        {isMcq ? (
+        {isDeleted ? (
+          <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <AlertCircle size={18} className="text-slate-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-700">This question has been removed</p>
+              <p className="text-xs text-slate-500">
+                Your previous attempts are preserved below and still count toward your overall stats.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-[var(--color-navy)] whitespace-pre-line">{q.questionText}</p>
+            {q.imageUrl && <img src={q.imageUrl} alt="Question diagram" className="max-w-full rounded-lg border border-slate-100" />}
+          </>
+        )}
+
+        {!isDeleted && (isMcq ? (
           <div className="space-y-2 pt-2">
             {(["A", "B", "C", "D"] as const).map((opt) => {
               const text = q.options?.[opt];
@@ -178,30 +197,32 @@ export function PracticeView({
               disabled={revealed}
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-y" placeholder="Type your answer here…" />
           </div>
-        )}
+        ))}
 
-        <div className="flex items-center justify-between gap-3 pt-2">
-          {!revealed ? (
-            <button onClick={recordAttempt}
-              disabled={saving || (isMcq ? !selected : !textAnswer.trim())}
-              className="btn-gold px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50">
-              <Eye size={14} /> Reveal Solution
-            </button>
-          ) : (
-            <button onClick={tryAgain}
-              className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-              Try Again
-            </button>
-          )}
-          {revealed && isMcq && (
-            <span className={`text-sm font-semibold ${correct ? "text-green-700" : "text-rose-700"}`}>
-              {correct ? "Correct! 🎉" : `Correct answer: ${q.correctAnswer}`}
-            </span>
-          )}
-        </div>
+        {!isDeleted && (
+          <div className="flex items-center justify-between gap-3 pt-2">
+            {!revealed ? (
+              <button onClick={recordAttempt}
+                disabled={saving || (isMcq ? !selected : !textAnswer.trim())}
+                className="btn-gold px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50">
+                <Eye size={14} /> Reveal Solution
+              </button>
+            ) : (
+              <button onClick={tryAgain}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Try Again
+              </button>
+            )}
+            {revealed && isMcq && (
+              <span className={`text-sm font-semibold ${correct ? "text-green-700" : "text-rose-700"}`}>
+                {correct ? "Correct! 🎉" : `Correct answer: ${q.correctAnswer}`}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {saveError && (
+      {!isDeleted && saveError && (
         <div className="card border-l-4 border-l-rose-400 bg-rose-50 flex items-center justify-between gap-3">
           <p className="text-xs text-rose-700">We couldn&apos;t save this attempt to your history.</p>
           <button onClick={retrySave} disabled={saving}
