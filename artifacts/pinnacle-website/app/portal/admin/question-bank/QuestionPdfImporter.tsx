@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileUp, X, CheckCircle2, AlertCircle, Sparkles, Trash2, ImagePlus } from "lucide-react";
+import { FileUp, X, CheckCircle2, AlertCircle, Sparkles, Trash2, ImagePlus, Copy, ExternalLink } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -24,6 +24,8 @@ type Draft = {
   hasFigure: boolean;
   figureDescription: string;
   figurePage: number | null;
+  duplicateOf: { id: string; questionText: string; score: number } | null;
+  skip?: boolean;
 };
 
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General Knowledge"];
@@ -118,6 +120,10 @@ export function QuestionPdfImporter() {
         ...d,
         // Make sure mcq always has option scaffolding for editing
         options: d.questionType === "mcq" ? (d.options ?? { A: "", B: "", C: "", D: "" }) : null,
+        duplicateOf: d.duplicateOf ?? null,
+        // Pre-tick the skip box for likely duplicates so the safe default is to
+        // not re-import them. Admin can untick to keep them.
+        skip: d.duplicateOf ? true : false,
       }));
       if (list.length === 0) { setError("AI did not detect any questions in this PDF. Try a clearer scan."); setStage("pick"); return; }
       setDrafts(list);
@@ -162,7 +168,12 @@ export function QuestionPdfImporter() {
   }
 
   async function commit() {
-    const incomplete = drafts.filter((d) => missingFieldsFor(d).length > 0);
+    const toSave = drafts.filter((d) => !d.skip);
+    if (toSave.length === 0) {
+      setError("All drafts are marked to skip. Untick at least one to save.");
+      return;
+    }
+    const incomplete = toSave.filter((d) => missingFieldsFor(d).length > 0);
     if (incomplete.length > 0) {
       const ok = window.confirm(
         `${incomplete.length} draft${incomplete.length === 1 ? "" : "s"} ${incomplete.length === 1 ? "is" : "are"} missing required fields (e.g. answer or MCQ options) and will be skipped during save. Continue anyway?`,
@@ -170,7 +181,7 @@ export function QuestionPdfImporter() {
       if (!ok) return;
     }
     setError(""); setStage("saving");
-    const rows = drafts.map((d) => ({
+    const rows = toSave.map((d) => ({
       subject: d.subject,
       topic: d.topic,
       classGrade: d.classGrade,
@@ -278,18 +289,79 @@ export function QuestionPdfImporter() {
 
               {stage === "review" && (
                 <>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <p className="text-sm text-slate-600">
                       <span className="font-semibold text-[var(--color-navy)]">{drafts.length}</span> draft question{drafts.length === 1 ? "" : "s"}.
                       Edit anything you need, remove unwanted rows, then save.
+                      {drafts.some((d) => d.duplicateOf) && (
+                        <span className="ml-2 text-rose-700 font-semibold">
+                          {drafts.filter((d) => d.duplicateOf).length} possible duplicate{drafts.filter((d) => d.duplicateOf).length === 1 ? "" : "s"} flagged.
+                        </span>
+                      )}
                     </p>
+                    {drafts.some((d) => d.duplicateOf) && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setDrafts((prev) => prev.map((d) => d.duplicateOf ? { ...d, skip: true } : d))}
+                          className="px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 font-semibold"
+                        >
+                          Skip all duplicates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDrafts((prev) => prev.map((d) => d.duplicateOf ? { ...d, skip: false } : d))}
+                          className="px-2 py-1 rounded border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold"
+                        >
+                          Keep all duplicates
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-4">
                     {drafts.map((d, idx) => {
                       const missing = missingFieldsFor(d);
+                      const dup = d.duplicateOf;
+                      const cardClass = d.skip
+                        ? "border-slate-200 bg-slate-50/60 opacity-70"
+                        : dup
+                          ? "border-rose-300 bg-rose-50/30"
+                          : missing.length > 0
+                            ? "border-amber-300 bg-amber-50/30"
+                            : "border-slate-200";
                       return (
-                      <div key={d.draftId} className={`border rounded-lg p-4 space-y-3 ${missing.length > 0 ? "border-amber-300 bg-amber-50/30" : "border-slate-200"}`}>
+                      <div key={d.draftId} className={`border rounded-lg p-4 space-y-3 ${cardClass}`}>
+                        {dup && (
+                          <div className="text-xs text-rose-800 bg-rose-100 border border-rose-200 rounded px-2 py-1.5 flex items-start gap-2">
+                            <Copy size={14} className="shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p>
+                                <strong>Similar to existing question</strong>
+                                <span className="text-rose-600/80 ml-1">(match score {dup.score.toFixed(2)})</span>
+                                : <span className="italic">&ldquo;{dup.questionText}&rdquo;</span>
+                              </p>
+                              <div className="mt-1 flex items-center gap-3">
+                                <a
+                                  href={`${BASE}/portal/admin/question-bank/${dup.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 underline font-semibold"
+                                >
+                                  View existing <ExternalLink size={11} />
+                                </a>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(d.skip)}
+                                    onChange={(e) => updateDraft(idx, { skip: e.target.checked })}
+                                  />
+                                  <span>Skip this draft on save</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {missing.length > 0 && (
                           <div className="text-xs text-amber-800 bg-amber-100 rounded px-2 py-1 inline-flex items-center gap-1">
                             <AlertCircle size={12} /> Missing: {missing.join(", ")}. Will be skipped at save unless filled in.
@@ -410,9 +482,15 @@ export function QuestionPdfImporter() {
               {stage === "review" && (
                 <>
                   <button onClick={reset} className="text-sm px-4 py-2 text-slate-600 font-semibold">Discard & start over</button>
-                  <button onClick={commit} disabled={drafts.length === 0} className="btn-gold text-sm px-4 py-2 disabled:opacity-50">
-                    Save {drafts.length} question{drafts.length === 1 ? "" : "s"}
-                  </button>
+                  {(() => {
+                    const keepCount = drafts.filter((d) => !d.skip).length;
+                    const skipped = drafts.length - keepCount;
+                    return (
+                      <button onClick={commit} disabled={keepCount === 0} className="btn-gold text-sm px-4 py-2 disabled:opacity-50">
+                        Save {keepCount} question{keepCount === 1 ? "" : "s"}{skipped > 0 ? ` (${skipped} skipped)` : ""}
+                      </button>
+                    );
+                  })()}
                 </>
               )}
               {stage === "done" && (

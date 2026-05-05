@@ -3,6 +3,49 @@ import { getDbUser } from "@/lib/server/portal-auth";
 import { downloadObjectBytes } from "@/lib/server/object-storage";
 import { cropFiguresFromPdf, type FigureSpec } from "@/lib/server/pdf-figure-crops";
 import { GoogleGenAI } from "@google/genai";
+import { db } from "@/lib/db";
+import { questionBank } from "@workspace/db/schema";
+import { and, eq, sql, type SQL } from "drizzle-orm";
+
+type DuplicateMatch = { id: string; questionText: string; score: number };
+
+async function findDuplicateForDraft(
+  draft: { subject: string; questionText: string; year: number | null; examName: string },
+): Promise<DuplicateMatch | null> {
+  const text = draft.questionText.trim();
+  if (text.length < 10 || !draft.subject) return null;
+  // Use the first ~40 words to keep tsquery focused on the question stem.
+  const snippet = text.split(/\s+/).slice(0, 40).join(" ");
+  const conds: SQL[] = [
+    eq(questionBank.isPublished, true),
+    eq(questionBank.subject, draft.subject),
+    sql`${questionBank.searchVector} @@ plainto_tsquery('english', ${snippet})`,
+  ];
+  if (draft.year != null) conds.push(eq(questionBank.year, draft.year));
+  if (draft.examName) conds.push(eq(questionBank.examName, draft.examName));
+  try {
+    const rows = await db.select({
+      id: questionBank.id,
+      questionText: questionBank.questionText,
+      score: sql<number>`ts_rank(${questionBank.searchVector}, plainto_tsquery('english', ${snippet}))`,
+    }).from(questionBank)
+      .where(and(...conds))
+      .orderBy(sql`ts_rank(${questionBank.searchVector}, plainto_tsquery('english', ${snippet})) desc`)
+      .limit(1);
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    const score = Number(r.score);
+    if (!Number.isFinite(score) || score < 0.05) return null;
+    return {
+      id: r.id,
+      questionText: r.questionText.length > 200 ? r.questionText.slice(0, 200) + "…" : r.questionText,
+      score: Number(score.toFixed(3)),
+    };
+  } catch (err) {
+    console.error("[pdf-extract] duplicate check failed:", err);
+    return null;
+  }
+}
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -235,8 +278,23 @@ export async function POST(req: NextRequest) {
       figureDescription: asString(q.figureDescription) || "",
       figurePage: Number.isFinite(Number(q.figurePage)) ? Number(q.figurePage) : null,
       figureBbox: asBbox(q.figureBbox),
+      duplicateOf: null as DuplicateMatch | null,
     };
   }).filter((d) => d.questionText.length > 0);
+
+  // Flag likely duplicates against the existing question_bank using full-text
+  // search scoped to the same subject (and year/exam when known). The admin
+  // can choose to skip these on the review screen.
+  let duplicatesFound = 0;
+  try {
+    const matches = await Promise.all(drafts.map((d) => findDuplicateForDraft(d)));
+    drafts.forEach((d, i) => {
+      d.duplicateOf = matches[i];
+      if (matches[i]) duplicatesFound += 1;
+    });
+  } catch (err) {
+    console.error("[pdf-extract] duplicate scan failed (non-fatal):", err);
+  }
 
   // Auto-crop any detected figures from the source PDF, upload them to object
   // storage, and prefill imageUrl on each draft. Failures are non-fatal — the
@@ -274,5 +332,6 @@ export async function POST(req: NextRequest) {
     skippedCount: Math.max(0, list.length - drafts.length),
     figuresCropped,
     figuresFailed,
+    duplicatesFound,
   });
 }
