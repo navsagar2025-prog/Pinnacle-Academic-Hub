@@ -1,18 +1,35 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 
+const EXAM_TARGETS = [
+  { value: "JEE_MAIN", label: "JEE Main" },
+  { value: "JEE_ADVANCED", label: "JEE Advanced" },
+  { value: "NEET", label: "NEET" },
+  { value: "CBSE_BOARDS", label: "CBSE Boards" },
+  { value: "FOUNDATION", label: "Foundation (9–10)" },
+];
+const SOURCES = [
+  { value: "PYQ", label: "PYQ" },
+  { value: "AI", label: "AI" },
+  { value: "MANUAL", label: "Manual" },
+  { value: "NCERT_EXEMPLAR", label: "NCERT Exemplar" },
+  { value: "THIRD_PARTY_FREE", label: "Third-party (free)" },
+];
+
 export function QuestionBankFilters({
   subjects,
   topics = [],
   years,
   examNames = [],
   showPyqShortcut = false,
+  showAdvanced = false,
 }: {
   subjects: string[];
   topics?: string[];
   years: number[];
   examNames?: string[];
   showPyqShortcut?: boolean;
+  showAdvanced?: boolean;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -140,6 +157,50 @@ export function QuestionBankFilters({
           >
             {topicVal} ✕
           </button>
+        </div>
+      )}
+      {showAdvanced && (
+        <div className="basis-full flex flex-wrap items-end gap-3 pt-3 mt-2 border-t border-slate-100">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Class</label>
+            <select className={cls} value={sp.get("classGrade") ?? ""} onChange={(e) => update("classGrade", e.target.value)}>
+              <option value="">Any</option>
+              {["9", "10", "11", "12"].map((g) => <option key={g} value={g}>Class {g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Exam target</label>
+            <select className={cls} value={sp.get("examTarget") ?? ""} onChange={(e) => update("examTarget", e.target.value)}>
+              <option value="">Any</option>
+              {EXAM_TARGETS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Source</label>
+            <select className={cls} value={sp.get("source") ?? ""} onChange={(e) => update("source", e.target.value)}>
+              <option value="">Any</option>
+              {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Review</label>
+            <select className={cls} value={sp.get("reviewStatus") ?? ""} onChange={(e) => update("reviewStatus", e.target.value)}>
+              <option value="">Any</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Figure</label>
+            <button
+              type="button"
+              onClick={() => update("hasFigure", sp.get("hasFigure") === "1" ? "" : "1")}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold ${sp.get("hasFigure") === "1" ? "bg-[var(--color-teal)] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {sp.get("hasFigure") === "1" ? "✓ Has figure" : "Has figure"}
+            </button>
+          </div>
         </div>
       )}
     </div>

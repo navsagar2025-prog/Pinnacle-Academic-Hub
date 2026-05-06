@@ -532,6 +532,19 @@ export const questionBank = qbSchema.table("question_bank", {
   examName: text("exam_name"),
   marks: integer("marks").default(4).notNull(),
   isPublished: boolean("is_published").default(true).notNull(),
+  // Exam targets this question is suitable for (multi-valued so one question can
+  // serve JEE Main + NEET, etc.). Allowed values, validated at the application
+  // layer: 'JEE_MAIN' | 'JEE_ADVANCED' | 'NEET' | 'CBSE_BOARDS' | 'FOUNDATION'.
+  examTarget: text("exam_target").array(),
+  // Provenance of the row. Used for filtering, attribution, and the AI review
+  // queue. Allowed values: 'PYQ' | 'AI' | 'MANUAL' | 'NCERT_EXEMPLAR' | 'THIRD_PARTY_FREE'.
+  source: text("source").default("MANUAL").notNull(),
+  // Review state. AI-generated rows land as 'pending' and must be reviewed by
+  // an admin/teacher before they can be published. Allowed values:
+  // 'pending' | 'approved' | 'rejected'.
+  reviewStatus: text("review_status").default("approved").notNull(),
+  // Language code for forward-compat (Hindi translation later). Default 'en'.
+  language: text("language").default("en").notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -556,6 +569,10 @@ export const questionBank = qbSchema.table("question_bank", {
   index("question_bank_deleted_at_idx").on(t.deletedAt),
   index("question_bank_deletion_requested_at_idx").on(t.deletionRequestedAt),
   index("question_bank_search_vector_idx").using("gin", t.searchVector),
+  index("question_bank_source_idx").on(t.source),
+  index("question_bank_review_status_idx").on(t.reviewStatus),
+  index("question_bank_class_grade_idx").on(t.classGrade),
+  index("question_bank_exam_target_idx").using("gin", t.examTarget),
 ]);
 
 export const questionBookmarks = qbSchema.table("question_bookmarks", {

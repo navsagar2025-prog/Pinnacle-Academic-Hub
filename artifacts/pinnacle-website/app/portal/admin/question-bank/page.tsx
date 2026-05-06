@@ -28,6 +28,11 @@ type SP = {
   pyq?: string;
   q?: string;
   page?: string;
+  classGrade?: string;
+  examTarget?: string;
+  source?: string;
+  reviewStatus?: string;
+  hasFigure?: string;
 };
 
 export default async function AdminQuestionBankPage({
@@ -47,6 +52,11 @@ export default async function AdminQuestionBankPage({
   if (sp.year) conds.push(eq(questionBank.year, Number(sp.year)));
   if (sp.examName) conds.push(eq(questionBank.examName, sp.examName));
   if (sp.pyq === "1") conds.push(sql`${questionBank.year} is not null`);
+  if (sp.classGrade) conds.push(eq(questionBank.classGrade, sp.classGrade));
+  if (sp.examTarget) conds.push(sql`${sp.examTarget} = ANY(${questionBank.examTarget})`);
+  if (sp.source) conds.push(eq(questionBank.source, sp.source));
+  if (sp.reviewStatus) conds.push(eq(questionBank.reviewStatus, sp.reviewStatus));
+  if (sp.hasFigure === "1") conds.push(sql`${questionBank.imageUrl} is not null`);
   const search = (sp.q ?? "").trim();
   if (search) conds.push(sql`search_vector @@ plainto_tsquery('english', ${search})`);
   const where = conds.length === 0 ? undefined : conds.length === 1 ? conds[0] : and(...conds);
@@ -61,6 +71,11 @@ export default async function AdminQuestionBankPage({
   if (sp.year) topicConds.push(eq(questionBank.year, Number(sp.year)));
   if (sp.examName) topicConds.push(eq(questionBank.examName, sp.examName));
   if (sp.pyq === "1") topicConds.push(sql`${questionBank.year} is not null`);
+  if (sp.classGrade) topicConds.push(eq(questionBank.classGrade, sp.classGrade));
+  if (sp.examTarget) topicConds.push(sql`${sp.examTarget} = ANY(${questionBank.examTarget})`);
+  if (sp.source) topicConds.push(eq(questionBank.source, sp.source));
+  if (sp.reviewStatus) topicConds.push(eq(questionBank.reviewStatus, sp.reviewStatus));
+  if (sp.hasFigure === "1") topicConds.push(sql`${questionBank.imageUrl} is not null`);
   topicConds.push(sql`${questionBank.topic} is not null`);
   const topicWhere = topicConds.length === 1 ? topicConds[0] : and(...topicConds);
 
@@ -72,6 +87,7 @@ export default async function AdminQuestionBankPage({
     yearsRows,
     examNamesRows,
     [{ grandTotal }],
+    [{ pendingReview }],
     [{ total }],
     topicsRows,
     topicCountsRows,
@@ -81,6 +97,9 @@ export default async function AdminQuestionBankPage({
     db.selectDistinct({ year: questionBank.year }).from(questionBank).where(and(sql`${questionBank.year} is not null`, sql`${questionBank.deletedAt} is null`)).orderBy(desc(questionBank.year)),
     db.selectDistinct({ examName: questionBank.examName }).from(questionBank).where(and(sql`${questionBank.examName} is not null`, sql`${questionBank.deletedAt} is null`)).orderBy(questionBank.examName),
     db.select({ grandTotal: sql<number>`count(*)::int` }).from(questionBank).where(sql`${questionBank.deletedAt} is null`),
+    db.select({ pendingReview: sql<number>`count(*)::int` })
+      .from(questionBank)
+      .where(and(sql`${questionBank.deletedAt} is null`, eq(questionBank.reviewStatus, "pending"), eq(questionBank.source, "AI"))),
     db.select({ total: sql<number>`count(*)::int` }).from(questionBank).where(where),
     // Topic dropdown values: scoped to subject (+ other filters) but NOT the
     // current topic, so admins can always switch to another topic.
@@ -155,6 +174,14 @@ export default async function AdminQuestionBankPage({
           <p className="text-slate-500 text-sm mt-1">{grandTotal.toLocaleString()} questions total · powers practice and auto-generated mock tests</p>
         </div>
         <div className="flex items-center gap-2">
+          {pendingReview > 0 && (
+            <Link
+              href="/portal/admin/question-bank/review"
+              className="text-xs px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-semibold hover:bg-amber-100 flex items-center gap-1.5"
+            >
+              <Sparkles size={14} className="text-[var(--color-gold)]" /> {pendingReview.toLocaleString()} AI · pending review
+            </Link>
+          )}
           <QuestionGenerator />
           <QuestionPdfImporter />
           <QuestionImporter />
@@ -172,6 +199,7 @@ export default async function AdminQuestionBankPage({
             years={years}
             examNames={examNames}
             showPyqShortcut
+            showAdvanced
           />
         </div>
         <SavedViews initialViews={savedViews} />
@@ -205,6 +233,11 @@ export default async function AdminQuestionBankPage({
                   examName: sp.examName,
                   pyq: sp.pyq,
                   q: sp.q,
+                  classGrade: sp.classGrade,
+                  examTarget: sp.examTarget,
+                  source: sp.source,
+                  reviewStatus: sp.reviewStatus,
+                  hasFigure: sp.hasFigure,
                 }}
                 topicOptions={topics}
               />

@@ -136,7 +136,7 @@ export function buildPrompt(
       const classNote = ctx.classGrade ? `Target class: ${ctx.classGrade}.` : "";
       const examNote = ctx.examType ? `Style: ${ctx.examType} previous-year pattern.` : "Style: JEE/NEET competitive exam pattern.";
       return {
-        systemPrompt: `You are an expert question paper setter for ${INSTITUTE}. Generate high-quality multiple-choice questions (MCQs) for competitive exam preparation. Each question MUST have exactly 4 options (A, B, C, D) with exactly one correct answer and a clear, concise solution explaining the reasoning. Output ONLY a valid JSON array — no markdown fences, no extra text.`,
+        systemPrompt: `You are a senior question paper setter for ${INSTITUTE}. You write competitive-exam-quality MCQs that survive teacher review. Every question you produce will be human-reviewed before publishing — your job is to make the reviewer's life easy by being correct, unambiguous, and well-cited. Output ONLY a valid JSON array — no markdown fences, no preamble, no trailing text.`,
         userPrompt: `Generate exactly ${ctx.count} MCQ question(s) for:
 
 Subject: ${ctx.subject}
@@ -145,21 +145,27 @@ ${classNote}
 ${examNote}
 ${diffInstruction}
 
-Output a JSON array where each element has these exact keys:
+Output a JSON array. Each element MUST have exactly these keys:
 {
-  "questionText": "the question",
-  "options": { "A": "option A", "B": "option B", "C": "option C", "D": "option D" },
+  "questionText": "the question stem (use $...$ for inline LaTeX, $$...$$ for display equations)",
+  "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
   "correctAnswer": "A",
-  "solution": "1-3 sentence explanation with key formula/steps",
-  "difficulty": "easy" | "medium" | "hard"
+  "solution": "step-wise worked solution, at least 40 words, citing the formula/principle and the NCERT chapter or section it comes from",
+  "difficulty": "easy" | "medium" | "hard",
+  "sourceCitation": "e.g. NCERT Class 12 Physics Ch. 4 'Moving Charges and Magnetism', Section 4.6"
 }
 
-Rules:
-- Questions must be original, exam-quality, and conceptually distinct from each other
-- Distractors (wrong options) must be plausible — no obviously silly answers
-- Solutions should reference the key formula, principle, or reasoning
-- Do NOT repeat similar questions with just numbers changed
-- Output ONLY the JSON array, nothing else`,
+Quality gates (the reviewer will reject if violated):
+1. Exactly 4 options, exactly ONE correct. No ambiguous "All of the above" / "None of the above" unless genuinely unavoidable.
+2. Distractors must be plausible — common student misconceptions, off-by-a-factor errors, sign mistakes — not obvious nonsense.
+3. Solution ≥ 40 words. State the principle, the formula, and the numerical steps if applicable.
+4. Cite the NCERT chapter and section (or the standard reference) the question is grounded in.
+5. Use LaTeX for ALL math: $E = mc^2$ inline, $$\\int_0^1 x\\,dx = \\tfrac12$$ for display. Never use plain ASCII for symbols (μ, π, °, ², etc.) — write \\mu, \\pi, ^\\circ, ^2 in LaTeX.
+6. Numerical questions: include units in the question stem AND in the answer.
+7. Do NOT repeat questions with just the numbers swapped — each question must test a conceptually distinct idea.
+8. Stay strictly within the requested topic and class scope.
+
+Output ONLY the JSON array, nothing else.`,
       };
     }
   }

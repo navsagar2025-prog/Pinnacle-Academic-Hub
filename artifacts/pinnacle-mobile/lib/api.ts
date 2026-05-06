@@ -145,10 +145,18 @@ export async function fetchQuestionBank(params: {
   subject?: string;
   pageSize?: number;
   search?: string;
+  classGrade?: string;
+  examTarget?: "JEE_MAIN" | "JEE_ADVANCED" | "NEET" | "CBSE_BOARDS" | "FOUNDATION";
+  difficulty?: "easy" | "medium" | "hard";
+  hasFigure?: boolean;
 } = {}): Promise<{ items: QBQuestion[]; bookmarkedIds: string[] }> {
   const sp = new URLSearchParams();
   if (params.subject && params.subject !== "All") sp.set("subject", params.subject);
   if (params.search && params.search.trim()) sp.set("search", params.search.trim());
+  if (params.classGrade) sp.set("classGrade", params.classGrade);
+  if (params.examTarget) sp.set("examTarget", params.examTarget);
+  if (params.difficulty) sp.set("difficulty", params.difficulty);
+  if (params.hasFigure) sp.set("hasFigure", "1");
   sp.set("pageSize", String(params.pageSize ?? 50));
   const data = await getJson<{ items?: QBQuestion[]; bookmarkedIds?: string[] }>(
     `/api/v1/question-bank?${sp.toString()}`,

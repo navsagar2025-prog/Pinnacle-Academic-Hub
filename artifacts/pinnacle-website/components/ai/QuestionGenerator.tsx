@@ -260,6 +260,10 @@ export default function QuestionGenerator() {
         correct: q.correctAnswer,
         solution: q.solution,
         marks: 4,
+        // AI-generated rows always go to the review queue. The import route
+        // also enforces this server-side, so no one can bypass it.
+        source: "AI",
+        reviewStatus: "pending",
       }));
 
       const res = await fetch(`${BASE}/api/v1/question-bank/import`, {
@@ -313,9 +317,13 @@ export default function QuestionGenerator() {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {saveResult && (
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
-              <Check size={16} /> Saved {saveResult.inserted} question(s) to the Question Bank!
-              {saveResult.errors > 0 && <span className="text-amber-600">({saveResult.errors} skipped)</span>}
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold">Queued {saveResult.inserted} question(s) for review.</div>
+                <div className="text-xs mt-0.5">AI-generated questions go to the <a href={`${BASE}/portal/admin/question-bank/review`} className="underline font-semibold">review queue</a> and are not published until an admin or teacher approves them.</div>
+                {saveResult.errors > 0 && <div className="text-xs text-amber-700 mt-0.5">{saveResult.errors} skipped due to validation issues.</div>}
+              </div>
             </div>
           )}
 

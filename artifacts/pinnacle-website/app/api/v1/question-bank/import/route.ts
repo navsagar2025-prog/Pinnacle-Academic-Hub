@@ -5,6 +5,9 @@ import { questionBank } from "@workspace/db/schema";
 
 const DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const TYPES = new Set(["mcq", "short", "long", "numerical"]);
+const SOURCES = new Set(["PYQ", "AI", "MANUAL", "NCERT_EXEMPLAR", "THIRD_PARTY_FREE"]);
+const EXAM_TARGETS = new Set(["JEE_MAIN", "JEE_ADVANCED", "NEET", "CBSE_BOARDS", "FOUNDATION"]);
+const REVIEW_STATUSES = new Set(["pending", "approved", "rejected"]);
 
 type RawRow = Record<string, unknown>;
 type RowError = { line: number; message: string };
@@ -24,6 +27,10 @@ type ValidRow = {
   solutionImageUrl: string | null;
   examName: string | null;
   marks: number;
+  source: string;
+  reviewStatus: string;
+  isPublished: boolean;
+  examTarget: string[] | null;
 };
 
 function str(v: unknown): string {
@@ -76,6 +83,38 @@ function validateRow(raw: RawRow, line: number): { row?: ValidRow; error?: RowEr
     marks = Math.trunc(m);
   }
 
+  // Provenance + review state. AI-sourced rows are forced into the review queue
+  // (is_published=false, review_status='pending') regardless of what the caller
+  // supplied — this prevents accidental publishing of unreviewed AI content.
+  let source = (str(raw.source) || "MANUAL").toUpperCase();
+  if (!SOURCES.has(source)) {
+    return { error: { line, message: `Invalid source "${source}" — must be one of ${[...SOURCES].join(", ")}` } };
+  }
+  let reviewStatus = (str(raw.reviewStatus) || (source === "AI" ? "pending" : "approved")).toLowerCase();
+  if (!REVIEW_STATUSES.has(reviewStatus)) {
+    return { error: { line, message: `Invalid reviewStatus "${reviewStatus}"` } };
+  }
+  // Hard rule: AI rows always start as pending and unpublished.
+  if (source === "AI") {
+    reviewStatus = "pending";
+  }
+  const isPublished = source === "AI" ? false : reviewStatus === "approved";
+
+  let examTarget: string[] | null = null;
+  const rawTargets = raw.examTarget;
+  if (Array.isArray(rawTargets) && rawTargets.length > 0) {
+    const cleaned: string[] = [];
+    for (const t of rawTargets) {
+      const v = String(t).trim().toUpperCase();
+      if (!v) continue;
+      if (!EXAM_TARGETS.has(v)) {
+        return { error: { line, message: `Invalid examTarget "${v}" — must be one of ${[...EXAM_TARGETS].join(", ")}` } };
+      }
+      cleaned.push(v);
+    }
+    examTarget = cleaned.length > 0 ? Array.from(new Set(cleaned)) : null;
+  }
+
   return {
     row: {
       line,
@@ -93,6 +132,10 @@ function validateRow(raw: RawRow, line: number): { row?: ValidRow; error?: RowEr
       solutionImageUrl: str(raw.solutionImageUrl) || null,
       examName: str(raw.examName) || null,
       marks,
+      source,
+      reviewStatus,
+      isPublished,
+      examTarget,
     },
   };
 }
@@ -164,6 +207,10 @@ export async function POST(req: NextRequest) {
       solutionImageUrl: r.solutionImageUrl,
       examName: r.examName,
       marks: r.marks,
+      source: r.source,
+      reviewStatus: r.reviewStatus,
+      isPublished: r.isPublished,
+      examTarget: r.examTarget ?? undefined,
       createdBy: user.id,
     })),
   ).returning({ id: questionBank.id });
