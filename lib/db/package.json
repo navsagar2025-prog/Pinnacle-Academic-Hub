@@ -13,11 +13,13 @@
     "push-force": "pnpm run pre-push && drizzle-kit push --force --config ./drizzle.config.ts",
     "seed": "tsx src/seed.ts",
     "seed-questions": "tsx src/seed-questions.ts",
-    "seed:foundation": "tsx src/ingest/foundation/seed.ts"
+    "seed:foundation": "tsx src/ingest/foundation/seed.ts",
+    "ingest:pyq": "tsx src/ingest/pyq/run.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
+    "pdf-parse": "1.1.1",
     "pg": "^8.20.0",
     "zod": "catalog:"
   },

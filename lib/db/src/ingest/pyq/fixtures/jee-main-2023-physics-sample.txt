@@ -1,0 +1,38 @@
+JEE Main 2023 — Synthetic Sample Paper (for parser self-test)
+
+1. The SI unit of force is
+(1) joule
+(2) newton
+(3) watt
+(4) pascal
+
+2. The acceleration due to gravity on the surface of the Earth is approximately
+(1) 5.6 m/s^2
+(2) 9.8 m/s^2
+(3) 11.2 m/s^2
+(4) 19.6 m/s^2
+
+3. Which of the following is a vector quantity?
+(1) mass
+(2) speed
+(3) velocity
+(4) energy
+
+4. A body of mass 2 kg is acted upon by a net force of 10 N. Its acceleration is
+(1) 0.2 m/s^2
+(2) 5 m/s^2
+(3) 12 m/s^2
+(4) 20 m/s^2
+
+5. The work done by gravity on a body falling freely is
+(1) zero
+(2) negative
+(3) positive
+(4) cannot be determined
+
+Answer Key
+1. (2)
+2. (2)
+3. (3)
+4. (2)
+5. (3)

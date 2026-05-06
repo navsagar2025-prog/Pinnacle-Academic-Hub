@@ -50,7 +50,9 @@ A consistent brand identity is maintained across all platforms:
 - **SEO Overrides**: DB-backed `seoOverrides` for route-specific metadata.
 - **User Management**: Admin interface for user and role management.
 - **JSON-LD Structured Data**: Implemented for homepage and courses page.
-- **Question Bank**: Seeded with 11,595 MCQ questions, includes an AI Question Generator, and a two-stage soft-delete governance process with an admin-managed Recycle Bin and audit logs.
+- **Question Bank**: Seeded with 11,772+ MCQ questions, includes an AI Question Generator, and a two-stage soft-delete governance process with an admin-managed Recycle Bin and audit logs.
+  - **Foundation seed pipeline** (`lib/db/src/ingest/foundation/`): hand-authored MANUAL questions for Class 9/10 Maths/Physics/Chemistry/Biology, batched in `data/*-b{N}.ts` files. Run via `pnpm --filter @workspace/db run seed:foundation`. Idempotent: in-batch + DB-level dedup using `normalizeForDedup` (LaTeX/punctuation/case stripped). MANUAL rows publish immediately (`reviewStatus='approved'`, `isPublished=true`). 177 Foundation questions across 3 batches.
+  - **PYQ ingest pipeline** (`lib/db/src/ingest/pyq/`): heuristic PDF parser for JEE Main/Adv, NEET, CBSE, NCERT-Exemplar papers. Run via `pnpm --filter @workspace/db run ingest:pyq -- <file> --exam <CODE> --year <YYYY> --subject <name> [--class N] [--label "..."] [--from-text] [--dry-run] [--auto-approve]`. PDFs default to the **review queue** (`reviewStatus='pending'`, `isPublished=false`). Multi-year repeats are merged into a single row by appending the new year to `examName` ("…Physics (also appeared 2023, 2024)") rather than creating duplicates. See `lib/db/src/ingest/pyq/README.md` for limitations (text-only PDFs, MCQ-only, may miss math/figures).
 - **Practice Sets**: Teacher/admin-curated question bundles assigned to students with optional due dates, accessible via student portal.
 
 ### Pinnacle Mobile App (`artifacts/pinnacle-mobile`)
