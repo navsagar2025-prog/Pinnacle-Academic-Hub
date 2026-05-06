@@ -22,6 +22,10 @@ import { CLASS_9_MATHS_B2 } from "./data/class-9-maths-b2.js";
 import { CLASS_9_SCIENCE_B2 } from "./data/class-9-science-b2.js";
 import { CLASS_10_MATHS_B2 } from "./data/class-10-maths-b2.js";
 import { CLASS_10_SCIENCE_B2 } from "./data/class-10-science-b2.js";
+import { CLASS_9_MATHS_B3 } from "./data/class-9-maths-b3.js";
+import { CLASS_9_SCIENCE_B3 } from "./data/class-9-science-b3.js";
+import { CLASS_10_MATHS_B3 } from "./data/class-10-maths-b3.js";
+import { CLASS_10_SCIENCE_B3 } from "./data/class-10-science-b3.js";
 import { normalizeForDedup, type FoundationQuestion } from "./types.js";
 
 async function main() {
@@ -34,6 +38,10 @@ async function main() {
     ...CLASS_9_SCIENCE_B2,
     ...CLASS_10_MATHS_B2,
     ...CLASS_10_SCIENCE_B2,
+    ...CLASS_9_MATHS_B3,
+    ...CLASS_9_SCIENCE_B3,
+    ...CLASS_10_MATHS_B3,
+    ...CLASS_10_SCIENCE_B3,
   ];
 
   console.log(`Loaded ${all.length} hand-authored Foundation questions across 4 buckets.`);
