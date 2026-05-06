@@ -1,15 +1,32 @@
-// Wraps pdf-parse with safe dynamic import (pdf-parse is CJS).
-// Returns the raw text of the PDF.
+// Wraps pdf-parse with safe dynamic import (pdf-parse is CJS, has no
+// first-party types in this workspace, and its package root has a debug-mode
+// side-effect that reads a non-existent test fixture — so we import the
+// underlying module file directly).
 
 import { readFile } from "node:fs/promises";
 
+interface PdfParseResult {
+  text: string;
+  numpages: number;
+  numrender: number;
+  info: unknown;
+  metadata: unknown;
+  version: string;
+}
+
+type PdfParseFn = (data: Buffer) => Promise<PdfParseResult>;
+
+interface PdfParseModule {
+  default?: PdfParseFn;
+}
+
 export async function extractPdfText(filePath: string): Promise<string> {
   const buf = await readFile(filePath);
-  // Import the underlying module (not the package root) to avoid pdf-parse's
-  // debug-mode side-effect that tries to read a non-existent test fixture.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mod: any = await import("pdf-parse/lib/pdf-parse.js");
-  const pdfParse = mod.default ?? mod;
+  const mod = await import("pdf-parse/lib/pdf-parse.js");
+  const pdfParse: PdfParseFn =
+    typeof mod === "function"
+      ? (mod as unknown as PdfParseFn)
+      : (mod.default ?? (mod as unknown as PdfParseModule).default!);
   const result = await pdfParse(buf);
-  return result.text as string;
+  return result.text;
 }
