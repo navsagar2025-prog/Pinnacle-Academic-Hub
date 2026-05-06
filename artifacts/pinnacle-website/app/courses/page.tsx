@@ -15,10 +15,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Courses — JEE, NEET, Class 10-12 | Pinnacle Academic Classes",
     description: "Explore Pinnacle's courses: JEE Main & Advanced, NEET UG, Class 11-12 Board, Class 9-10, and Foundation. Expert faculty, proven results.",
-    url: "https://paconline.in/courses",
+    url: "/courses",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/courses" },
 };
 
 const COURSE_DISPLAY: Record<string, { color: "navy" | "teal" | "maroon" | "gold"; icon: string }> = {

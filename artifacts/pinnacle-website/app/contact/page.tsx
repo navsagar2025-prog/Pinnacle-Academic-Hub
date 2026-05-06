@@ -5,8 +5,17 @@ import { getContactSettings } from "@/lib/server/site-settings";
 import { ContactDetails, ContactForm } from "./ContactForm";
 
 export const metadata = {
-  title: "Contact Us — Pinnacle Academic Classes",
-  description: "Get in touch with Pinnacle Academic Classes, Greater Noida. Call, email or visit our campus.",
+  title: "Contact Us — Pinnacle Academic Classes, Gaur City 2, Greater Noida",
+  description: "Get in touch with Pinnacle Academic Classes. Visit us at Shop Mart, Gaur City 2, Sec. 16C, Greater Noida, or call +91 99718 62138. We reply within 24 hours.",
+  alternates: { canonical: "/contact" },
+  openGraph: {
+    title: "Contact Us — Pinnacle Academic Classes",
+    description: "Visit us at Shop Mart, Gaur City 2, Sec. 16C, Greater Noida, or call +91 99718 62138.",
+    url: "/contact",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+  },
 };
 
 export default async function ContactPage() {

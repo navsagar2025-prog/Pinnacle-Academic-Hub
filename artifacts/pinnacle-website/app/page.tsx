@@ -27,10 +27,12 @@ export const metadata = {
   openGraph: {
     title: "Pinnacle Academic Classes — JEE & NEET Coaching, Greater Noida",
     description: "Greater Noida's premier coaching institute for JEE Main, JEE Advanced, and NEET UG. Expert faculty, 2,000+ students, proven results since 2012.",
-    url: "https://paconline.in/",
+    url: "/",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/" },
 };
 
 const LOCAL_BUSINESS_JSONLD = {

@@ -10,6 +10,15 @@ import Link from "next/link";
 export const metadata = {
   title: "Weekly Leaderboard — Pinnacle Academic Classes",
   description: "Top performers from this week's mock tests at Pinnacle Academic Classes. Anonymized rankings to celebrate hard work and consistency.",
+  alternates: { canonical: "/leaderboard" },
+  openGraph: {
+    title: "Weekly Leaderboard — Pinnacle Academic Classes",
+    description: "Top performers from this week's mock tests at Pinnacle Academic Classes.",
+    url: "/leaderboard",
+    siteName: "Pinnacle Academic Classes",
+    type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+  },
 };
 
 export const revalidate = 3600;

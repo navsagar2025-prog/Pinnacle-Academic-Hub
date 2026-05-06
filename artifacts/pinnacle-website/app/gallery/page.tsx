@@ -13,10 +13,12 @@ export const metadata = {
   openGraph: {
     title: "Gallery — Pinnacle Academic Classes",
     description: "Photos from classrooms, events, mock tests, and celebrations at Pinnacle Academic Classes, Greater Noida.",
-    url: "https://paconline.in/gallery",
+    url: "/gallery",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/gallery" },
 };
 
 export default async function GalleryPage() {

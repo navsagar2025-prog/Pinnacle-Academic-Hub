@@ -14,10 +14,12 @@ export const metadata = {
   openGraph: {
     title: "Fee Structure 2026–27 — Pinnacle Academic Classes",
     description: "Transparent course fees, instalment options, and scholarship information for all programmes at Pinnacle Academic Classes, Greater Noida.",
-    url: "https://pinnacleacademic.in/fee-structure",
+    url: "/fee-structure",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/fee-structure" },
 };
 
 const PAYMENT_OPTIONS = [

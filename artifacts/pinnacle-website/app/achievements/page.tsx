@@ -9,10 +9,12 @@ export const metadata = {
   openGraph: {
     title: "Toppers & Achievements — Pinnacle Academic Classes",
     description: "JEE and NEET selections, board exam toppers, and student achievements from Pinnacle Academic Classes, Greater Noida.",
-    url: "https://pinnacleacademic.in/achievements",
+    url: "/achievements",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/achievements" },
 };
 
 const TOPPERS = [

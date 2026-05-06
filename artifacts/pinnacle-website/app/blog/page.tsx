@@ -12,10 +12,12 @@ export const metadata = {
   openGraph: {
     title: "Study Tips & Blog — Pinnacle Academic Classes",
     description: "Expert study strategies, JEE & NEET preparation tips, and academic guidance from the faculty at Pinnacle Academic Classes, Greater Noida.",
-    url: "https://pinnacleacademic.in/blog",
+    url: "/blog",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/blog" },
 };
 
 const STATIC_ARTICLES = [

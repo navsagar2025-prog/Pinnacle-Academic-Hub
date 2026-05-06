@@ -8,10 +8,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Refund Policy | Pinnacle Academic Classes",
     description: "Pinnacle Academic Classes refund and cancellation policy for course fees, including timelines, eligibility, and process for raising a refund request.",
-    url: "https://pinnacleacademic.in/refund-policy",
+    url: "/refund-policy",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/refund-policy" },
 };
 
 export default function RefundPolicyPage() {

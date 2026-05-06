@@ -13,10 +13,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Notices & Announcements | Pinnacle Academic Classes",
     description: "Latest notices, events, and announcements from Pinnacle Academic Classes, Gaur City 2, Sec. 16C, Greater Noida — 201009.",
-    url: "https://paconline.in/notices",
+    url: "/notices",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/notices" },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { SITE_URL } from "@/lib/seo/page-registry";
 
 if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
   throw new Error(
@@ -29,6 +30,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Pinnacle Academic Classes | JEE · NEET · Class 10-12 | Greater Noida",
     template: "%s | Pinnacle Academic Classes",
@@ -42,6 +44,7 @@ export const metadata: Metadata = {
     "Pinnacle Academic Classes",
     "KCK Corporate Services",
   ],
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "en_IN",
@@ -49,11 +52,40 @@ export const metadata: Metadata = {
     description:
       "Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.",
     siteName: "Pinnacle Academic Classes",
+    url: SITE_URL,
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pinnacle Academic Classes | JEE · NEET · Class 10-12",
+    description:
+      "Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.",
+    images: ["/opengraph.jpg"],
   },
   robots: { index: true, follow: true },
 };
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
+// Site-wide Organization schema for the Knowledge Graph. Page-level schemas
+// (LocalBusiness on Home, Course on /courses) supplement this.
+const ORGANIZATION_JSONLD = {
+  "@context": "https://schema.org",
+  "@type": "EducationalOrganization",
+  name: "Pinnacle Academic Classes",
+  alternateName: "KCK Corporate Services Pvt. Ltd.",
+  url: SITE_URL,
+  logo: `${SITE_URL}/logo.png`,
+  sameAs: [],
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C",
+    addressLocality: "Greater Noida",
+    addressRegion: "UP",
+    postalCode: "201009",
+    addressCountry: "IN",
+  },
+};
 
 export default function RootLayout({
   children,
@@ -68,7 +100,13 @@ export default function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        <body className="font-[family-name:var(--font-jakarta)]">{children}</body>
+        <body className="font-[family-name:var(--font-jakarta)]">
+          {children}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
+          />
+        </body>
       </html>
     </ClerkProvider>
   );

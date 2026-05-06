@@ -8,10 +8,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Privacy Policy | Pinnacle Academic Classes",
     description: "How Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.) collects, uses, and protects your personal data in compliance with Indian data protection laws.",
-    url: "https://pinnacleacademic.in/privacy-policy",
+    url: "/privacy-policy",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/privacy-policy" },
 };
 
 export default function PrivacyPolicyPage() {

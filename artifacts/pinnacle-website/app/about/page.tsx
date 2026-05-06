@@ -12,10 +12,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About Us — Pinnacle Academic Classes",
     description: "Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.",
-    url: "https://paconline.in/about",
+    url: "/about",
     siteName: "Pinnacle Academic Classes",
     type: "website",
+    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {
