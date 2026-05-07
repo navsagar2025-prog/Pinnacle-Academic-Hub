@@ -700,6 +700,44 @@ export const questionBankSavedViews = pgTable("question_bank_saved_views", {
   uniqueIndex("question_bank_saved_views_user_name_uq").on(t.userId, t.name),
 ]);
 
+export const aiFeatureKeyEnum = pgEnum("ai_feature_key", [
+  "ai_assistant",
+  "question_generation",
+  "solution_writer",
+  "classifier",
+]);
+
+export const aiProviderEnum = pgEnum("ai_provider", [
+  "openai",
+  "gemini",
+  "anthropic",
+  "openrouter",
+]);
+
+export const aiFeatureModels = pgTable("ai_feature_models", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  featureKey: aiFeatureKeyEnum("feature_key").notNull().unique(),
+  provider: aiProviderEnum("provider").notNull(),
+  model: text("model").notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const impersonationSessions = pgTable("impersonation_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // SHA-256 hex of the random token stored in the admin's cookie. We never
+  // store the raw token so a stolen DB row cannot be replayed as a cookie.
+  tokenHash: text("token_hash").notNull().unique(),
+  adminUserId: uuid("admin_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetUserId: uuid("target_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  endedAt: timestamp("ended_at"),
+  endedReason: text("ended_reason"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),

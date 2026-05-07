@@ -1,8 +1,10 @@
-import { requirePortalRole } from "@/lib/server/portal-auth";
+import { requirePortalRole, getRealAdminUser } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { db } from "@workspace/db";
 import { questionBank } from "@workspace/db/schema";
 import { and, isNotNull, isNull, sql } from "drizzle-orm";
+import { readImpersonationContext } from "@/lib/server/impersonation";
+import { ImpersonationBanner } from "@/components/portal/ImpersonationBanner";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/portal/admin", icon: "LayoutDashboard" },
@@ -35,10 +37,23 @@ const NAV_ITEMS = [
   { label: "SEO Health", href: "/portal/admin/seo", icon: "Search" },
   { label: "Audit Logs", href: "/portal/admin/audit-logs", icon: "ScrollText" },
   { label: "Settings", href: "/portal/admin/settings", icon: "Settings" },
+  { label: "Operations", href: "#", icon: "Activity", divider: true },
+  { label: "System Health", href: "/portal/admin/ops/health", icon: "Activity" },
+  { label: "Test Email", href: "/portal/admin/ops/test-email", icon: "Mail" },
+  { label: "AI Providers", href: "/portal/admin/ops/ai-providers", icon: "Cpu" },
+  { label: "Impersonate", href: "/portal/admin/ops/impersonate", icon: "UserCog" },
+  { label: "Audit Log Viewer", href: "/portal/admin/ops/audit-log", icon: "ScrollText" },
 ];
 
 export default async function AdminPortalLayout({ children }: { children: React.ReactNode }) {
-  const user = await requirePortalRole("admin");
+  // Use real admin (not impersonation target) for the admin layout — admins
+  // continue to see their own admin panel even while impersonating someone.
+  const user = (await getRealAdminUser()) ?? (await requirePortalRole("admin"));
+  if (user.role !== "admin") {
+    // requirePortalRole would have redirected; this is a defensive fallback.
+    await requirePortalRole("admin");
+  }
+  const impersonation = await readImpersonationContext();
 
   // Live badge counts so admins can see deletion-governance work without
   // navigating into the question-bank section.
@@ -70,6 +85,13 @@ export default async function AdminPortalLayout({ children }: { children: React.
       userName={user.name}
       userRole="admin"
     >
+      {impersonation ? (
+        <ImpersonationBanner
+          adminName={impersonation.adminName ?? "Admin"}
+          targetName={impersonation.targetName ?? "user"}
+          expiresAt={impersonation.expiresAt.toISOString()}
+        />
+      ) : null}
       {children}
     </PortalShell>
   );

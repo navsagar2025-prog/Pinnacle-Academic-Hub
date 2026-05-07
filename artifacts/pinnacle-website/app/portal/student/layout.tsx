@@ -1,5 +1,7 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { readImpersonationContext } from "@/lib/server/impersonation";
+import { ImpersonationBanner } from "@/components/portal/ImpersonationBanner";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/portal/student", icon: "LayoutDashboard" },
@@ -26,6 +28,7 @@ export default async function StudentPortalLayout({
   children: React.ReactNode;
 }) {
   const user = await requirePortalRole("student");
+  const impersonation = await readImpersonationContext();
 
   return (
     <PortalShell
@@ -34,6 +37,13 @@ export default async function StudentPortalLayout({
       userName={user.name}
       userRole="student"
     >
+      {impersonation ? (
+        <ImpersonationBanner
+          adminName={impersonation.adminName ?? "Admin"}
+          targetName={impersonation.targetName ?? "user"}
+          expiresAt={impersonation.expiresAt.toISOString()}
+        />
+      ) : null}
       {children}
     </PortalShell>
   );

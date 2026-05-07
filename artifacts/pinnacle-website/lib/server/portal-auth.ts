@@ -119,23 +119,69 @@ export async function requirePortalRole(requiredRole: PortalRole) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const user = await provisionDbUser();
-  if (!user) redirect("/sign-in");
+  const realUser = await provisionDbUser();
+  if (!realUser) redirect("/sign-in");
 
-  if (user.role !== requiredRole) {
-    const correctPortal = ROLE_PORTAL_MAP[user.role as PortalRole] ?? ROLE_PORTAL_MAP.student;
+  // Admins can be actively impersonating another user. While impersonating,
+  // role enforcement uses the *target* user so the admin can actually browse
+  // the target's portal. The original admin identity is still recoverable
+  // via getRealAdminUser() and is recorded in audit logs.
+  let effectiveUser = realUser;
+  if (realUser.role === "admin" && requiredRole !== "admin") {
+    const { readImpersonationContext } = await import("./impersonation");
+    const ctx = await readImpersonationContext();
+    if (ctx) {
+      const [target] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.targetUserId))
+        .limit(1);
+      if (target) effectiveUser = target;
+    }
+  }
+
+  if (effectiveUser.role !== requiredRole) {
+    const correctPortal = ROLE_PORTAL_MAP[effectiveUser.role as PortalRole] ?? ROLE_PORTAL_MAP.student;
     redirect(correctPortal);
   }
 
-  return user;
+  return effectiveUser;
 }
 
 /**
  * Resolves the DB user for any authenticated Clerk user.
  * Creates the record if it doesn't exist yet (auto-provision).
  * Does NOT enforce role — use requirePortalRole for that.
+ *
+ * If the caller is an admin currently impersonating another user (see
+ * lib/server/impersonation.ts), this returns the *target* user — every
+ * downstream RBAC / data-fetch decision is then made as that user. Use
+ * `getRealAdminUser()` if you specifically need the underlying admin.
  */
 export async function getDbUser() {
+  const admin = await provisionDbUser();
+  if (!admin) return null;
+  if (admin.role === "admin") {
+    const { readImpersonationContext } = await import("./impersonation");
+    const ctx = await readImpersonationContext();
+    if (ctx) {
+      const [target] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.targetUserId))
+        .limit(1);
+      if (target) return target;
+    }
+  }
+  return admin;
+}
+
+/**
+ * Always returns the real authenticated DB user, ignoring any active
+ * impersonation. Use for audit logging so the actor is the admin, not the
+ * impersonated target.
+ */
+export async function getRealAdminUser() {
   const user = await provisionDbUser();
   return user ?? null;
 }
