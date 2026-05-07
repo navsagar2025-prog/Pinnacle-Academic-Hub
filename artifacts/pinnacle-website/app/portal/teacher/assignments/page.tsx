@@ -4,6 +4,7 @@ import { assignments, batches } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { FileText, Calendar, Download, Users } from "lucide-react";
 import AssignmentForm from "./AssignmentForm";
+import RecurringSchedulesList from "./RecurringSchedulesList";
 
 export const metadata = { title: "Assignments — Teacher Portal" };
 
@@ -46,6 +47,8 @@ export default async function TeacherAssignmentsPage() {
         </div>
         <AssignmentForm batches={allBatches} />
       </div>
+
+      <RecurringSchedulesList />
 
       <div className="card">
         <h2 className="font-bold text-[var(--color-navy)] mb-4 font-[family-name:var(--font-playfair)]">

@@ -279,17 +279,62 @@ export const results = pgTable("results", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const assignments = pgTable("assignments", {
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id").references(() => batches.id, { onDelete: "cascade" }),
+    postedBy: uuid("posted_by").references(() => users.id),
+    title: text("title").notNull(),
+    subject: text("subject").notNull(),
+    description: text("description"),
+    fileUrl: text("file_url"),
+    dueDate: timestamp("due_date").notNull(),
+    maxMarks: integer("max_marks"),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    scheduleId: uuid("schedule_id").references(() => assignmentSchedules.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Race-safe dedup for materialised occurrences: at most one row per (schedule, due_date).
+    scheduleDueUq: uniqueIndex("assignments_schedule_due_uq")
+      .on(t.scheduleId, t.dueDate)
+      .where(sql`schedule_id IS NOT NULL`),
+  }),
+);
+
+export const scheduleFrequencyEnum = pgEnum("schedule_frequency", [
+  "daily",
+  "weekly",
+  "biweekly",
+  "monthly",
+  "custom",
+]);
+export const scheduleStatusEnum = pgEnum("schedule_status", [
+  "active",
+  "paused",
+  "ended",
+]);
+
+export const assignmentSchedules = pgTable("assignment_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
-  batchId: uuid("batch_id").references(() => batches.id, { onDelete: "cascade" }),
-  postedBy: uuid("posted_by").references(() => users.id),
+  batchId: uuid("batch_id").notNull().references(() => batches.id, { onDelete: "cascade" }),
+  postedBy: uuid("posted_by").notNull().references(() => users.id),
   title: text("title").notNull(),
   subject: text("subject").notNull(),
   description: text("description"),
   fileUrl: text("file_url"),
-  dueDate: timestamp("due_date").notNull(),
   maxMarks: integer("max_marks"),
-  isVisible: boolean("is_visible").default(true).notNull(),
+  frequency: scheduleFrequencyEnum("frequency").notNull(),
+  daysOfWeek: integer("days_of_week").array(),
+  dayOfMonth: integer("day_of_month"),
+  intervalDays: integer("interval_days"),
+  dueTimeOfDay: text("due_time_of_day").notNull().default("23:59"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  status: scheduleStatusEnum("status").notNull().default("active"),
+  lastMaterialisedDate: timestamp("last_materialised_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

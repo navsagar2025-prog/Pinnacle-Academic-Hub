@@ -2,7 +2,7 @@ import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { students, assignments, batches } from "@workspace/db/schema";
 import { eq, and, asc } from "drizzle-orm";
-import { ClipboardList, Download, Calendar, Clock, AlertCircle } from "lucide-react";
+import { ClipboardList, Download, Calendar, Clock, AlertCircle, Repeat } from "lucide-react";
 import { AssignmentSubmitButton } from "./AssignmentSubmitButton";
 
 export const metadata = { title: "Assignments — Student Portal" };
@@ -47,6 +47,7 @@ export default async function AssignmentsPage() {
           fileUrl: assignments.fileUrl,
           dueDate: assignments.dueDate,
           maxMarks: assignments.maxMarks,
+          scheduleId: assignments.scheduleId,
         })
         .from(assignments)
         .where(and(eq(assignments.batchId, enrollment.batchId), eq(assignments.isVisible, true)))
@@ -89,6 +90,11 @@ export default async function AssignmentsPage() {
                     </span>
                     {a.maxMarks && (
                       <span className="badge text-xs bg-slate-100 text-slate-500">{a.maxMarks} marks</span>
+                    )}
+                    {a.scheduleId && (
+                      <span className="badge text-xs bg-[var(--color-teal)]/10 text-[var(--color-teal)] flex items-center gap-1">
+                        <Repeat size={10} /> Recurring
+                      </span>
                     )}
                   </div>
                   <div className="font-semibold text-[var(--color-navy)] text-base">{a.title}</div>

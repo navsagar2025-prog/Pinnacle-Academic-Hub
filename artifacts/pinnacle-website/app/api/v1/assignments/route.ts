@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@workspace/db";
-import { assignments, batches, students, parents } from "@workspace/db/schema";
+import { assignments, assignmentSchedules, batches, students, parents } from "@workspace/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { logAudit } from "@/lib/server/audit";
+import {
+  validateSchedule,
+  materialiseSchedule,
+  type ScheduleInput,
+} from "@/lib/server/recurring-assignments";
 
 export async function GET(req: NextRequest) {
   const user = await getDbUser();
@@ -164,6 +169,7 @@ export async function POST(req: NextRequest) {
     fileUrl?: string;
     dueDate?: string;
     maxMarks?: number;
+    schedule?: ScheduleInput;
   };
   try {
     body = await req.json();
@@ -171,9 +177,56 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { title, subject, batchId, description, fileUrl, dueDate, maxMarks } = body;
-  if (!title || !subject || !batchId || !dueDate) {
+  const { title, subject, batchId, description, fileUrl, dueDate, maxMarks, schedule } = body;
+  if (!title || !subject || !batchId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  // Recurring path: create a schedule + materialise its first occurrences immediately
+  if (schedule) {
+    const v = validateSchedule(schedule);
+    if (!v.ok) {
+      return NextResponse.json({ error: v.error }, { status: 400 });
+    }
+    const [sched] = await db
+      .insert(assignmentSchedules)
+      .values({
+        batchId,
+        postedBy: user.id,
+        title,
+        subject,
+        description: description ?? null,
+        fileUrl: fileUrl ?? null,
+        maxMarks: maxMarks ?? null,
+        frequency: schedule.frequency,
+        daysOfWeek: schedule.daysOfWeek ?? null,
+        dayOfMonth: schedule.dayOfMonth ?? null,
+        intervalDays: schedule.intervalDays ?? null,
+        dueTimeOfDay: schedule.dueTimeOfDay || "23:59",
+        startDate: new Date(schedule.startDate),
+        endDate: schedule.endDate ? new Date(schedule.endDate) : null,
+        status: "active",
+      })
+      .returning({ id: assignmentSchedules.id });
+
+    const result = await materialiseSchedule(sched.id);
+
+    logAudit(user.id, user.name ?? "unknown", "create", "assignment_schedule", sched.id, {
+      title,
+      frequency: schedule.frequency,
+      created: result.created,
+    }).catch(console.error);
+
+    return NextResponse.json({
+      success: true,
+      scheduleId: sched.id,
+      createdOccurrences: result.created,
+    });
+  }
+
+  // One-off path (legacy)
+  if (!dueDate) {
+    return NextResponse.json({ error: "dueDate is required for one-off assignments" }, { status: 400 });
   }
 
   const [row] = await db

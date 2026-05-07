@@ -77,6 +77,7 @@ The Next.js platform exposes scheduler-friendly endpoints under `artifacts/pinna
 | `POST /api/v1/cron/mock-test-reminders` | every 5 min | Email reminders for tests starting in ~60 min / just opened. |
 | `POST /api/v1/cron/parent-digest` | weekly (Mon 07:00) | Compose & send weekly parent digests. |
 | `POST /api/v1/cron/purge-deleted-questions` | **daily (03:15 UTC)** | Hard-delete question-bank rows whose `deletedAt` is older than 7 days. |
+| `POST /api/v1/cron/materialise-assignments` | **daily (00:30 UTC)** | Walk every active `assignment_schedules` row and insert any missing `assignments` occurrences up to today + 7 days. Idempotent. |
 
 ### Daily auto-purge of deleted questions
 

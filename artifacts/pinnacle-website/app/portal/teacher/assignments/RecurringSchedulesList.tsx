@@ -1,0 +1,186 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Repeat, Pause, Play, StopCircle, Calendar, Loader2 } from "lucide-react";
+
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
+type Status = "active" | "paused" | "ended";
+type Frequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
+
+interface Schedule {
+  id: string;
+  title: string;
+  subject: string;
+  frequency: Frequency;
+  daysOfWeek: number[] | null;
+  dayOfMonth: number | null;
+  intervalDays: number | null;
+  dueTimeOfDay: string;
+  startDate: string;
+  endDate: string | null;
+  status: Status;
+  lastMaterialisedDate: string | null;
+  batchName: string | null;
+}
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function describe(s: Schedule): string {
+  switch (s.frequency) {
+    case "daily":
+      return `Daily at ${s.dueTimeOfDay}`;
+    case "weekly":
+      return `Weekly on ${(s.daysOfWeek ?? []).map((d) => DOW[d]).join(", ")} at ${s.dueTimeOfDay}`;
+    case "biweekly":
+      return `Every 2 weeks on ${(s.daysOfWeek ?? []).map((d) => DOW[d]).join(", ")} at ${s.dueTimeOfDay}`;
+    case "monthly":
+      return `Monthly on day ${s.dayOfMonth} at ${s.dueTimeOfDay}`;
+    case "custom":
+      return `Every ${s.intervalDays} days at ${s.dueTimeOfDay}`;
+  }
+}
+
+const STATUS_STYLE: Record<Status, string> = {
+  active: "bg-green-100 text-green-700",
+  paused: "bg-amber-100 text-amber-700",
+  ended: "bg-slate-100 text-slate-500",
+};
+
+export default function RecurringSchedulesList() {
+  const router = useRouter();
+  const [schedules, setSchedules] = useState<Schedule[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const res = await fetch(`${BASE}/api/v1/assignments/schedules`, { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) setSchedules(data.data);
+      else setError(data.error ?? "Failed to load schedules");
+    } catch {
+      setError("Network error loading schedules");
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function act(id: string, action: "pause" | "resume" | "end") {
+    setBusyId(id);
+    try {
+      const res = await fetch(`${BASE}/api/v1/assignments/schedules/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await load();
+        router.refresh();
+      } else {
+        setError(data.error ?? "Action failed");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (schedules === null && !error) {
+    return (
+      <div className="flex items-center gap-2 text-slate-400 text-sm py-6 justify-center">
+        <Loader2 size={14} className="animate-spin" /> Loading recurring schedules…
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 mb-4">
+        <Repeat size={16} className="text-[var(--color-navy)]" />
+        <h2 className="font-bold text-[var(--color-navy)] font-[family-name:var(--font-playfair)]">
+          Recurring schedules ({schedules?.length ?? 0})
+        </h2>
+      </div>
+
+      {error && (
+        <div className="text-sm text-[var(--color-maroon)] bg-red-50 rounded-lg px-3 py-2 mb-3">{error}</div>
+      )}
+
+      {schedules && schedules.length === 0 ? (
+        <p className="text-slate-400 text-sm text-center py-8">
+          No recurring schedules yet. Create an assignment with a Daily / Weekly / Monthly schedule and it will appear here.
+        </p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {(schedules ?? []).map((s) => (
+            <div key={s.id} className="py-4 flex flex-col sm:flex-row sm:items-start gap-4">
+              <div className="w-10 h-10 bg-[var(--color-teal)]/10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Repeat size={16} className="text-[var(--color-teal)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-[var(--color-navy)]">{s.title}</span>
+                  <span className="badge bg-slate-100 text-slate-600 text-xs">{s.subject}</span>
+                  <span className={`badge text-xs ${STATUS_STYLE[s.status]}`}>{s.status}</span>
+                </div>
+                <div className="text-xs text-slate-500 mt-1.5">{describe(s)}</div>
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={10} />
+                    {s.batchName ?? "All batches"}
+                  </span>
+                  <span>
+                    {new Date(s.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    {s.endDate ? ` → ${new Date(s.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : " → ongoing"}
+                  </span>
+                  {s.lastMaterialisedDate && (
+                    <span>last materialised {new Date(s.lastMaterialisedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 self-start">
+                {s.status === "active" && (
+                  <button
+                    disabled={busyId === s.id}
+                    onClick={() => act(s.id, "pause")}
+                    className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Pause size={12} /> Pause
+                  </button>
+                )}
+                {s.status === "paused" && (
+                  <button
+                    disabled={busyId === s.id}
+                    onClick={() => act(s.id, "resume")}
+                    className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Play size={12} /> Resume
+                  </button>
+                )}
+                {s.status !== "ended" && (
+                  <button
+                    disabled={busyId === s.id}
+                    onClick={() => {
+                      if (confirm(`End the recurring schedule "${s.title}"? Past assignments stay; no new ones will be created.`)) {
+                        act(s.id, "end");
+                      }
+                    }}
+                    className="text-xs py-1.5 px-3 rounded-lg border border-red-200 text-[var(--color-maroon)] hover:bg-red-50 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <StopCircle size={12} /> End series
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
