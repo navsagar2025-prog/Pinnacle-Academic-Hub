@@ -33,7 +33,7 @@ import { cookies, headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 import { db } from "@workspace/db";
 import { impersonationSessions, users } from "@workspace/db/schema";
-import { and, eq, isNull, gt } from "drizzle-orm";
+import { and, eq, isNull, gt, lte } from "drizzle-orm";
 
 export const IMPERSONATION_COOKIE = "pac_imp";
 export const MAX_IMPERSONATION_MINUTES = 60;
@@ -52,19 +52,60 @@ export interface ImpersonationContext {
 }
 
 /**
+ * Sweeps any not-yet-ended impersonation sessions whose `expiresAt` is in
+ * the past, marks them ended with reason="auto_expired", and writes one
+ * audit row per session. Idempotent. Cheap (one indexed UPDATE … RETURNING)
+ * and called opportunistically from readImpersonationContext so we don't
+ * need a separate cron just for this.
+ */
+async function sweepExpiredImpersonations(): Promise<void> {
+  const now = new Date();
+  const ended = await db
+    .update(impersonationSessions)
+    .set({ endedAt: now, endedReason: "auto_expired" })
+    .where(
+      and(isNull(impersonationSessions.endedAt), lte(impersonationSessions.expiresAt, now)),
+    )
+    .returning({
+      id: impersonationSessions.id,
+      adminUserId: impersonationSessions.adminUserId,
+      targetUserId: impersonationSessions.targetUserId,
+    });
+  if (ended.length === 0) return;
+  // Write a stop audit row per session — keeps the impersonation lifecycle
+  // visible in the audit log even when no admin action triggered the end.
+  // We import lazily to avoid a circular import (audit -> impersonation).
+  const { logAudit } = await import("./audit");
+  for (const row of ended) {
+    const [admin] = await db.select({ name: users.name }).from(users).where(eq(users.id, row.adminUserId)).limit(1);
+    await logAudit(
+      row.adminUserId,
+      admin?.name ?? null,
+      "ops.impersonate.stop",
+      "impersonation_session",
+      row.id,
+      { reason: "auto_expired", targetUserId: row.targetUserId },
+    );
+  }
+}
+
+/**
  * Resolves the active impersonation, if any. Returns null when:
  *   - no cookie is present
  *   - the cookie hash has no matching active session
  *   - the matching session has expired
  *   - the matching session was already ended
  *
- * Pure read: never mutates the DB. Expired-cleanup happens lazily on the
- * next start/stop call to keep the read path cheap on the hot path.
+ * Side effect: opportunistically marks expired sessions ended and writes
+ * a corresponding stop audit row (see sweepExpiredImpersonations).
  */
 export async function readImpersonationContext(): Promise<ImpersonationContext | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(IMPERSONATION_COOKIE)?.value;
   if (!raw) return null;
+
+  // Best-effort sweep so the audit trail records auto-expiries.
+  await sweepExpiredImpersonations().catch(() => undefined);
 
   const tokenHash = hashToken(raw);
   const now = new Date();

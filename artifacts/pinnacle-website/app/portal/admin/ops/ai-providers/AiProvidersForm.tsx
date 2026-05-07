@@ -94,7 +94,13 @@ export function AiProvidersForm({
       setFeedback((f) => ({ ...f, [row.key]: { ok: false, msg: (e as Error).message } }));
     } finally {
       setSavingKey(null);
-      setTimeout(() => setFeedback((f) => ({ ...f, [row.key]: undefined as never })), 3000);
+      setTimeout(() => {
+        setFeedback((f) => {
+          const next = { ...f };
+          delete next[row.key];
+          return next;
+        });
+      }, 3000);
     }
   }
 

@@ -41,15 +41,16 @@ export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
-  // Tag every response with X-Impersonated-By when the impersonation cookie
-  // is present. The header value is the cookie token prefix (first 8 chars
-  // — never the full token, which is sensitive). The actual admin/target
-  // identities live in the audit log; this header is the at-a-glance signal
-  // for ops tooling and the browser devtools network tab.
+  // Lightweight presence signal for ops tooling / devtools. We deliberately
+  // do NOT echo any session-token material here: validating the cookie
+  // requires a DB lookup which can't run in edge middleware. The
+  // authoritative impersonation context (admin id, target id, session id)
+  // is set as `X-Impersonated-By: <adminUserId>` by API routes and RSC
+  // pages that already resolve `readImpersonationContext()` server-side.
   const imp = req.cookies.get("pac_imp");
   if (imp?.value) {
     const res = NextResponse.next();
-    res.headers.set("X-Impersonated-By", `session:${imp.value.slice(0, 8)}`);
+    res.headers.set("X-Impersonation-Active", "1");
     return res;
   }
 }, { signInUrl: `${base}/sign-in`, signUpUrl: `${base}/sign-up` });

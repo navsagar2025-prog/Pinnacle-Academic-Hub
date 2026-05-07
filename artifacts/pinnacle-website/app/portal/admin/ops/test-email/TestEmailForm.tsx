@@ -20,7 +20,7 @@ export function TestEmailForm({ defaultTo }: { defaultTo: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        setResult({ ok: true, message: `Sent to ${json.data.to}. ${json.data.remaining} sends remain this hour.` });
+        setResult({ ok: true, message: `Sent to ${json.data.to}. ${json.data.remaining} of 5 sends remain this minute.` });
       } else {
         setResult({ ok: false, message: json.error ?? "Send failed" });
       }
