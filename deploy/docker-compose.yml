@@ -1,0 +1,206 @@
+# =============================================================================
+# Pinnacle Academic Classes — production stack for an OCI VM.
+#
+# Bring up:    docker compose --env-file .env up -d --build
+# Tail logs:   docker compose logs -f
+# Run schema:  docker compose run --rm migrate
+# Stop:        docker compose down
+# =============================================================================
+
+name: pinnacle
+
+services:
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: pinnacle-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pinnacle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-pinnacle}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pinnacle} -d ${POSTGRES_DB:-pinnacle}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # One-shot migration runner. Re-run with: `docker compose run --rm migrate`.
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.migrate
+    image: pinnacle-migrate:latest
+    container_name: pinnacle-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    networks: [internal]
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: pinnacle-api:latest
+    container_name: pinnacle-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL}
+      CORS_ORIGINS: ${PUBLIC_APP_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Auth / payments / email / AI pass-through
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      AI_INTEGRATIONS_ANTHROPIC_API_KEY: ${AI_INTEGRATIONS_ANTHROPIC_API_KEY}
+      AI_INTEGRATIONS_ANTHROPIC_BASE_URL: ${AI_INTEGRATIONS_ANTHROPIC_BASE_URL}
+      AI_INTEGRATIONS_OPENAI_API_KEY: ${AI_INTEGRATIONS_OPENAI_API_KEY}
+      AI_INTEGRATIONS_OPENAI_BASE_URL: ${AI_INTEGRATIONS_OPENAI_BASE_URL}
+      AI_INTEGRATIONS_GEMINI_API_KEY: ${AI_INTEGRATIONS_GEMINI_API_KEY}
+      AI_INTEGRATIONS_GEMINI_BASE_URL: ${AI_INTEGRATIONS_GEMINI_BASE_URL}
+      AI_INTEGRATIONS_OPENROUTER_API_KEY: ${AI_INTEGRATIONS_OPENROUTER_API_KEY}
+      AI_INTEGRATIONS_OPENROUTER_BASE_URL: ${AI_INTEGRATIONS_OPENROUTER_BASE_URL}
+      # OCR provider defaults (consumed by api-server's config-store on first run)
+      MATHPIX_APP_ID: ${MATHPIX_APP_ID}
+      MATHPIX_APP_KEY: ${MATHPIX_APP_KEY}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY}
+      LATEXOCR_URL: ${LATEXOCR_URL}
+      LATEXOCR_API_KEY: ${LATEXOCR_API_KEY}
+      SIMPLETEX_URL: ${SIMPLETEX_URL}
+      SIMPLETEX_API_KEY: ${SIMPLETEX_API_KEY}
+      PIX2TEXT_URL: ${PIX2TEXT_URL}
+      PIX2TEXT_API_KEY: ${PIX2TEXT_API_KEY}
+    volumes:
+      # Persist OCR provider config across container rebuilds. The bundled
+      # api-server resolves its config path to /data (see Dockerfile.api).
+      - api_data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:4000/api/health',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        # Next.js bakes basePath in at build time. Empty = serve at apex (/).
+        BASE_PATH: ${BASE_PATH:-}
+    image: pinnacle-web:latest
+    container_name: pinnacle-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # Serve at the apex domain in production (no /pinnacle-website prefix).
+      BASE_PATH: ${BASE_PATH:-}
+      NEXT_PUBLIC_BASE_PATH: ${BASE_PATH:-}
+      DATABASE_URL: ${DATABASE_URL}
+      # Auth
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      # Cron / shared secrets
+      CRON_SECRET: ${CRON_SECRET}
+      # Payments
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      # Email
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      # AI providers
+      AI_INTEGRATIONS_ANTHROPIC_API_KEY: ${AI_INTEGRATIONS_ANTHROPIC_API_KEY}
+      AI_INTEGRATIONS_ANTHROPIC_BASE_URL: ${AI_INTEGRATIONS_ANTHROPIC_BASE_URL}
+      AI_INTEGRATIONS_OPENAI_API_KEY: ${AI_INTEGRATIONS_OPENAI_API_KEY}
+      AI_INTEGRATIONS_OPENAI_BASE_URL: ${AI_INTEGRATIONS_OPENAI_BASE_URL}
+      AI_INTEGRATIONS_GEMINI_API_KEY: ${AI_INTEGRATIONS_GEMINI_API_KEY}
+      AI_INTEGRATIONS_GEMINI_BASE_URL: ${AI_INTEGRATIONS_GEMINI_BASE_URL}
+      AI_INTEGRATIONS_OPENROUTER_API_KEY: ${AI_INTEGRATIONS_OPENROUTER_API_KEY}
+      AI_INTEGRATIONS_OPENROUTER_BASE_URL: ${AI_INTEGRATIONS_OPENROUTER_BASE_URL}
+      # Object storage — Google Cloud Storage credential (inline JSON or
+      # mounted key path). See deploy/.env.example for setup details.
+      PRIVATE_OBJECT_DIR: ${PRIVATE_OBJECT_DIR}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${GOOGLE_APPLICATION_CREDENTIALS_JSON}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      # Zoom integration
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET}
+      ZOOM_WEBHOOK_SECRET_TOKEN: ${ZOOM_WEBHOOK_SECRET_TOKEN}
+      # Optional OCR providers
+      MATHPIX_APP_ID: ${MATHPIX_APP_ID}
+      MATHPIX_APP_KEY: ${MATHPIX_APP_KEY}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY}
+      LATEXOCR_URL: ${LATEXOCR_URL}
+      LATEXOCR_API_KEY: ${LATEXOCR_API_KEY}
+      SIMPLETEX_URL: ${SIMPLETEX_URL}
+      SIMPLETEX_API_KEY: ${SIMPLETEX_API_KEY}
+      PIX2TEXT_URL: ${PIX2TEXT_URL}
+      PIX2TEXT_API_KEY: ${PIX2TEXT_API_KEY}
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Caddy terminates TLS (auto Let's Encrypt) and reverse-proxies the apps.
+  proxy:
+    image: caddy:2-alpine
+    container_name: pinnacle-proxy
+    restart: unless-stopped
+    depends_on: [web, api]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal, edge]
+
+networks:
+  internal:
+  edge:
+
+volumes:
+  pgdata:
+  api_data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,45 @@
+# Caddy reverse proxy — auto HTTPS via Let's Encrypt.
+#
+# IMPORTANT: most of the platform's HTTP API surface (auth, payments, cron,
+# admin, students, etc.) lives in the Next.js app under /api/v1/* — those must
+# go to the `web` service. The Express api-server only owns a small set of
+# operational endpoints: /api/health, /api/healthz, /api/scan, /api/settings,
+# /api/export. We route those explicitly to `api` and send everything else to
+# `web` (which is what serves the website AND its Next.js API routes).
+#
+# PUBLIC_DOMAIN and ACME_EMAIL are injected from the .env file. For first-boot
+# / IP-only testing, set PUBLIC_DOMAIN=:80 to disable TLS until DNS is ready.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Match only the endpoints owned by the Express api-server.
+(api_server_routes) {
+	@api_server path /api/health* /api/scan* /api/settings* /api/export*
+}
+
+{$PUBLIC_DOMAIN} {
+	encode zstd gzip
+
+	import api_server_routes
+	handle @api_server {
+		reverse_proxy api:4000
+	}
+
+	# Default: Next.js website (also serves /api/v1/* and other app routes).
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

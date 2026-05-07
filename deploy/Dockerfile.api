@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1.7
+# -----------------------------------------------------------------------------
+# Multi-stage Dockerfile for the Pinnacle API server (Express + esbuild bundle).
+# Build context: repository root.
+#   docker build -f deploy/Dockerfile.api -t pinnacle-api .
+# -----------------------------------------------------------------------------
+
+ARG NODE_VERSION=24-bookworm-slim
+
+# --- deps -------------------------------------------------------------------
+FROM node:${NODE_VERSION} AS deps
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    CI=true
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+WORKDIR /repo
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc* ./
+COPY artifacts/pinnacle-website/package.json ./artifacts/pinnacle-website/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
+
+# --- build ------------------------------------------------------------------
+# NOTE: We intentionally DO NOT set NODE_ENV=production in this stage. The
+# build needs devDependencies (esbuild, esbuild-plugin-pino, etc.) and pnpm
+# prunes devDeps when NODE_ENV=production.
+FROM node:${NODE_VERSION} AS build
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+WORKDIR /repo
+
+COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/artifacts/api-server/node_modules ./artifacts/api-server/node_modules
+COPY --from=deps /repo/lib ./lib
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig*.json ./
+COPY lib ./lib
+COPY artifacts/api-server ./artifacts/api-server
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts --offline
+
+# Bundle to artifacts/api-server/dist/index.mjs via esbuild.
+RUN pnpm --filter @workspace/api-server run build
+
+# Use `pnpm deploy` to materialise a self-contained runtime tree with only the
+# api-server's production dependencies (drops devDeps, hoists workspace links).
+# `--legacy` is required on pnpm v10 because the workspace does not opt into
+# `inject-workspace-packages=true`; without it, deploy errors with
+# ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE.
+RUN pnpm --filter @workspace/api-server deploy --legacy --prod /out
+
+# --- runtime ----------------------------------------------------------------
+FROM node:${NODE_VERSION} AS runtime
+ENV NODE_ENV=production \
+    PORT=4000
+WORKDIR /app
+
+RUN groupadd --system --gid 1001 nodejs \
+ && useradd  --system --uid 1001 --gid nodejs --create-home api
+
+COPY --from=build --chown=api:nodejs /out/dist ./dist
+COPY --from=build --chown=api:nodejs /out/node_modules ./node_modules
+COPY --from=build --chown=api:nodejs /out/package.json ./package.json
+
+# The API persists runtime config (OCR provider settings) to a JSON file. The
+# config-store resolves the path as `<__dirname>/../../data`, which after the
+# esbuild bundle to /app/dist/index.mjs resolves to /data. We pre-create both
+# /data and /app/data and chown them so the non-root user can write either
+# way. Compose mounts a named volume at /data so the config survives rebuilds.
+RUN mkdir -p /app/data /data \
+ && chown -R api:nodejs /app /data
+
+USER api
+EXPOSE 4000
+
+CMD ["node", "--enable-source-maps", "./dist/index.mjs"]

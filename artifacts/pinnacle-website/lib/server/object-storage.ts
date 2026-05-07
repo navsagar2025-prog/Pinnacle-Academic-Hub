@@ -1,25 +1,62 @@
-import { Storage } from "@google-cloud/storage";
+import { Storage, type StorageOptions } from "@google-cloud/storage";
 import { randomUUID } from "crypto";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+/**
+ * Object storage works in two modes:
+ *
+ *  1. Replit mode (default in the Replit dev environment) — credentials are
+ *     vended by the Replit object-storage sidecar at 127.0.0.1:1106 and signed
+ *     URLs are obtained from a sidecar endpoint.
+ *  2. Self-hosted GCS mode — used when running on OCI / any non-Replit host.
+ *     Activated by setting GOOGLE_APPLICATION_CREDENTIALS_JSON (the inline
+ *     service-account key JSON) or GOOGLE_APPLICATION_CREDENTIALS (a path to
+ *     a key file). Signed URLs are produced by the @google-cloud/storage SDK
+ *     directly — no sidecar required.
+ */
+const inlineCredsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+const credsFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+const useSelfHostedGcs = Boolean(inlineCredsJson || credsFilePath);
+
+function buildStorageClient(): Storage {
+  if (useSelfHostedGcs) {
+    const opts: StorageOptions = {};
+    if (inlineCredsJson) {
+      try {
+        opts.credentials = JSON.parse(inlineCredsJson);
+      } catch (err) {
+        throw new Error(
+          "GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON: " +
+            (err as Error).message,
+        );
+      }
+    }
+    if (process.env.GOOGLE_CLOUD_PROJECT) {
+      opts.projectId = process.env.GOOGLE_CLOUD_PROJECT;
+    }
+    return new Storage(opts);
+  }
+  return new Storage({
+    credentials: {
+      audience: "replit",
+      subject_token_type: "access_token",
+      token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+      type: "external_account",
+      credential_source: {
+        url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+        format: {
+          type: "json",
+          subject_token_field_name: "access_token",
+        },
       },
+      universe_domain: "googleapis.com",
     },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-} as ConstructorParameters<typeof Storage>[0]);
+    projectId: "",
+  } as ConstructorParameters<typeof Storage>[0]);
+}
+
+export const objectStorageClient: Storage = buildStorageClient();
 
 function getPrivateObjectDir(): string {
   const dir = process.env.PRIVATE_OBJECT_DIR ?? "";
@@ -47,6 +84,19 @@ async function signObjectURL({
   ttlSec: number;
   contentType?: string;
 }): Promise<string> {
+  // Self-hosted GCS: sign directly via the SDK (no sidecar required).
+  if (useSelfHostedGcs) {
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    const [signed] = await file.getSignedUrl({
+      version: "v4",
+      action: method === "PUT" ? "write" : "read",
+      expires: Date.now() + ttlSec * 1000,
+      ...(contentType ? { contentType } : {}),
+    });
+    return signed;
+  }
+
+  // Replit sidecar mode.
   const body: Record<string, string> = {
     bucket_name: bucketName,
     object_name: objectName,

@@ -1,0 +1,28 @@
+# NOTE: With `context: ..` in docker-compose.yml, the effective dockerignore
+# is the repo-root .dockerignore — NOT this file. This file is kept as a
+# safety net in case anyone runs `docker build deploy/` directly. Keep the
+# entries in sync with the root .dockerignore.
+**/node_modules
+**/.next
+**/dist
+**/.expo
+**/.expo-shared
+**/.turbo
+**/.cache
+**/coverage
+**/*.tsbuildinfo
+**/.DS_Store
+.git
+.local
+.replit
+.config
+.upm
+attached_assets
+artifacts/pinnacle-mobile
+artifacts/pinnacle-proposal
+artifacts/mockup-sandbox
+artifacts/data
+deploy/.env
+deploy/data
+**/.env
+**/.env.local

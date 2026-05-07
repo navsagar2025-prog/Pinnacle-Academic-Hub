@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1.7
+# -----------------------------------------------------------------------------
+# Multi-stage Dockerfile for the Pinnacle website (Next.js 15, App Router).
+# Build context: repository root (so the pnpm workspace is visible).
+#   docker build -f deploy/Dockerfile.web -t pinnacle-web .
+# -----------------------------------------------------------------------------
+
+ARG NODE_VERSION=24-bookworm-slim
+
+# --- deps -------------------------------------------------------------------
+FROM node:${NODE_VERSION} AS deps
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    CI=true
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+WORKDIR /repo
+
+# Copy only the manifests needed to resolve the workspace graph.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc* ./
+COPY artifacts/pinnacle-website/package.json ./artifacts/pinnacle-website/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
+
+# --- build ------------------------------------------------------------------
+FROM node:${NODE_VERSION} AS build
+# basePath is BUILD-TIME in Next.js. Default empty (apex deployment) so the
+# website serves at "/" and asset URLs are correct. Override with
+#   docker build --build-arg BASE_PATH=/something ...
+# only if you intend to serve under a sub-path.
+ARG BASE_PATH=""
+# NOTE: NODE_ENV is intentionally NOT set to production here. `next build`
+# itself requires devDependencies (typescript, @types/*, tailwindcss, etc.)
+# and pnpm prunes devDeps when NODE_ENV=production. Runtime stage sets it.
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_OUTPUT_STANDALONE=true \
+    BASE_PATH=${BASE_PATH} \
+    NEXT_PUBLIC_BASE_PATH=${BASE_PATH}
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+WORKDIR /repo
+
+COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/artifacts/pinnacle-website/node_modules ./artifacts/pinnacle-website/node_modules
+COPY --from=deps /repo/artifacts/api-server/node_modules ./artifacts/api-server/node_modules
+COPY --from=deps /repo/lib ./lib
+
+# Copy the rest of the workspace sources required for the build.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig*.json ./
+COPY lib ./lib
+COPY artifacts/pinnacle-website ./artifacts/pinnacle-website
+
+# Re-run install so workspace symlinks resolve against the now-present sources.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts --offline
+
+# Build the Next.js app — emits .next/standalone via NEXT_OUTPUT_STANDALONE.
+RUN pnpm --filter @workspace/pinnacle-website run build
+
+# --- runtime ----------------------------------------------------------------
+FROM node:${NODE_VERSION} AS runtime
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+
+# Non-root user.
+RUN groupadd --system --gid 1001 nodejs \
+ && useradd  --system --uid 1001 --gid nodejs --create-home nextjs
+
+# Standalone server bundle (server.js at /app/server.js).
+COPY --from=build --chown=nextjs:nodejs \
+     /repo/artifacts/pinnacle-website/.next/standalone/ ./
+# Static assets and public/.
+COPY --from=build --chown=nextjs:nodejs \
+     /repo/artifacts/pinnacle-website/.next/static \
+     ./artifacts/pinnacle-website/.next/static
+COPY --from=build --chown=nextjs:nodejs \
+     /repo/artifacts/pinnacle-website/public \
+     ./artifacts/pinnacle-website/public
+
+USER nextjs
+EXPOSE 3000
+
+# server.js for monorepo standalone output sits at the workspace-relative path.
+CMD ["node", "artifacts/pinnacle-website/server.js"]

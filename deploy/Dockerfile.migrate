@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1.7
+# -----------------------------------------------------------------------------
+# One-shot image that runs drizzle migrations against the configured Postgres.
+# Build context: repository root.
+#   docker build -f deploy/Dockerfile.migrate -t pinnacle-migrate .
+# -----------------------------------------------------------------------------
+
+ARG NODE_VERSION=24-bookworm-slim
+
+FROM node:${NODE_VERSION} AS deps
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    CI=true
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+WORKDIR /repo
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc* ./
+COPY artifacts/pinnacle-website/package.json ./artifacts/pinnacle-website/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts \
+        --filter @workspace/db... --filter "{./}"
+
+# NOTE: We deliberately do NOT set NODE_ENV=production here — drizzle-kit is a
+# devDependency and pnpm prunes devDeps under NODE_ENV=production.
+FROM node:${NODE_VERSION} AS runtime
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate \
+ && apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /repo
+
+COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/lib ./lib
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY lib ./lib
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts --offline \
+        --filter @workspace/db...
+
+# `push` runs the SQL pre-script then drizzle-kit push (idempotent on Postgres).
+CMD ["pnpm", "--filter", "@workspace/db", "run", "push"]
