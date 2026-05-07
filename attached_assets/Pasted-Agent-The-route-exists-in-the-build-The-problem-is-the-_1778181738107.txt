@@ -1,0 +1,256 @@
+Agent
+The route exists in the build. The problem is the old server is still running — fuser -k isn't catching all node processes. The cron job may be restarting it instantly too. Here's the fix — kill everything at once, then start fresh:
+
+# 1. Disable cron temporarily so it can't restart the old server
+crontab -l > /tmp/cron.bak && crontab -r
+# 2. Kill ALL node processes (including whatever's holding 3100)
+pkill -9 -f node; fuser -k 3100/tcp 2>/dev/null; sleep 3
+# 3. Confirm port is free
+fuser 3100/tcp 2>&1 || echo "Port 3100 is FREE"
+# 4. Start new server in foreground to confirm it works
+NODE=/home/prokitch/nodevenv/prokitchens.in/22/bin/node
+$NODE start.js &
+sleep 4
+# 5. Test
+curl -s http://localhost:3100/api/fmgr | head -2
+Once you see {"error":"Unauthorized"} from that curl, restore cron:
+
+crontab /tmp/cron.bak
+Then test through LiteSpeed:
+
+curl -s -o /dev/null -w "%{http_code}\n" https://prokitchens.in/api/fmgr
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ crontab -l > /tmp/cron.bak && crontab -r
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ pkill -9 -f node; fuser -k 3100/tcp 2>/dev/null; sleep 3
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ fuser 3100/tcp 2>&1 || echo "Port 3100 is FREE"
+bash: fuser: command not found
+Port 3100 is FREE
+
+7 hours ago
+7 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ sed -i 's/^PORT=3100/PORT=3101/' .env
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ sed -i 's|http://127.0.0.1:3100|http://127.0.0.1:3101|g' .htaccess
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ pkill -9 -f node
+NODE=/home/prokitch/nodevenv/prokitchens.in/22/bin/node
+$NODE start.js >> ~/prokitchens.log 2>&1 &
+sleep 4
+[1] 3222772
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s http://localhost:3101/api/fmgr | head -2
+{"error":"Forbidden"}[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$
+
+7 hours ago
+[prokitchens.in (22)] [prokitch@s4-csed -i 's/3100/3101/g' /tmp/cron.bak3101/g' /tmp/cron.bak
+crontab /tmp/cron.bak
+curl -s -o /dev/null -w "%{http_code}\n" https://prokitchens.in/api/fmgr
+404
+
+7 hours ago
+404
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "homepage: %{http_code}\n" https://prokitchens.in/
+homepage: 200
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "health: %{http_code}\n" https://prokitchens.in/api/health
+health: 404
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ grep -i "proxy|rewrite|127|3101" .htaccess
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^(.*)$ http://127.0.0.1:3101/$1 [P,L]
+
+7 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ cat .htaccess
+<IfModule mod_security2.c>
+SecRuleEngine Off
+</IfModule>
+<IfModule mod_security.c>
+SecRuleEngine Off
+</IfModule>
+
+<IfModule mod_rewrite.c> RewriteEngine On RewriteRule ^(.*)$ http://127.0.0.1:3101/$1 [P,L] </IfModule>
+7 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s http://localhost:3101/api/health
+{"status":"ok","db":"connected"}[prokitchens.in (22)] [prcurl -sI https://prokitchens.in/api/health | grep -E "HTTP|Server|X-Powered|Via|x-next"HTTP/2 404
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$
+
+7 hours ago
+7 hours ago
+7 hours ago
+cpanel is also having node js 24.6 version option , should i still go with 22 or 24 ?
+
+6 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s https://prokitchens.in/api/health
+curl -s https://prokitchens.in/api/fmgr
+{"status":"ok","db":"connected"}{"error":"Forbidden"}[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$
+
+6 hours ago
+any terminal command to confirm ?
+
+6 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ TOKEN=$(curl -s -X POST https://prokitchens.in/api/admin/auth/login
+-H "Content-Type: application/json"
+-d '{"password":"'"$ADMIN_PASSWORD"'"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+echo "Token: ${TOKEN:0:20}..."
+Token: ...
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s "https://prokitchens.in/api/fmgr?dir=/"
+-H "Authorization: Bearer $TOKEN" | head -c 200
+
+<!DOCTYPE html> <html style="height:100%"> <head> <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" /> <title> 403 Forbidden
+6 hours ago
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "no params: %{http_code}\n" "https://prokitchens.in/api/fmgr"
+no params: 403
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "dir=/: %{http_code}\n" "https://prokitchens.in/api/fmgr?dir=/"dir=/: 403
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "dir=%%2F: %{http_code}\n" "https://prokitchens.in/api/fmgr?dir=%2F"
+dir=%2F: 403
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ curl -s -o /dev/null -w "action=root: %{http_code}\n" "https://prokitchens.in/api/fmgr?action=root"
+action=root: 403
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ cat ~/public_html/.htaccess 2>/dev/null | head -5 || echo "(no public_html/.htaccess)"
+
+DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/prokitch/prokitchens.in"
+PassengerBaseURI "/"
+PassengerNodejs "/home/prokitch/nodevenv/prokitchens.in/22/bin/node"
+PassengerAppType node
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$ ls ~/public_html/ 2>/dev/null | head -5 || echo "(no public_html)"
+cgi-bin
+[prokitchens.in (22)] [prokitch@s4-coaz prokitchens.in]$
+
+5 hours ago
+5 hours ago
+5 hours ago
+finally it's working
+
+5 hours ago
+I want to create full backup zip including database
+any commands for it ?
+
+5 hours ago
+do update the website template for file manger (how it will work in production)
+do also include other hurdles which may face and how to resolve it .
+what you recommend ?
+
+4 hours ago
+can you create a knowlegebasse directory for admin only. which include full details like documentation of this website.
+just provide zip file of it to hand over to client
+
+4 hours ago
+Mahi ent completed: Client knowledge base & handover docs zip
+Updated environment
+can you create a knowlegebasse directory for admin only. which include full details like documentation of this website.
+just provide zip file of it to hand over to client
+
+is it done ?
+
+4 hours ago
+it is better to update the website blueprint file.
+and provide me download link
+
+4 hours ago
+it is better to update the website blueprint file (created by task 23 hours ago)
+and provide me download link
+
+4 hours ago
+Mahi ent started: Add a Dockerfile for production deployment
+Mahi ent completed: Add a Dockerfile for production deployment
+Updated environment
+Optimized Agent memory
+List all the features of backend in bullets
+
+2 minutes ago
+Here's a full breakdown of all backend features:
+
+Authentication & Security
+
+JWT-based admin login with 7-day cookie (pk_admin_token)
+Master password override via env var (always works even if DB is corrupted)
+Change password, forgot password, reset password via email token
+Revoke all active sessions in one click
+IP-based login lockout with configurable threshold
+Rate limiting on sensitive endpoints
+Security event log (tracks failed logins, lockouts, suspicious activity)
+Staff user impersonation (admin can act as another user, then exit)
+Role-based access control — admin / editor / viewer
+Content Management
+
+Blog — full CRUD, slug, SEO title/description, featured image, publish/draft toggle
+Services — CRUD with slug, icon, feature list, starting price
+Equipment — CRUD with category, brand, features, price, featured flag
+Gallery — image upload, ordering, delete
+Seating Gallery — separate image gallery for seating/spaces portfolio
+Spaces Slider — hero slider management for seating section
+Testimonials — CRUD with star rating, customer name, company
+Offers & Popups — promotional banners with active/inactive toggle
+Lead & Enquiry Management
+
+Quote requests — captured from public site form, stored with full details
+Contact requests — separate contact form submissions with read/unread tracking
+Lead notes — admins can add internal notes to any lead
+Leads export — download all leads as CSV
+Email notifications — new lead/contact triggers email to NOTIFY_EMAIL
+AI Features
+
+AI provider configuration — supports multiple providers (OpenAI, Anthropic, Fal.ai, etc.)
+Per-feature model selection (blog enhance, image generation, chatbot, visualizer)
+Blog AI enhance — rewrites/improves a single post using configured AI model
+Bulk blog enhance — enhances all posts in one operation
+Blog SEO fill — auto-fills SEO title + description for posts missing them
+Blog SEO export — exports SEO data as CSV
+Blog image generation — generates a featured image for a post via Fal.ai
+Equipment image generation — generates product image via AI
+Kitchen visualizer — public-facing AI kitchen design tool (public + admin routes)
+Chatbot — public-facing AI assistant powered by configured model
+AI provider connection test endpoint
+Analytics & Monitoring
+
+Page view tracking — every public page hit logged with path, referrer, device type
+Visitor tracking — unique visitor counts
+Realtime analytics — live active visitor count
+Dashboard stats — leads count, blog posts, gallery images, page views summary
+System health — DB connectivity, memory usage, uptime, Node.js version
+System health trends — historical health snapshots
+System health cleanup — purge old health records
+Visitor log viewer in admin
+File Manager
+
+Browse server directories within FILES_ROOT
+Upload files (multipart)
+Delete files and folders
+Rename files and folders
+Create new folders
+Compress files/folders to zip
+Role-gated — viewer role has no access, editor limited, admin full
+Route: /api/fmgr (renamed to bypass LiteSpeed WAF)
+Site Configuration
+
+Admin config stored in DB (pk_admin_config) — social links, SMTP, SEO codes, analytics IDs
+Debug mode toggle
+Security lockout settings (max attempts, lockout duration)
+Email notification settings
+Test email endpoint — sends a test message to verify SMTP
+Public-Facing APIs
+
+Blog list + single post by slug
+Services list + single service by slug
+Gallery list
+Seating gallery list
+Spaces slider list
+Testimonials list
+Products list + single product by slug
+Active offers (for popup/banner display)
+Social links
+Public stats (e.g. years experience, projects count)
+Quote form submission
+Contact form submission
+Page view tracking (/api/track)
+Health check (/api/health → {"status":"ok","db":"connected"})
+Database
+
+19 MariaDB/MySQL tables, all prefixed pk_
+Drizzle ORM with JSON column auto-parse patch for MariaDB compatibility
+Idempotent upgrade migration script (safe to re-run on any deploy)
+Fresh-install schema SQL for new server setup
+Infrastructure & Deployment
+
+Next.js 16 standalone build (minimal footprint)
+start.js — loads .env before starting server (Passenger-compatible)
+Docker multi-stage build (web + api images, docker-compose included)
+cPanel/Phusion Passenger deployment (LiteSpeed shared hosting)
+Build script that packages and splits output into 50 MB upload parts
+Keep-alive cron job for production server
+SMTP email via Nodemailer (configurable host/port/credentials)
