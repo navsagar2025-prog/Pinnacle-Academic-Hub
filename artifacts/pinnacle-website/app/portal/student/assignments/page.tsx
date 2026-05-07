@@ -1,9 +1,38 @@
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
-import { students, assignments, batches } from "@workspace/db/schema";
+import { students, assignments, batches, assignmentSchedules } from "@workspace/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { ClipboardList, Download, Calendar, Clock, AlertCircle, Repeat } from "lucide-react";
 import { AssignmentSubmitButton } from "./AssignmentSubmitButton";
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function recurringBadgeLabel(
+  frequency: string | null,
+  daysOfWeek: number[] | null,
+  dayOfMonth: number | null,
+  intervalDays: number | null,
+): string {
+  if (!frequency) return "Recurring";
+  switch (frequency) {
+    case "daily":
+      return "Daily series";
+    case "weekly": {
+      const dows = (daysOfWeek ?? []).map((d) => DOW[d]).join("/");
+      return dows ? `Weekly · ${dows}` : "Weekly series";
+    }
+    case "biweekly": {
+      const dows = (daysOfWeek ?? []).map((d) => DOW[d]).join("/");
+      return dows ? `Bi-weekly · ${dows}` : "Bi-weekly series";
+    }
+    case "monthly":
+      return dayOfMonth ? `Monthly · day ${dayOfMonth}` : "Monthly series";
+    case "custom":
+      return intervalDays ? `Every ${intervalDays} days` : "Recurring";
+    default:
+      return "Recurring";
+  }
+}
 
 export const metadata = { title: "Assignments — Student Portal" };
 
@@ -48,8 +77,13 @@ export default async function AssignmentsPage() {
           dueDate: assignments.dueDate,
           maxMarks: assignments.maxMarks,
           scheduleId: assignments.scheduleId,
+          scheduleFrequency: assignmentSchedules.frequency,
+          scheduleDaysOfWeek: assignmentSchedules.daysOfWeek,
+          scheduleDayOfMonth: assignmentSchedules.dayOfMonth,
+          scheduleIntervalDays: assignmentSchedules.intervalDays,
         })
         .from(assignments)
+        .leftJoin(assignmentSchedules, eq(assignments.scheduleId, assignmentSchedules.id))
         .where(and(eq(assignments.batchId, enrollment.batchId), eq(assignments.isVisible, true)))
         .orderBy(asc(assignments.dueDate))
     : [];
@@ -92,8 +126,17 @@ export default async function AssignmentsPage() {
                       <span className="badge text-xs bg-slate-100 text-slate-500">{a.maxMarks} marks</span>
                     )}
                     {a.scheduleId && (
-                      <span className="badge text-xs bg-[var(--color-teal)]/10 text-[var(--color-teal)] flex items-center gap-1">
-                        <Repeat size={10} /> Recurring
+                      <span
+                        className="badge text-xs bg-[var(--color-teal)]/10 text-[var(--color-teal)] flex items-center gap-1"
+                        title="This is one occurrence of a recurring assignment"
+                      >
+                        <Repeat size={10} />
+                        {recurringBadgeLabel(
+                          a.scheduleFrequency,
+                          a.scheduleDaysOfWeek,
+                          a.scheduleDayOfMonth,
+                          a.scheduleIntervalDays,
+                        )}
                       </span>
                     )}
                   </div>

@@ -193,9 +193,13 @@ export async function materialiseSchedule(
     if (isOccurrenceDay(sRow, cursor)) {
       const dueDate = combineDayAndTime(cursor, dueTime);
 
-      // Race-safe insert: relies on partial unique index
-      // (schedule_id, due_date) where schedule_id IS NOT NULL. ON CONFLICT
-      // makes concurrent runs (cron + inline call after schedule create) safe.
+      // Race-safe insert. The partial unique index
+      // `assignments_schedule_due_uq` on (schedule_id, due_date) WHERE
+      // schedule_id IS NOT NULL guarantees at most one row per occurrence;
+      // the no-target onConflictDoNothing catches *any* unique violation
+      // (Postgres infers from the partial index automatically without
+      // requiring us to repeat the predicate). This makes concurrent
+      // cron + inline-create runs safe.
       const inserted = await db
         .insert(assignments)
         .values({
@@ -210,7 +214,7 @@ export async function materialiseSchedule(
           isVisible: true,
           scheduleId: s.id,
         })
-        .onConflictDoNothing({ target: [assignments.scheduleId, assignments.dueDate] })
+        .onConflictDoNothing()
         .returning({ id: assignments.id });
 
       if (inserted.length) created++;

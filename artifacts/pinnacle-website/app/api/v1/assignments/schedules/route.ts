@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@workspace/db";
 import { assignmentSchedules, batches } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 
 export async function GET(_req: NextRequest) {
