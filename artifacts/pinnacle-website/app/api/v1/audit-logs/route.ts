@@ -107,7 +107,18 @@ export async function GET(request: Request) {
         .groupBy(auditLogs.entityType)
         .orderBy(desc(sql`count(*)`))
         .limit(50);
-      return ok({ actions, entityTypes });
+      const actors = await db
+        .select({
+          actorId: auditLogs.actorId,
+          actorName: auditLogs.actorName,
+          n: sql<number>`count(*)::int`,
+        })
+        .from(auditLogs)
+        .where(sql`${auditLogs.actorId} IS NOT NULL`)
+        .groupBy(auditLogs.actorId, auditLogs.actorName)
+        .orderBy(desc(sql`count(*)`))
+        .limit(100);
+      return ok({ actions, entityTypes, actors });
     }
 
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);

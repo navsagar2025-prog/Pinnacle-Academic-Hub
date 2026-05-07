@@ -1,5 +1,6 @@
 import { getDbUser } from "@/lib/server/portal-auth";
 import { buildPrompt, type AiTool, type AiContext } from "@/lib/ai/prompts";
+import { getModelForFeature, type AiFeatureKey } from "@/lib/server/ai-models";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -148,7 +149,13 @@ export async function POST(request: Request) {
     });
   }
 
-  let body: { provider: Provider; model: string; tool: AiTool; context: AiContext };
+  let body: {
+    provider?: Provider;
+    model?: string;
+    featureKey?: AiFeatureKey;
+    tool: AiTool;
+    context: AiContext;
+  };
   try {
     body = await request.json();
   } catch {
@@ -157,12 +164,27 @@ export async function POST(request: Request) {
     });
   }
 
-  const { provider, model, tool, context } = body;
-  if (!provider || !model || !tool || !context) {
+  const { tool, context } = body;
+  if (!tool || !context) {
     return new Response(
-      JSON.stringify({ error: "provider, model, tool and context are required" }),
+      JSON.stringify({ error: "tool and context are required" }),
       { status: 400 }
     );
+  }
+
+  // Resolve provider+model. Precedence:
+  //   1. Explicit body.provider + body.model (legacy/back-compat path)
+  //   2. Admin-configured picker for body.featureKey
+  //   3. Admin-configured picker for the inferred feature key (tool → key)
+  let provider: Provider | undefined = body.provider;
+  let model: string | undefined = body.model;
+  if (!provider || !model) {
+    const inferred: AiFeatureKey =
+      body.featureKey ??
+      (tool === "question_generator" ? "question_generation" : "ai_assistant");
+    const fm = await getModelForFeature(inferred);
+    provider = provider ?? fm.provider;
+    model = model ?? fm.model;
   }
 
   const credError = checkCredentials(provider);

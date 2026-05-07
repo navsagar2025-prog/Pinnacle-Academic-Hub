@@ -26,6 +26,7 @@
  * No other files should require changes.
  */
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/portal/student(.*)",
@@ -39,6 +40,17 @@ const base = process.env.BASE_PATH?.replace(/\/$/, "") ?? "/pinnacle-website";
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
+  }
+  // Tag every response with X-Impersonated-By when the impersonation cookie
+  // is present. The header value is the cookie token prefix (first 8 chars
+  // — never the full token, which is sensitive). The actual admin/target
+  // identities live in the audit log; this header is the at-a-glance signal
+  // for ops tooling and the browser devtools network tab.
+  const imp = req.cookies.get("pac_imp");
+  if (imp?.value) {
+    const res = NextResponse.next();
+    res.headers.set("X-Impersonated-By", `session:${imp.value.slice(0, 8)}`);
+    return res;
   }
 }, { signInUrl: `${base}/sign-in`, signUpUrl: `${base}/sign-up` });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Cpu, Check, AlertCircle, Save } from "lucide-react";
+import { Cpu, Check, AlertCircle, Save, PlugZap } from "lucide-react";
 
 type Provider = "openai" | "gemini" | "anthropic" | "openrouter";
 
@@ -33,7 +33,47 @@ export function AiProvidersForm({
 }) {
   const [rows, setRows] = useState<FeatureRow[]>(initialFeatures);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [testingKey, setTestingKey] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [testResult, setTestResult] = useState<
+    Record<string, { ok: boolean; latencyMs: number; msg: string }>
+  >({});
+
+  async function testConnection(row: FeatureRow) {
+    setTestingKey(row.key);
+    setTestResult((t) => ({ ...t, [row.key]: { ok: true, latencyMs: 0, msg: "Testing…" } }));
+    try {
+      const res = await fetch("/pinnacle-website/api/v1/admin/ops/ai-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: row.provider, model: row.model, featureKey: row.key }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const d = json.data as { ok: boolean; latencyMs: number; reply?: string; error?: string };
+        setTestResult((t) => ({
+          ...t,
+          [row.key]: {
+            ok: d.ok,
+            latencyMs: d.latencyMs,
+            msg: d.ok ? `OK · ${d.latencyMs}ms` : d.error ?? "Failed",
+          },
+        }));
+      } else {
+        setTestResult((t) => ({
+          ...t,
+          [row.key]: { ok: false, latencyMs: 0, msg: json.error ?? "Test failed" },
+        }));
+      }
+    } catch (e) {
+      setTestResult((t) => ({
+        ...t,
+        [row.key]: { ok: false, latencyMs: 0, msg: (e as Error).message },
+      }));
+    } finally {
+      setTestingKey(null);
+    }
+  }
 
   async function save(row: FeatureRow) {
     setSavingKey(row.key);
@@ -130,13 +170,33 @@ export function AiProvidersForm({
                     </datalist>
                   </td>
                   <td className="px-4 py-3 align-top text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
                       {fb && (
                         <span className={`text-xs flex items-center gap-1 ${fb.ok ? "text-emerald-700" : "text-rose-700"}`}>
                           {fb.ok ? <Check size={12} /> : <AlertCircle size={12} />}
                           {fb.msg}
                         </span>
                       )}
+                      {testResult[row.key] && (
+                        <span
+                          className={`text-xs flex items-center gap-1 ${
+                            testResult[row.key].ok ? "text-emerald-700" : "text-rose-700"
+                          }`}
+                          title={testResult[row.key].msg}
+                        >
+                          {testResult[row.key].ok ? <Check size={12} /> : <AlertCircle size={12} />}
+                          {testResult[row.key].msg.length > 40
+                            ? testResult[row.key].msg.slice(0, 40) + "…"
+                            : testResult[row.key].msg}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => testConnection(row)}
+                        disabled={testingKey === row.key}
+                        className="btn btn-secondary inline-flex items-center gap-1 text-xs"
+                      >
+                        <PlugZap size={12} /> {testingKey === row.key ? "Testing…" : "Test"}
+                      </button>
                       <button
                         onClick={() => save(row)}
                         disabled={savingKey === row.key}

@@ -5,9 +5,9 @@ import { logAudit } from "@/lib/server/audit";
 
 export const runtime = "nodejs";
 
-// Per-process rate limiter: 10 sends per admin per hour.
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60 * 60_000;
+// Per-process rate limiter: 5 sends per admin per minute (per task spec).
+const RATE_LIMIT = 5;
+const RATE_WINDOW_MS = 60_000;
 const sendsByAdmin = new Map<string, number[]>();
 
 function checkRate(adminId: string): { ok: boolean; remaining: number } {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const rate = checkRate(actor.id);
   if (!rate.ok) {
-    return err("Rate limit reached: max 10 test emails/hour per admin.", 429);
+    return err("Rate limit reached: max 5 test emails per minute per admin.", 429);
   }
 
   const result = await sendTestEmail(to);

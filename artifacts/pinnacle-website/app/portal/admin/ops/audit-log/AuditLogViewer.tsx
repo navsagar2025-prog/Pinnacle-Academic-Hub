@@ -17,6 +17,7 @@ interface Row {
 interface Facets {
   actions: { action: string; n: number }[];
   entityTypes: { entityType: string | null; n: number }[];
+  actors?: { actorId: string | null; actorName: string | null; n: number }[];
 }
 
 const PAGE_SIZE = 50;
@@ -32,6 +33,7 @@ export function AuditLogViewer() {
   const [q, setQ] = useState("");
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
+  const [actorId, setActorId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -41,12 +43,13 @@ export function AuditLogViewer() {
       if (q.trim()) sp.set("q", q.trim());
       if (action) sp.set("action", action);
       if (entityType) sp.set("entityType", entityType);
+      if (actorId) sp.set("actorId", actorId);
       if (dateFrom) sp.set("dateFrom", new Date(dateFrom).toISOString());
       if (dateTo) sp.set("dateTo", new Date(dateTo + "T23:59:59").toISOString());
       for (const [k, v] of Object.entries(extra)) sp.set(k, v);
       return sp;
     },
-    [q, action, entityType, dateFrom, dateTo],
+    [q, action, entityType, actorId, dateFrom, dateTo],
   );
 
   const load = useCallback(async () => {
@@ -78,6 +81,7 @@ export function AuditLogViewer() {
     setQ("");
     setAction("");
     setEntityType("");
+    setActorId("");
     setDateFrom("");
     setDateTo("");
     setPage(1);
@@ -89,7 +93,7 @@ export function AuditLogViewer() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasFilters = q || action || entityType || dateFrom || dateTo;
+  const hasFilters = q || action || entityType || actorId || dateFrom || dateTo;
 
   return (
     <div className="space-y-6">
@@ -109,7 +113,7 @@ export function AuditLogViewer() {
       </div>
 
       <div className="card p-4 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="relative lg:col-span-2">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -137,6 +141,19 @@ export function AuditLogViewer() {
             <option value="">All entity types</option>
             {facets?.entityTypes.map((t) => (
               <option key={t.entityType ?? ""} value={t.entityType ?? ""}>{t.entityType} ({t.n})</option>
+            ))}
+          </select>
+          <select
+            value={actorId}
+            onChange={(e) => { setActorId(e.target.value); setPage(1); }}
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+            title="Filter by actor"
+          >
+            <option value="">All actors</option>
+            {facets?.actors?.map((a) => (
+              <option key={a.actorId ?? ""} value={a.actorId ?? ""}>
+                {a.actorName ?? "(unnamed)"} ({a.n})
+              </option>
             ))}
           </select>
           <div className="flex items-center gap-2">
