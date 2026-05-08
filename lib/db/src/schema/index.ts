@@ -738,6 +738,28 @@ export const impersonationSessions = pgTable("impersonation_sessions", {
   userAgent: text("user_agent"),
 });
 
+export const watermarkSettings = pgTable("watermark_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // 'global' or one of the doc-type slugs: receipt | study_material | assignment | question_bank
+  docType: text("doc_type").unique().notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  textTemplate: text("text_template").notNull().default("{{centreName}} • {{userName}} • {{date}}"),
+  position: text("position").notNull().default("tile"), // tile | center | footer
+  opacity: integer("opacity").notNull().default(12), // 0-100
+  rotation: integer("rotation").notNull().default(45),
+  fontSize: integer("font_size").notNull().default(36),
+  color: text("color").notNull().default("#888888"),
+  logoObjectPath: text("logo_object_path"),
+  // For non-global rows: when true, the doc-type inherits everything from the
+  // global row and the per-doc-type fields above are ignored.
+  useGlobal: boolean("use_global").notNull().default(true),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type WatermarkSettings = typeof watermarkSettings.$inferSelect;
+export type InsertWatermarkSettings = typeof watermarkSettings.$inferInsert;
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),

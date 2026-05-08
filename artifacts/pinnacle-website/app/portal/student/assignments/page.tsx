@@ -152,8 +152,7 @@ export default async function AssignmentsPage() {
                 <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                   {a.fileUrl ? (
                     <a
-                      href={a.fileUrl}
-                      target="_blank" rel="noopener noreferrer"
+                      href={`/pinnacle-website/api/v1/downloads/assignment/${a.id}`}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors"
                     >
                       <Download size={14} />Download

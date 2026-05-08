@@ -1,15 +1,17 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { Download } from "lucide-react";
 
-export default function PrintButton() {
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
+
+export default function PrintButton({ feeId }: { feeId: string }) {
   return (
-    <button
-      onClick={() => window.print()}
+    <a
+      href={`${BASE}/api/v1/downloads/receipt/${feeId}`}
       className="flex items-center gap-2 text-sm btn-secondary px-3 py-1.5"
     >
-      <Printer size={15} />
-      Print / Save PDF
-    </button>
+      <Download size={15} />
+      Download PDF receipt
+    </a>
   );
 }

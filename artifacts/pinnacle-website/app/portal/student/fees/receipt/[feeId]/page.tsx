@@ -53,7 +53,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ feeId:
         <Link href="/portal/student/fees" className="text-sm text-[var(--color-teal)] hover:underline">
           ← Back to Fee Status
         </Link>
-        <PrintButton />
+        <PrintButton feeId={fee.id} />
       </div>
 
       <div className="card border-2 border-[var(--color-navy)]/10 print:border-slate-300 print:shadow-none" id="receipt">

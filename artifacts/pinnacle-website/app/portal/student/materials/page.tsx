@@ -83,7 +83,7 @@ export default async function MaterialsPage() {
               </div>
             </div>
             {m.fileUrl && m.fileUrl !== "#" ? (
-              <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors flex-shrink-0">
+              <a href={`/pinnacle-website/api/v1/downloads/study_material/${m.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-teal)] text-white text-sm font-semibold hover:bg-[var(--color-teal-light)] transition-colors flex-shrink-0">
                 <Download size={14} /> Download
               </a>
             ) : (

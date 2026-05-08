@@ -20,6 +20,7 @@
     "lucide-react": "catalog:",
     "next": "^15.3.3",
     "openai": "^6.27.0",
+    "pdf-lib": "^1.17.1",
     "pdf-to-png-converter": "^4.0.0",
     "razorpay": "^2.9.6",
     "react": "catalog:",

@@ -37,6 +37,7 @@ const NAV_ITEMS = [
   { label: "SEO Health", href: "/portal/admin/seo", icon: "Search" },
   { label: "Audit Logs", href: "/portal/admin/audit-logs", icon: "ScrollText" },
   { label: "Settings", href: "/portal/admin/settings", icon: "Settings" },
+  { label: "PDF Watermark", href: "/portal/admin/settings/watermark", icon: "Settings" },
   { label: "Operations", href: "#", icon: "Activity", divider: true },
   { label: "System Health", href: "/portal/admin/ops/health", icon: "Activity" },
   { label: "Test Email", href: "/portal/admin/ops/test-email", icon: "Mail" },
