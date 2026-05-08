@@ -835,6 +835,29 @@ export type InsertSecurityEvent = typeof securityEvents.$inferInsert;
 export type IpLockout = typeof ipLockouts.$inferSelect;
 export type InsertIpLockout = typeof ipLockouts.$inferInsert;
 
+/**
+ * Server-side page-view tracker — privacy-friendly fallback when GA4 is not
+ * configured. One row per (path, date) pair; counts are upserted on each
+ * beacon so the table stays small.
+ */
+export const pageViews = pgTable("page_views", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  path: text("path").notNull(),
+  referrer: text("referrer"),
+  country: text("country"),
+  deviceType: text("device_type"), // desktop | mobile | tablet
+  count: integer("count").notNull().default(1),
+  date: text("date").notNull(), // YYYY-MM-DD — stored as text to avoid timezone drift
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("page_views_path_date_uq").on(t.path, t.date),
+  index("page_views_date_idx").on(t.date),
+]);
+
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = typeof pageViews.$inferInsert;
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),

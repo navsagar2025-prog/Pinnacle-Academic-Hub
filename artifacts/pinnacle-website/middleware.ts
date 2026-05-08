@@ -138,6 +138,11 @@ export default clerkMiddleware(async (auth, req) => {
   return res;
 }, { signInUrl: `${base}/sign-in`, signUpUrl: `${base}/sign-up` });
 
+// Required alongside experimental.nodeMiddleware: true in next.config.ts.
+// Without this export, Next.js still bundles middleware with edge-runtime
+// webpack constraints (which rejects Node.js modules like pg's crypto).
+export const runtime = "nodejs";
+
 export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",

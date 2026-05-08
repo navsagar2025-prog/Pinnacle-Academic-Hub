@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { AnalyticsSettings } from "./AnalyticsSettings";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
@@ -24,6 +25,9 @@ type Props = { settings: Record<string, string> };
 
 export function SettingsForm({ settings }: Props) {
   const [form, setForm] = useState<Record<string, string>>(settings);
+  function handleAnalyticsUpdate(key: string, value: string) {
+    setForm((p) => ({ ...p, [key]: value }));
+  }
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -76,6 +80,8 @@ export function SettingsForm({ settings }: Props) {
           ))}
         </div>
       </div>
+
+      <AnalyticsSettings settings={form} onUpdate={handleAnalyticsUpdate} />
 
       <div className="flex justify-end">
         <button type="submit" disabled={saving} className="btn-primary px-8 py-2.5 text-sm">

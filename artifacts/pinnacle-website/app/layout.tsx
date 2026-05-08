@@ -113,6 +113,27 @@ export default async function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
+          {/* Server-side page-view beacon — fires on every public page load.
+              Uses sendBeacon so it never blocks navigation or page close.
+              Portal routes (/portal/*) are excluded to keep the tracker
+              focused on public visitor traffic. */}
+          <script
+            nonce={nonce}
+            dangerouslySetInnerHTML={{
+              __html: `(function(){
+  try {
+    var p = location.pathname;
+    if (p.indexOf('/portal') === 0) return;
+    var payload = JSON.stringify({ path: p, referrer: document.referrer || null });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('${base}/api/v1/telemetry/pageview', new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch('${base}/api/v1/telemetry/pageview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true });
+    }
+  } catch(e) {}
+})();`,
+            }}
+          />
         </body>
       </html>
     </ClerkProvider>

@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", icon: "TrendingUp" },
   { label: "Fee Collection", href: "/portal/admin/analytics/fees", icon: "CreditCard" },
   { label: "Content Engagement", href: "/portal/admin/analytics/content", icon: "BookOpen" },
+  { label: "Website Traffic", href: "/portal/admin/analytics/traffic", icon: "Globe" },
   { label: "Tools", href: "#", icon: "Bot", divider: true },
   { label: "AI Assistant", href: "/portal/admin/ai", icon: "Bot" },
   { label: "User Management", href: "/portal/admin/users", icon: "ShieldCheck" },
