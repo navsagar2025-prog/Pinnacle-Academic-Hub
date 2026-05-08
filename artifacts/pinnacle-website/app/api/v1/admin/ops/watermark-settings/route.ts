@@ -63,7 +63,7 @@ export async function PUT(req: NextRequest) {
     return err("Invalid position", 400);
   }
   if (body.opacity !== undefined && (body.opacity < 0 || body.opacity > 100)) return err("opacity must be 0-100", 400);
-  if (body.rotation !== undefined && (body.rotation < -180 || body.rotation > 180)) return err("rotation must be -180..180", 400);
+  if (body.rotation !== undefined && (body.rotation < 0 || body.rotation > 90)) return err("rotation must be 0..90", 400);
   if (body.fontSize !== undefined && (body.fontSize < 6 || body.fontSize > 200)) return err("fontSize must be 6-200", 400);
   if (body.textTemplate !== undefined && body.textTemplate.length > 500) return err("textTemplate too long", 400);
   if (body.color !== undefined && !/^#?[0-9a-fA-F]{6}$/.test(body.color)) return err("color must be hex like #888888", 400);

@@ -1,16 +1,6 @@
-/**
- * PDF watermarking — admin-controlled text + optional logo overlay applied
- * server-side via pdf-lib to every user-downloadable PDF (fee receipts,
- * study materials, assignments, question-bank exports).
- *
- * Settings live in the `watermark_settings` table:
- *   - One mandatory "global" row provides the defaults.
- *   - One optional row per doc-type (receipt | study_material | assignment |
- *     question_bank) lets admins override fields per type. When a doc-type row
- *     has `useGlobal=true` it inherits everything from global.
- *
- * Templates support a strict whitelist of placeholders — never raw eval.
- */
+// PDF watermarking — text + optional logo overlay applied server-side via
+// pdf-lib. Settings come from `watermark_settings`: one global row plus
+// optional per-doc-type overrides. Placeholders are a strict whitelist.
 import { db } from "@workspace/db";
 import { watermarkSettings, type WatermarkSettings } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -62,7 +52,7 @@ const DEFAULT_GLOBAL: WatermarkConfig = {
   textTemplate: "{{centreName}} • {{userName}} • {{date}}",
   position: "tile",
   opacity: 12,
-  rotation: 45,
+  rotation: 45,  // 0..90 degrees
   fontSize: 36,
   color: "#888888",
   logoObjectPath: null,

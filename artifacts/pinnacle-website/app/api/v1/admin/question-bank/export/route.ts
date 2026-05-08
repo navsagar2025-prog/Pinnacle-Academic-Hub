@@ -1,16 +1,6 @@
-/**
- * Build a PDF of question-bank rows on demand and stream it through the
- * watermarking pipeline. The endpoint accepts the same filter query string
- * as the admin question-bank page (subject/topic/year/etc.) so admins can
- * export exactly what they're currently viewing. Limited to 200 rows per
- * call to keep memory bounded.
- *
- * The output is *not* persisted in object storage — the bytes are built in
- * memory, stamped via `withWatermark` (docType=`question_bank`), audited
- * (`download.pdf` action with the watermark snapshot id), and streamed back
- * to the client. This matches the project requirement that every
- * user-downloadable PDF is watermarked at the point of delivery.
- */
+// Admin-only on-demand question-bank export. Builds a PDF in memory, stamps
+// it via the shared watermark pipeline, audits the download, and streams it.
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
@@ -26,10 +16,8 @@ export const runtime = "nodejs";
 const MAX_ROWS = 200;
 
 export async function GET(req: NextRequest) {
-  // `requirePortalRole("admin")` enforces the admin role and short-circuits
-  // with a redirect/403 for non-admin sessions, so authenticated-but-non-admin
-  // users cannot reach the export query.
   const adminUser = await requirePortalRole("admin");
+  const exportId = randomUUID();
 
   const sp = req.nextUrl.searchParams;
   const conds: SQL[] = [notDeleted];
@@ -146,9 +134,6 @@ export async function GET(req: NextRequest) {
 
   const rawBytes = Buffer.from(await pdf.save());
 
-  // Watermark + audit. `withWatermark` returns both the stamped bytes and
-  // the configHash of the snapshot it applied, which we record so each row
-  // in the audit log can be traced back to an exact watermark configuration.
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const wmCtx = buildWatermarkContext({
     userName: adminUser.name ?? null,
@@ -168,7 +153,7 @@ export async function GET(req: NextRequest) {
     adminUser.name ?? null,
     "download.pdf",
     "question_bank_export",
-    undefined,
+    exportId,
     {
       docType: "question_bank",
       rowCount: rows.length,

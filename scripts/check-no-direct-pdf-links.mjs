@@ -1,18 +1,7 @@
 #!/usr/bin/env node
-/**
- * Regression guard: forbid front-end code from linking directly to PDF blobs
- * in object storage. Every user-downloadable PDF must go through
- * `/api/v1/downloads/<docType>/<id>` so the watermarking + audit pipeline
- * runs server-side. This script greps the portal/component tree for the
- * patterns that historically bypassed it (raw fileUrl anchors, target=_blank
- * to .pdf URLs, direct /objects/<...>.pdf hrefs) and exits non-zero on any
- * hit. Wired into the workspace `lint:no-direct-pdf` script and the
- * project's validation step.
- *
- * To intentionally reference a stored PDF (e.g. when the resource is *not*
- * user-downloadable), add the literal token `// allow-direct-pdf` on the
- * same line as the offending pattern and the line will be ignored.
- */
+// Forbid direct PDF links / raw fileUrl projections that bypass the
+// watermarking download proxy. Use `// allow-direct-pdf` on a line to
+// whitelist a legitimate exception (e.g. an admin upload write path).
 import { execFileSync } from "node:child_process";
 
 const ROOTS = [
@@ -20,9 +9,6 @@ const ROOTS = [
   "artifacts/pinnacle-website/components",
 ];
 
-// API routes that are allowed to expose raw fileUrl in their response — admin
-// surfaces, the upload+download proxy itself, and the question-bank export
-// endpoint that builds + stamps PDFs server-side.
 const API_FILEURL_ALLOWLIST = [
   "/api/v1/admin/",
   "/api/v1/downloads/",
@@ -30,24 +16,10 @@ const API_FILEURL_ALLOWLIST = [
   "/api/v1/assignments/schedules/", // teacher/admin schedule editor only
 ];
 
-// Each rule is a Perl-compatible regex passed to ripgrep. Keep the patterns
-// narrow so they target the *bypass* shapes — not legitimate uses of
-// fileUrl in admin upload widgets etc.
 const RULES = [
-  {
-    name: "raw fileUrl in href",
-    // href={something.fileUrl} or href={fileUrl} — but the new download
-    // proxy URL contains "/api/v1/downloads/" so it never matches this rule.
-    re: String.raw`href=\{[^}]*\bfileUrl\b[^}]*\}`,
-  },
-  {
-    name: "target=_blank to a .pdf url literal",
-    re: String.raw`target=["']_blank["'][^>]*\.pdf`,
-  },
-  {
-    name: "direct /objects/.../*.pdf href",
-    re: String.raw`href=["'][^"']*\/objects\/[^"']+\.pdf`,
-  },
+  { name: "raw fileUrl in href", re: String.raw`href=\{[^}]*\bfileUrl\b[^}]*\}` },
+  { name: "target=_blank to a .pdf url literal", re: String.raw`target=["']_blank["'][^>]*\.pdf` },
+  { name: "direct /objects/.../*.pdf href", re: String.raw`href=["'][^"']*\/objects\/[^"']+\.pdf` },
 ];
 
 let failed = false;
@@ -70,9 +42,6 @@ for (const rule of RULES) {
     .split("\n")
     .filter((line) => line.trim().length > 0)
     .filter((line) => !line.includes("// allow-direct-pdf"))
-    // The download proxy URL contains "/api/v1/downloads/" — if a line
-    // mentions both fileUrl (as a guard / falsy check) AND the proxy URL,
-    // it's already going through the watermarking pipeline.
     .filter((line) => !line.includes("/api/v1/downloads/"));
 
   if (hits.length > 0) {
@@ -82,10 +51,7 @@ for (const rule of RULES) {
   }
 }
 
-// Server-side rule: API route handlers under app/api/v1 must not project a
-// raw `fileUrl:` column into their JSON response unless they're on the
-// allow-list above. This catches API regressions that the JSX-only rules
-// above can't see.
+// API routes must not project raw `fileUrl:` unless allow-listed.
 {
   let out = "";
   try {

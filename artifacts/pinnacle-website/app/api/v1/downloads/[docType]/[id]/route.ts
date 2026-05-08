@@ -1,10 +1,4 @@
-/**
- * Watermarked download proxy. All user-downloadable PDFs flow through here so
- * the admin watermark policy is applied uniformly and every download is
- * audit-logged.
- *
- *   GET /api/v1/downloads/{receipt|study_material|assignment|question_bank}/[id]
- */
+// GET /api/v1/downloads/{receipt|study_material|assignment|practice_paper|question_bank}/[id]
 import { NextRequest } from "next/server";
 import { db } from "@workspace/db";
 import {
@@ -56,11 +50,8 @@ function forbidden() {
 
 function objectPathFromFileUrl(fileUrl: string | null | undefined): string | null {
   if (!fileUrl) return null;
-  // Stored values can be either a raw object path ("/objects/...") or the
-  // serving URL ("/pinnacle-website/api/v1/storage/objects/...").
   const idx = fileUrl.indexOf("/objects/");
-  if (idx < 0) return null;
-  return fileUrl.slice(idx);
+  return idx < 0 ? null : fileUrl.slice(idx);
 }
 
 function attachmentHeaders(filename: string, size: number) {
@@ -84,14 +75,11 @@ export async function GET(
   const user = await getDbUser();
   if (!user) return unauthorized();
 
-  // Resolve PDF bytes + suggested filename per doc type, with per-resource
-  // authorisation.
   let bytes: Uint8Array | Buffer | null = null;
   let filename = `${docType}-${id}.pdf`;
   let resourceMeta: Record<string, unknown> = {};
 
   if (docType === "receipt") {
-    // Fee receipts: built server-side from the fee row + student profile.
     const [fee] = await db.select().from(feeRecords).where(eq(feeRecords.id, id)).limit(1);
     if (!fee) return notFound();
     if (fee.status !== "paid") return notFound();

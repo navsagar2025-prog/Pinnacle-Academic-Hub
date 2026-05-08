@@ -377,7 +377,7 @@ export function WatermarkSettingsForm({
               </span>
               <input
                 type="range"
-                min={-90}
+                min={0}
                 max={90}
                 value={current.rotation}
                 onChange={(e) => update({ rotation: Number(e.target.value) })}
