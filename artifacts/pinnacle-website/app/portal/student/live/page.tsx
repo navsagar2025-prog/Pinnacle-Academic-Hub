@@ -63,7 +63,7 @@ export default async function LiveClassesPage() {
           zoomJoinUrl: liveClasses.zoomJoinUrl,
           zoomPasscode: liveClasses.zoomPasscode,
           status: liveClasses.status,
-          recordingUrl: liveClasses.recordingUrl,
+          recordingUrl: liveClasses.recordingUrl, // allow-direct-recording: live-class zoom fallback link, not part of the watermarked recordings library
           teacherName: users.name,
         })
         .from(liveClasses)
@@ -158,9 +158,9 @@ export default async function LiveClassesPage() {
               </a>
             ) : computed === "upcoming" ? (
               <span className="text-xs text-slate-300 text-right">Link TBA</span>
-            ) : computed === "ended" && cls.recordingUrl ? (
+            ) : computed === "ended" && cls.recordingUrl ? ( // allow-direct-recording: zoom recording link for ended live class
               <a
-                href={cls.recordingUrl}
+                href={cls.recordingUrl /* allow-direct-recording: zoom recording link for ended live class */}
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
               >
