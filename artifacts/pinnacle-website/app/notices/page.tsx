@@ -16,7 +16,11 @@ export const metadata: Metadata = {
     url: "/notices",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Notices & Announcements | Pinnacle Academic Classes")}&description=${encodeURIComponent("Latest notices, events, and announcements from Pinnacle Academic Classes, Gaur City 2, Sec. 16C, Greater Noida — 201009.")}`, width: 1200, height: 630, alt: "Notices — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Notices & Announcements | Pinnacle Academic Classes")}&description=${encodeURIComponent("Latest notices, events, and announcements from Pinnacle Academic Classes, Gaur City 2, Sec. 16C, Greater Noida — 201009.")}`],
   },
   alternates: { canonical: "/notices" },
 };

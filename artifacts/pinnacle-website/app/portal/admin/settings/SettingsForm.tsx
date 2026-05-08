@@ -83,6 +83,41 @@ export function SettingsForm({ settings }: Props) {
 
       <AnalyticsSettings settings={form} onUpdate={handleAnalyticsUpdate} />
 
+      <div className="card">
+        <h2 className="font-semibold text-[var(--color-navy)] mb-1 pb-3 border-b border-slate-100">Script Injection</h2>
+        <p className="text-xs text-slate-500 mb-5">
+          Paste raw JavaScript snippets (e.g. Google Tag Manager, LiveChat, Clarity). These are injected on every public page.
+          The <strong>head injection</strong> runs before page content; the <strong>body injection</strong> runs after all content.
+          Do <em>not</em> wrap in <code>&lt;script&gt;</code> tags — paste only the inner code.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Head Injection <span className="font-normal text-slate-400">(runs early — ideal for tag managers &amp; analytics)</span>
+            </label>
+            <textarea
+              value={form["head_injection"] ?? ""}
+              onChange={(e) => setForm((p) => ({ ...p, head_injection: e.target.value }))}
+              rows={5}
+              placeholder={"// Example: Google Tag Manager snippet\n(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-XXXX');"}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Body Injection <span className="font-normal text-slate-400">(runs after content — ideal for chat widgets &amp; exit-intent)</span>
+            </label>
+            <textarea
+              value={form["body_injection"] ?? ""}
+              onChange={(e) => setForm((p) => ({ ...p, body_injection: e.target.value }))}
+              rows={5}
+              placeholder={"// Example: LiveChat, HotJar, etc.\n(function(h,o,t,j,a,r){ ... })();"}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="flex justify-end">
         <button type="submit" disabled={saving} className="btn-primary px-8 py-2.5 text-sm">
           {saving ? "Saving…" : "Save Settings"}

@@ -11,7 +11,11 @@ export const metadata: Metadata = {
     url: "/refund-policy",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Refund Policy | Pinnacle Academic Classes")}&description=${encodeURIComponent("Pinnacle Academic Classes refund and cancellation policy for course fees, including timelines, eligibility, and process for raising a refund request.")}`, width: 1200, height: 630, alt: "Refund Policy — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Refund Policy | Pinnacle Academic Classes")}&description=${encodeURIComponent("Pinnacle Academic Classes refund and cancellation policy for course fees, including timelines, eligibility, and process for raising a refund request.")}`],
   },
   alternates: { canonical: "/refund-policy" },
 };

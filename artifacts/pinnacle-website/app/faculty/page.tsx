@@ -14,7 +14,11 @@ export const metadata: Metadata = {
     url: "/faculty",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Our Faculty — Expert Teachers | Pinnacle Academic Classes")}&description=${encodeURIComponent("Meet Pinnacle's expert faculty — IIT/NIT alumni and PhD-qualified teachers with 7–14 years of coaching experience for JEE, NEET, and board exams.")}`, width: 1200, height: 630, alt: "Our Faculty — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Our Faculty — Expert Teachers | Pinnacle Academic Classes")}&description=${encodeURIComponent("Meet Pinnacle's expert faculty — IIT/NIT alumni and PhD-qualified teachers with 7–14 years of coaching experience for JEE, NEET, and board exams.")}`],
   },
   alternates: { canonical: "/faculty" },
 };

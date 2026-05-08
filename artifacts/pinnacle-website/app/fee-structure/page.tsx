@@ -17,7 +17,11 @@ export const metadata = {
     url: "/fee-structure",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Fee Structure 2026–27 — Pinnacle Academic Classes")}&description=${encodeURIComponent("Transparent course fees, instalment options, and scholarship information for all programmes at Pinnacle Academic Classes, Greater Noida.")}`, width: 1200, height: 630, alt: "Fee Structure — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Fee Structure 2026–27 — Pinnacle Academic Classes")}&description=${encodeURIComponent("Transparent course fees, instalment options, and scholarship information for all programmes at Pinnacle Academic Classes, Greater Noida.")}`],
   },
   alternates: { canonical: "/fee-structure" },
 };

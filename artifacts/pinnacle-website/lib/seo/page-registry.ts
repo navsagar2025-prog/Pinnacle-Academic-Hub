@@ -295,3 +295,12 @@ export function runAudit(): SeoAuditEntry[] {
 }
 
 export { SITE_URL };
+
+export function ogImg(title: string, description: string) {
+  return {
+    url: `/api/og?title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`,
+    width: 1200,
+    height: 630,
+    alt: title,
+  };
+}

@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     url: "/results",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes")}&description=${encodeURIComponent("Pinnacle Academic Classes 2024 results: 85+ IIT/AIIMS selections, 320+ NIT selections. See our JEE and NEET toppers.")}`, width: 1200, height: 630, alt: "Results — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Results & Toppers 2024 — JEE, NEET | Pinnacle Academic Classes")}&description=${encodeURIComponent("Pinnacle Academic Classes 2024 results: 85+ IIT/AIIMS selections, 320+ NIT selections. See our JEE and NEET toppers.")}`],
   },
   alternates: { canonical: "/results" },
 };

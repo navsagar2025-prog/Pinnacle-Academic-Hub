@@ -12,7 +12,11 @@ export const metadata: Metadata = {
     url: "/faq",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Frequently Asked Questions — Pinnacle Academic Classes")}&description=${encodeURIComponent("Answers to your questions about admissions, fees, batch timings, online classes, and programmes at Pinnacle Academic Classes, Greater Noida.")}`, width: 1200, height: 630, alt: "FAQs — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Frequently Asked Questions — Pinnacle Academic Classes")}&description=${encodeURIComponent("Answers to your questions about admissions, fees, batch timings, online classes, and programmes at Pinnacle Academic Classes, Greater Noida.")}`],
   },
 };
 

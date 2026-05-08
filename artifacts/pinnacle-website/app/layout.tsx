@@ -5,6 +5,9 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { SITE_URL } from "@/lib/seo/page-registry";
 import { PromoBanner } from "@/components/promo/PromoBanner";
+import { db } from "@workspace/db";
+import { siteSettings } from "@workspace/db/schema";
+import { inArray } from "drizzle-orm";
 
 if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
   throw new Error(
@@ -55,14 +58,14 @@ export const metadata: Metadata = {
       "Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.",
     siteName: "Pinnacle Academic Classes",
     url: SITE_URL,
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Pinnacle Academic Classes | JEE · NEET · Class 10-12")}&description=${encodeURIComponent("Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.")}`, width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Pinnacle Academic Classes | JEE · NEET · Class 10-12",
     description:
       "Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.",
-    images: ["/opengraph.jpg"],
+    images: [`/api/og?title=${encodeURIComponent("Pinnacle Academic Classes | JEE · NEET · Class 10-12")}&description=${encodeURIComponent("Greater Noida's premier coaching institute. Expert faculty, proven results, modern learning.")}`],
   },
   robots: { index: true, follow: true },
 };
@@ -99,6 +102,13 @@ export default async function RootLayout({
   // pass the Content-Security-Policy without needing 'unsafe-inline'.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
+  const scriptRows = await db
+    .select()
+    .from(siteSettings)
+    .where(inArray(siteSettings.key, ["head_injection", "body_injection"]));
+  const headInjection = scriptRows.find((r) => r.key === "head_injection")?.value ?? null;
+  const bodyInjection = scriptRows.find((r) => r.key === "body_injection")?.value ?? null;
+
   return (
     <ClerkProvider
       signInUrl={`${base}/sign-in`}
@@ -108,6 +118,12 @@ export default async function RootLayout({
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
         <body className="font-[family-name:var(--font-jakarta)]">
+          {headInjection && (
+            <script
+              nonce={nonce}
+              dangerouslySetInnerHTML={{ __html: headInjection }}
+            />
+          )}
           <PromoBanner basePath={base} />
           {children}
           <script
@@ -158,6 +174,12 @@ export default async function RootLayout({
   } catch(e) {}
 })();`,
               }}
+            />
+          )}
+          {bodyInjection && (
+            <script
+              nonce={nonce}
+              dangerouslySetInnerHTML={{ __html: bodyInjection }}
             />
           )}
           {/* Server-side page-view beacon — fires on every public page load.

@@ -17,7 +17,11 @@ export const metadata = {
     url: "/leaderboard",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Weekly Leaderboard — Pinnacle Academic Classes")}&description=${encodeURIComponent("Top performers from this week's mock tests at Pinnacle Academic Classes. Anonymized rankings to celebrate hard work and consistency.")}`, width: 1200, height: 630, alt: "Leaderboard — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Weekly Leaderboard — Pinnacle Academic Classes")}&description=${encodeURIComponent("Top performers from this week's mock tests at Pinnacle Academic Classes. Anonymized rankings to celebrate hard work and consistency.")}`],
   },
 };
 

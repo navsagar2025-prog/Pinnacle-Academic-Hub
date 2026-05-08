@@ -14,7 +14,7 @@ export const metadata = {
     url: "/contact",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Contact Us — Pinnacle Academic Classes")}&description=${encodeURIComponent("Visit us at Shop Mart, Gaur City 2, Sec. 16C, Greater Noida, or call +91 99718 62138.")}`, width: 1200, height: 630, alt: "Contact — Pinnacle Academic Classes" }],
   },
 };
 

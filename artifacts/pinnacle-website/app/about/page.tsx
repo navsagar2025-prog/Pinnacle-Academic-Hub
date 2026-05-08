@@ -15,7 +15,11 @@ export const metadata: Metadata = {
     url: "/about",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("About Us — Pinnacle Academic Classes")}&description=${encodeURIComponent("Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.")}`, width: 1200, height: 630, alt: "About Us — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("About Us — Pinnacle Academic Classes")}&description=${encodeURIComponent("Learn about Pinnacle Academic Classes — Greater Noida's premier coaching institute for JEE, NEET, and board exams. Our story, mission, and faculty.")}`],
   },
   alternates: { canonical: "/about" },
 };

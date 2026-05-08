@@ -11,7 +11,11 @@ export const metadata: Metadata = {
     url: "/privacy-policy",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Privacy Policy | Pinnacle Academic Classes")}&description=${encodeURIComponent("How Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.) collects, uses, and protects your personal data in compliance with Indian data protection laws.")}`, width: 1200, height: 630, alt: "Privacy Policy — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Privacy Policy | Pinnacle Academic Classes")}&description=${encodeURIComponent("How Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.) collects, uses, and protects your personal data in compliance with Indian data protection laws.")}`],
   },
   alternates: { canonical: "/privacy-policy" },
 };

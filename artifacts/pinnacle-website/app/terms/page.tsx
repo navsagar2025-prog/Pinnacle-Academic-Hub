@@ -11,7 +11,11 @@ export const metadata: Metadata = {
     url: "/terms",
     siteName: "Pinnacle Academic Classes",
     type: "website",
-    images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
+    images: [{ url: `/api/og?title=${encodeURIComponent("Terms & Conditions | Pinnacle Academic Classes")}&description=${encodeURIComponent("Terms governing enrolment, digital resource usage, and the student-institute relationship at Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.).")}`, width: 1200, height: 630, alt: "Terms & Conditions — Pinnacle Academic Classes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`/api/og?title=${encodeURIComponent("Terms & Conditions | Pinnacle Academic Classes")}&description=${encodeURIComponent("Terms governing enrolment, digital resource usage, and the student-institute relationship at Pinnacle Academic Classes (KCK Corporate Services Pvt. Ltd.).")}`],
   },
   alternates: { canonical: "/terms" },
 };

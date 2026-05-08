@@ -1,4 +1,4 @@
-import { runAudit, SITE_URL } from "@/lib/seo/page-registry";
+import { runAudit, SITE_URL, PUBLIC_PAGES } from "@/lib/seo/page-registry";
 import { CheckCircle, AlertTriangle, XCircle, ExternalLink, Globe, FileText, Search } from "lucide-react";
 import Link from "next/link";
 import type { SeoStatus } from "@/lib/seo/page-registry";
@@ -6,6 +6,7 @@ import { apiUrl } from "@/lib/utils";
 import { db } from "@workspace/db";
 import { seoOverrides } from "@workspace/db/schema";
 import { SeoOverridesTable } from "./SeoOverridesEditor";
+import { BulkSeoFill, type BulkSeoRow } from "./BulkSeoFill";
 
 export const metadata = { title: "SEO Health Dashboard — Admin" };
 
@@ -74,6 +75,20 @@ export default async function SeoAuditPage() {
     Promise.resolve(runAudit()),
     db.select().from(seoOverrides),
   ]);
+
+  const overrideMap = Object.fromEntries(overrideRows.map((r) => [r.route, r]));
+  const bulkRows: BulkSeoRow[] = PUBLIC_PAGES.map((p) => {
+    const ov = overrideMap[p.route];
+    return {
+      route: p.route,
+      label: p.label,
+      defaultTitle: p.title,
+      defaultDescription: p.description,
+      dbTitle: ov?.title ?? null,
+      dbDescription: ov?.description ?? null,
+      dbFocusKeyword: ov?.focusKeyword ?? null,
+    };
+  });
 
   const passCount = auditResults.filter((r) => r.status === "pass").length;
   const warnCount = auditResults.filter((r) => r.status === "warn").length;
@@ -298,6 +313,10 @@ export default async function SeoAuditPage() {
           </div>
         </div>
       )}
+
+      <div className="card">
+        <BulkSeoFill rows={bulkRows} />
+      </div>
 
       <div className="card">
         <SeoOverridesTable rows={overrideRows} />
