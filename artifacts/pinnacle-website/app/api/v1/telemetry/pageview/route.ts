@@ -62,11 +62,13 @@ export async function POST(req: NextRequest) {
     const deviceType = getDeviceType(ua);
     const date = todayIso();
 
-    // Upsert: increment count if the (path, date) row already exists.
+    // Upsert: one row per (path, date, device_type) so device-breakdown
+    // queries in the fallback dashboard are correct. referrer is not included
+    // in the key because its very high cardinality would create a row explosion.
     await db.execute(sql`
-      INSERT INTO page_views (id, path, referrer, device_type, count, date, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${path}, ${referrer}, ${deviceType}, 1, ${date}, now(), now())
-      ON CONFLICT (path, date)
+      INSERT INTO page_views (id, path, device_type, count, date, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${path}, ${deviceType}, 1, ${date}, now(), now())
+      ON CONFLICT (path, date, device_type)
       DO UPDATE SET
         count = page_views.count + 1,
         updated_at = now()

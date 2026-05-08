@@ -843,15 +843,18 @@ export type InsertIpLockout = typeof ipLockouts.$inferInsert;
 export const pageViews = pgTable("page_views", {
   id: uuid("id").primaryKey().defaultRandom(),
   path: text("path").notNull(),
-  referrer: text("referrer"),
   country: text("country"),
-  deviceType: text("device_type"), // desktop | mobile | tablet
+  // One row per (path, date, deviceType) so device-breakdown queries are
+  // correct. Referrer is intentionally excluded from the key because its
+  // very high cardinality would create a row explosion; device-level
+  // segmentation is sufficient for the fallback dashboard.
+  deviceType: text("device_type").notNull().default("desktop"), // desktop | mobile | tablet
   count: integer("count").notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD — stored as text to avoid timezone drift
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [
-  uniqueIndex("page_views_path_date_uq").on(t.path, t.date),
+  uniqueIndex("page_views_path_date_device_uq").on(t.path, t.date, t.deviceType),
   index("page_views_date_idx").on(t.date),
 ]);
 

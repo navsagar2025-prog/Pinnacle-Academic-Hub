@@ -16,9 +16,14 @@ import { siteSettings } from "@workspace/db/schema";
 import { inArray } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
-// Fields that must never be forwarded (GDPR / privacy-safe).
+// True PII fields that must never be forwarded (GDPR / privacy-safe).
+// NOTE: `client_id` is intentionally kept — GA4 Measurement Protocol
+// requires it to associate events with a browser session. It is a random
+// GA-generated ID (e.g. "GA1.1.123456789.1234567890"), not a user identifier.
+// `user_id` is stripped because it is a persistent first-party identifier.
+// `ip_override` is stripped to prevent spoofing the upstream IP logged by GA.
 const PII_STRIP = [
-  "user_id", "client_id", "ip_override",
+  "user_id", "ip_override",
   "email", "phone", "name", "address",
 ];
 

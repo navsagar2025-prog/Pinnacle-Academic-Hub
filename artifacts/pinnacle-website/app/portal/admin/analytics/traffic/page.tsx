@@ -119,7 +119,7 @@ async function fetchGa4Data(propertyId: string, serviceAccountJson: string) {
 // ---------------------------------------------------------------------------
 
 async function fetchInternalData() {
-  const [topPagesRows, dailyRows, deviceRows] = await Promise.all([
+  const [topPagesRows, dailyRows, deviceRows, totalRows] = await Promise.all([
     db.execute(sql`
       SELECT path, sum(count)::int AS views
       FROM page_views
@@ -142,7 +142,9 @@ async function fetchInternalData() {
       GROUP BY device_type
       ORDER BY views DESC
     `),
-    db.select({ total: sql<number>`coalesce(sum(count), 0)::int` }).from(pageViews),
+    db.select({ total: sql<number>`coalesce(sum(count), 0)::int` })
+      .from(pageViews)
+      .where(sql`date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')`),
   ]);
 
   const topPages: TopPage[] = (topPagesRows.rows as { path: string; views: number }[]).map((r) => ({
@@ -160,7 +162,9 @@ async function fetchInternalData() {
     color: CHART_COLORS[i % CHART_COLORS.length],
   }));
 
-  const totalViews = topPages.reduce((s, r) => s + r.views, 0);
+  // Use the actual sum from the DB — not the top-10 sum — to get the
+  // correct 30-day total including pages that fell off the top-10 list.
+  const totalViews = totalRows[0]?.total ?? 0;
 
   return { topPages, daily, devices, totalViews };
 }
