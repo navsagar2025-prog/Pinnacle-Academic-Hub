@@ -168,6 +168,7 @@ export function WatermarkSettingsForm({
         body: JSON.stringify({
           title: activeScope === "global" ? "Watermark Preview" : `Preview: ${activeScope}`,
           config: {
+            enabled: effective.enabled,
             textTemplate: effective.textTemplate,
             position: effective.position,
             opacity: effective.opacity,
@@ -197,6 +198,7 @@ export function WatermarkSettingsForm({
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    effective.enabled,
     effective.textTemplate,
     effective.position,
     effective.opacity,
