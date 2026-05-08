@@ -20,11 +20,25 @@ const useStandalone = process.env.NEXT_OUTPUT_STANDALONE === "true";
 
 // Static security response headers applied to every route.
 //
-// Content-Security-Policy is intentionally NOT listed here because the app
-// uses nonce-based CSP (required by Clerk's hosted UI and Next.js inline
-// scripts). A static CSP header cannot carry per-request nonces, so the full
-// CSP is generated and emitted in middleware.ts on every request. See:
-//   artifacts/pinnacle-website/middleware.ts → buildCsp()
+// Content-Security-Policy (static fallback):
+//   The app uses per-request nonce-based CSP generated in middleware.ts so
+//   that inline scripts (JSON-LD, Clerk UI, Next.js HMR) can carry nonces
+//   rather than relying on 'unsafe-inline'. The middleware CSP header takes
+//   precedence and overrides this value on all requests that pass through it.
+//   This static entry covers edge cases (Next.js error pages, static file
+//   responses) that may bypass middleware.
+const cspFallback =
+  "default-src 'self'; " +
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.clerk.accounts.dev https://clerk.paconline.in; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+  "font-src 'self' https://fonts.gstatic.com data:; " +
+  "img-src 'self' data: blob: https:; " +
+  "connect-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in https://*.googleapis.com https://storage.googleapis.com; " +
+  "frame-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in; " +
+  "object-src 'none'; " +
+  "base-uri 'self'; " +
+  "form-action 'self'";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -37,6 +51,11 @@ const securityHeaders = [
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
+  },
+  {
+    // Static fallback — middleware.ts emits the nonce-enriched version at runtime.
+    key: "Content-Security-Policy",
+    value: cspFallback,
   },
 ];
 
@@ -60,6 +79,14 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: isDev ? ["*"] : [],
     },
+    // Run middleware in the Node.js runtime instead of the Edge runtime.
+    // Required because middleware.ts imports Drizzle/PostgreSQL for IP lockout
+    // checks and rate limiting — these are not available in the Edge sandbox.
+    // The type definitions for this experimental flag lag behind the runtime
+    // support added in Next.js 15.1+ — suppress the stale TS error.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error nodeMiddleware is supported at runtime (Next.js ≥ 15.1)
+    nodeMiddleware: true,
   },
   async headers() {
     return [

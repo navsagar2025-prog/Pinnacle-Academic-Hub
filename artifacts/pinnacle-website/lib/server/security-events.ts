@@ -4,11 +4,12 @@
  * Design choices:
  * - All writes are fire-and-forget (swallowed errors) so a DB hiccup never
  *   blocks the auth flow.
- * - Lockout decisions are read synchronously in middleware; the DB lookup is
- *   bounded by Postgres connection pool, not an external call.
  * - Thresholds are read from the `site_settings` table (keys below) so admins
  *   can tune them from the Settings UI without a code deploy. Hard-coded
  *   defaults are used when a key is absent.
+ * - `lockIpNow` is exported so the middleware can directly lock an IP when it
+ *   detects excessive sign-in page visits — the only reliable place where the
+ *   real client IP is always available.
  *
  * Threshold keys in site_settings:
  *   security_fail_threshold    – failures before IP lockout     (default 10)
@@ -40,14 +41,14 @@ const THRESHOLD_KEYS = [
   "security_window_minutes",
 ] as const;
 
-interface SecurityThresholds {
+export interface SecurityThresholds {
   failThreshold: number;
   lockoutMinutes: number;
   windowMinutes: number;
 }
 
 /** Read security thresholds from site_settings (with hard-coded fallbacks). */
-async function getSecurityThresholds(): Promise<SecurityThresholds> {
+export async function getSecurityThresholds(): Promise<SecurityThresholds> {
   try {
     const rows = await db
       .select({ key: siteSettings.key, value: siteSettings.value })
@@ -87,7 +88,10 @@ export async function logSecurityEvent(opts: {
       outcome: opts.outcome,
     });
 
-    // Auto-lockout: count recent failures from this IP and lock if threshold hit
+    // Auto-lockout: count recent failures from this IP.
+    // Only triggered when IP is known — webhook events with ip=null do not
+    // trigger this path. IP-based lockout for sign-in activity is instead
+    // handled by the middleware via trackSignInAttempt().
     if (opts.eventType === "login_fail" && opts.ip) {
       await maybeAutoLockIp(opts.ip, opts.route ?? null);
     }
@@ -96,11 +100,12 @@ export async function logSecurityEvent(opts: {
   }
 }
 
+/** Count login_fail events for an IP in the rolling window and lock if threshold hit. */
 async function maybeAutoLockIp(ip: string, route: string | null) {
   try {
     const { failThreshold, lockoutMinutes, windowMinutes } = await getSecurityThresholds();
-
     const windowStart = new Date(Date.now() - windowMinutes * 60_000);
+
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(securityEvents)
@@ -113,30 +118,7 @@ async function maybeAutoLockIp(ip: string, route: string | null) {
       );
 
     if (count >= failThreshold) {
-      const lockedUntil = new Date(Date.now() + lockoutMinutes * 60_000);
-      await db
-        .insert(ipLockouts)
-        .values({ ip, attempts: count, lockedUntil, route })
-        .onConflictDoUpdate({
-          target: ipLockouts.ip,
-          set: {
-            attempts: count,
-            lockedUntil,
-            route,
-            unlockedAt: null,
-            unlockedBy: null,
-            updatedAt: new Date(),
-          },
-        });
-
-      // Log the auto-lockout event (best-effort; avoid recursive loop by not
-      // passing eventType=login_fail here)
-      await db.insert(securityEvents).values({
-        eventType: "ip_blocked",
-        ip,
-        route,
-        outcome: "blocked",
-      }).catch(() => {});
+      await lockIpNow(ip, route, count, lockoutMinutes);
     }
   } catch {
     // Best-effort
@@ -144,9 +126,54 @@ async function maybeAutoLockIp(ip: string, route: string | null) {
 }
 
 /**
+ * Immediately lock an IP address.
+ *
+ * Called from:
+ *   1. maybeAutoLockIp() — after N login_fail events with a known IP
+ *   2. middleware.ts → trackSignInAttempt() — after N sign-in page visits
+ *      from the same IP (where the middleware has the real client IP, not
+ *      the Clerk webhook sender IP).
+ *
+ * This is the canonical lockout writer; unblockIp() sets unlockedAt to clear it.
+ */
+export async function lockIpNow(
+  ip: string,
+  route: string | null,
+  attempts: number,
+  lockoutMinutes: number,
+): Promise<void> {
+  try {
+    const lockedUntil = new Date(Date.now() + lockoutMinutes * 60_000);
+    await db
+      .insert(ipLockouts)
+      .values({ ip, attempts, lockedUntil, route })
+      .onConflictDoUpdate({
+        target: ipLockouts.ip,
+        set: {
+          attempts,
+          lockedUntil,
+          route,
+          unlockedAt: null,
+          unlockedBy: null,
+          updatedAt: new Date(),
+        },
+      });
+
+    // Log the lockout event (best-effort; fire-and-forget to avoid recursion)
+    db.insert(securityEvents).values({
+      eventType: "ip_blocked",
+      ip,
+      route,
+      outcome: "blocked",
+    }).catch(() => {});
+  } catch {
+    // Best-effort — never let lockout creation block the request flow
+  }
+}
+
+/**
  * Check if an IP is currently locked out.
  * Returns { locked: true, until } or { locked: false }.
- * Exposed for use in middleware (runs in Node.js runtime, not Edge).
  */
 export async function checkIpLockout(
   ip: string,
@@ -160,16 +187,11 @@ export async function checkIpLockout(
 
     if (!row) return { locked: false };
     if (!row.lockedUntil) return { locked: false };
-
-    // Already manually unblocked
     if (row.unlockedAt) return { locked: false };
-
-    // Expired lockout — effectively unblocked
     if (row.lockedUntil < new Date()) return { locked: false };
 
     return { locked: true, until: row.lockedUntil };
   } catch {
-    // Fail open — never lock out due to a DB error
     return { locked: false };
   }
 }
