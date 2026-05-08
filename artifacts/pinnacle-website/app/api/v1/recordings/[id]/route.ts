@@ -10,6 +10,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const VALID_PROVIDERS = new Set(["zoom", "youtube", "vimeo", "mp4", "hls", "other"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normaliseBatchIds(input: unknown): string[] | null {
+  if (!Array.isArray(input)) return null;
+  const out: string[] = [];
+  for (const v of input) {
+    if (typeof v === "string" && UUID_RE.test(v) && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await getRealAdminUser();
@@ -26,7 +36,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const patch: Partial<typeof classRecordings.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.title === "string") patch.title = body.title.trim();
   if (typeof body.subject === "string") patch.subject = body.subject.trim();
-  if (body.teacherName === null || typeof body.teacherName === "string") patch.teacherName = (body.teacherName as string | null) ?? null;
+  if (body.teacherName === null || typeof body.teacherName === "string")
+    patch.teacherName = (body.teacherName as string | null) ?? null;
   if (typeof body.recordingUrl === "string") {
     try {
       const u = new URL(body.recordingUrl);
@@ -45,8 +56,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.durationMinutes === null || typeof body.durationMinutes === "number") {
     patch.durationMinutes = (body.durationMinutes as number | null) ?? null;
   }
-  if (body.batchId === null || typeof body.batchId === "string") {
-    patch.batchId = (body.batchId as string | null) || null;
+  const batchIds = normaliseBatchIds(body.batchIds);
+  if (batchIds !== null) {
+    if (batchIds.length === 0) return err("At least one batch must be selected", 400);
+    patch.batchIds = batchIds;
+    patch.batchId = batchIds[0];
+  } else if (body.batchId === null || typeof body.batchId === "string") {
+    // Legacy single-batch update path — sync both columns.
+    const single = (body.batchId as string | null) || null;
+    if (single) {
+      if (!UUID_RE.test(single)) return err("Invalid batchId", 400);
+      patch.batchId = single;
+      patch.batchIds = [single];
+    }
   }
   if (typeof body.isVisible === "boolean") patch.isVisible = body.isVisible;
   if (body.archived === true) patch.archivedAt = new Date();
@@ -58,6 +80,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   await logAudit(actor.id, actor.name, "recording.update", "class_recording", row.id, {
     archived: !!row.archivedAt,
     isVisible: row.isVisible,
+    batchIds: row.batchIds,
   });
   return ok(row);
 }

@@ -218,7 +218,12 @@ export const liveClasses = pgTable("live_classes", {
 export const classRecordings = pgTable("class_recordings", {
   id: uuid("id").primaryKey().defaultRandom(),
   liveClassId: uuid("live_class_id").references(() => liveClasses.id),
+  // Legacy single-batch link, retained so existing rows + the live-class
+  // join keep working. New writes mirror batchIds[0] into this column.
   batchId: uuid("batch_id").references(() => batches.id),
+  // Authoritative many-batch assignment. A student may watch this
+  // recording iff their active batch appears in this array.
+  batchIds: uuid("batch_ids").array().notNull().default(sql`ARRAY[]::uuid[]`),
   title: text("title").notNull(),
   subject: text("subject").notNull(),
   teacherName: text("teacher_name"),

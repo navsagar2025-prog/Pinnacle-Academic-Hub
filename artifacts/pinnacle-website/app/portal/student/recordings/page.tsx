@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { students, classRecordings, batches } from "@workspace/db/schema";
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { Play, Clock, Calendar, AlertCircle } from "lucide-react";
 
 export const metadata = { title: "Recorded Classes — Student Portal" };
@@ -68,7 +68,12 @@ export default async function RecordingsPage() {
         .from(classRecordings)
         .where(
           and(
-            eq(classRecordings.batchId, enrollment.batchId),
+            // Match either the new multi-batch array or the legacy single
+            // column so older rows keep showing up.
+            or(
+              sql`${enrollment.batchId} = ANY(${classRecordings.batchIds})`,
+              eq(classRecordings.batchId, enrollment.batchId),
+            ),
             eq(classRecordings.isVisible, true),
             isNull(classRecordings.archivedAt),
           ),

@@ -30,15 +30,16 @@ export default async function RecordingPlayerPage({
 
   // Re-check enrolment server-side so the page itself doesn't render the
   // overlay text for a user who isn't allowed to watch.
-  if (rec.batchId) {
-    const [enrol] = await db
-      .select({ batchId: students.batchId })
-      .from(students)
-      .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
-      .limit(1);
-    if (!enrol || enrol.batchId !== rec.batchId) {
-      redirect("/portal/student/recordings");
-    }
+  const [enrol] = await db
+    .select({ batchId: students.batchId })
+    .from(students)
+    .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
+    .limit(1);
+  const sb = enrol?.batchId ?? null;
+  const inArr = sb && (rec.batchIds ?? []).includes(sb);
+  const legacy = sb && rec.batchId && rec.batchId === sb;
+  if (!inArr && !legacy) {
+    redirect("/portal/student/recordings");
   }
 
   const cfg = await getVideoWatermarkConfig();

@@ -25,7 +25,9 @@ interface Row {
   archivedAt: string | null;
   createdAt: string;
   batchId: string | null;
+  batchIds: string[] | null;
   batchName: string | null;
+  batchNames: string[] | null;
   createdByName: string | null;
 }
 
@@ -37,7 +39,7 @@ interface FormState {
   sourceProvider: Provider;
   classDate: string;
   durationMinutes: string;
-  batchId: string;
+  batchIds: string[];
   isVisible: boolean;
 }
 
@@ -49,7 +51,7 @@ const EMPTY_FORM: FormState = {
   sourceProvider: "zoom",
   classDate: "",
   durationMinutes: "",
-  batchId: "",
+  batchIds: [],
   isVisible: true,
 };
 
@@ -92,7 +94,7 @@ export function AdminRecordingsManager({
         : "zoom"),
       classDate: r.classDate ? r.classDate.slice(0, 10) : "",
       durationMinutes: r.durationMinutes ? String(r.durationMinutes) : "",
-      batchId: r.batchId ?? "",
+      batchIds: (r.batchIds && r.batchIds.length > 0 ? r.batchIds : (r.batchId ? [r.batchId] : [])),
       isVisible: r.isVisible ?? true,
     });
     setShowForm(true);
@@ -111,7 +113,7 @@ export function AdminRecordingsManager({
         sourceProvider: form.sourceProvider,
         classDate: form.classDate || null,
         durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
-        batchId: form.batchId || null,
+        batchIds: form.batchIds,
         isVisible: form.isVisible,
       };
       const url = editingId ? `${BASE}/api/v1/recordings/${editingId}` : `${BASE}/api/v1/recordings`;
@@ -122,10 +124,13 @@ export function AdminRecordingsManager({
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error ?? "Save failed");
-      const saved = json.data as Row & { batchId: string | null };
+      const saved = json.data as Row & { batchId: string | null; batchIds: string[] | null };
+      const ids = saved.batchIds ?? (saved.batchId ? [saved.batchId] : []);
       const enriched: Row = {
         ...saved,
+        batchIds: ids,
         batchName: batches.find((b) => b.id === saved.batchId)?.name ?? null,
+        batchNames: ids.map((id) => batches.find((b) => b.id === id)?.name ?? id),
         createdByName: editingId
           ? rows.find((r) => r.id === editingId)?.createdByName ?? null
           : null,
@@ -294,17 +299,36 @@ export function AdminRecordingsManager({
                 {PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-600">Batch *</span>
-              <select
-                value={form.batchId}
-                onChange={(e) => setForm({ ...form, batchId: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">— Select batch —</option>
-                {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
+            <div className="block md:col-span-2">
+              <span className="text-xs font-semibold text-slate-600">
+                Batches * <span className="font-normal text-slate-400">(students enrolled in any of these can watch)</span>
+              </span>
+              <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-slate-300 p-2 grid grid-cols-2 md:grid-cols-3 gap-1 bg-white">
+                {batches.length === 0 && (
+                  <p className="text-xs text-slate-400 col-span-full">No batches yet — create one first.</p>
+                )}
+                {batches.map((b) => {
+                  const checked = form.batchIds.includes(b.id);
+                  return (
+                    <label key={b.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded hover:bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            batchIds: e.target.checked
+                              ? [...f.batchIds, b.id]
+                              : f.batchIds.filter((x) => x !== b.id),
+                          }))
+                        }
+                      />
+                      <span className="truncate">{b.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <label className="block">
               <span className="text-xs font-semibold text-slate-600">Class date</span>
               <input
@@ -338,7 +362,7 @@ export function AdminRecordingsManager({
             <button
               type="button"
               onClick={save}
-              disabled={saving || !form.title || !form.subject || !form.recordingUrl}
+              disabled={saving || !form.title || !form.subject || !form.recordingUrl || form.batchIds.length === 0}
               className="btn-primary py-2 px-4 text-sm flex items-center gap-2 disabled:opacity-50"
             >
               <Save size={15} /> {saving ? "Saving…" : editingId ? "Update" : "Add"}
@@ -359,7 +383,7 @@ export function AdminRecordingsManager({
           <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-3">Title</th>
-              <th className="text-left px-4 py-3">Batch</th>
+              <th className="text-left px-4 py-3">Batches</th>
               <th className="text-left px-4 py-3">Date</th>
               <th className="text-left px-4 py-3">Source</th>
               <th className="text-left px-4 py-3">Views</th>
@@ -377,7 +401,13 @@ export function AdminRecordingsManager({
                   <div className="font-semibold text-[var(--color-navy)]">{r.title}</div>
                   <div className="text-xs text-slate-500">{r.subject}{r.teacherName ? ` · ${r.teacherName}` : ""}</div>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{r.batchName ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">
+                  {r.batchNames && r.batchNames.length > 0
+                    ? r.batchNames.length <= 2
+                      ? r.batchNames.join(", ")
+                      : `${r.batchNames.slice(0, 2).join(", ")} +${r.batchNames.length - 2}`
+                    : r.batchName ?? "—"}
+                </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">
                   {r.classDate
                     ? new Date(r.classDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })

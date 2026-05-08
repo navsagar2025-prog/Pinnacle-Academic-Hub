@@ -31,20 +31,28 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!VALID_EVENTS.has(event)) return err("Unknown event", 400);
 
   const [rec] = await db
-    .select({ id: classRecordings.id, batchId: classRecordings.batchId, isVisible: classRecordings.isVisible, archivedAt: classRecordings.archivedAt })
+    .select({
+      id: classRecordings.id,
+      batchId: classRecordings.batchId,
+      batchIds: classRecordings.batchIds,
+      isVisible: classRecordings.isVisible,
+      archivedAt: classRecordings.archivedAt,
+    })
     .from(classRecordings)
     .where(eq(classRecordings.id, id))
     .limit(1);
   if (!rec || rec.archivedAt || !rec.isVisible) return err("Not found", 404);
 
   if (user.role === "student") {
-    if (!rec.batchId) return err("Forbidden", 403);
     const [enrol] = await db
       .select({ batchId: students.batchId })
       .from(students)
       .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
       .limit(1);
-    if (!enrol || enrol.batchId !== rec.batchId) return err("Forbidden", 403);
+    const sb = enrol?.batchId ?? null;
+    const inArrayMatch = sb && (rec.batchIds ?? []).includes(sb);
+    const legacyMatch = sb && rec.batchId && rec.batchId === sb;
+    if (!inArrayMatch && !legacyMatch) return err("Forbidden", 403);
   } else if (user.role !== "admin" && user.role !== "teacher") {
     return err("Forbidden", 403);
   }

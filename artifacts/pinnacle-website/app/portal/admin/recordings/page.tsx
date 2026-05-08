@@ -3,7 +3,7 @@ import { Video } from "lucide-react";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { classRecordings, batches, users } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { AdminRecordingsManager } from "./AdminRecordingsManager";
 
 export const dynamic = "force-dynamic";
@@ -29,15 +29,30 @@ export default async function AdminRecordingsPage() {
         archivedAt: classRecordings.archivedAt,
         createdAt: classRecordings.createdAt,
         batchId: classRecordings.batchId,
-        batchName: batches.name,
+        batchIds: classRecordings.batchIds,
         createdByName: users.name,
       })
       .from(classRecordings)
-      .leftJoin(batches, eq(classRecordings.batchId, batches.id))
       .leftJoin(users, eq(classRecordings.createdById, users.id))
       .orderBy(desc(classRecordings.createdAt))
       .limit(200),
   ]);
+
+  // Resolve every batch id referenced anywhere on the page in one query so
+  // the manager can render display names alongside multi-batch arrays.
+  const allIds = new Set<string>();
+  for (const r of rows) {
+    for (const id of r.batchIds ?? []) allIds.add(id);
+    if (r.batchId) allIds.add(r.batchId);
+  }
+  const nameMap = new Map<string, string>();
+  if (allIds.size > 0) {
+    const found = await db
+      .select({ id: batches.id, name: batches.name })
+      .from(batches)
+      .where(inArray(batches.id, Array.from(allIds)));
+    for (const b of found) nameMap.set(b.id, b.name);
+  }
 
   return (
     <div className="space-y-6">
@@ -69,6 +84,8 @@ export default async function AdminRecordingsPage() {
           classDate: r.classDate ? r.classDate.toISOString() : null,
           archivedAt: r.archivedAt ? r.archivedAt.toISOString() : null,
           createdAt: r.createdAt.toISOString(),
+          batchName: r.batchId ? nameMap.get(r.batchId) ?? null : null,
+          batchNames: (r.batchIds ?? []).map((id) => nameMap.get(id) ?? id),
         }))}
         batches={allBatches}
       />

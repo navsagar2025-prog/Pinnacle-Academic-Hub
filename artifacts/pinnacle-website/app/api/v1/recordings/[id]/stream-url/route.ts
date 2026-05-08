@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@workspace/db";
 import { classRecordings, students, recordingStreamTokens } from "@workspace/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { ok, err } from "@/lib/server/api-response";
 import { logAudit } from "@/lib/server/audit";
@@ -18,6 +18,17 @@ function getClientIp(req: NextRequest): string | null {
   return req.headers.get("x-real-ip");
 }
 
+// Canonical batch-membership check: a student has access if their active
+// batch is in the recording's `batchIds` array OR matches the legacy
+// `batchId` column (for rows created before multi-batch support shipped).
+function studentHasAccess(rec: { batchId: string | null; batchIds: string[] | null }, studentBatchId: string | null) {
+  if (!studentBatchId) return false;
+  const ids = rec.batchIds ?? [];
+  if (ids.includes(studentBatchId)) return true;
+  if (rec.batchId && rec.batchId === studentBatchId) return true;
+  return false;
+}
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getDbUser();
   if (!user) return err("Not signed in", 401);
@@ -26,16 +37,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const [rec] = await db.select().from(classRecordings).where(eq(classRecordings.id, id)).limit(1);
   if (!rec || rec.archivedAt || !rec.isVisible) return err("Recording not available", 404);
 
-  // Access check: admins always allowed; teachers always allowed; students
-  // must be enrolled in the recording's batch (when one is set).
   if (user.role === "student") {
-    if (!rec.batchId) return err("Forbidden", 403);
-    const [enrollment] = await db
+    const [enrol] = await db
       .select({ batchId: students.batchId })
       .from(students)
       .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
       .limit(1);
-    if (!enrollment || enrollment.batchId !== rec.batchId) return err("Forbidden", 403);
+    if (!studentHasAccess(rec, enrol?.batchId ?? null)) return err("Forbidden", 403);
   } else if (user.role !== "admin" && user.role !== "teacher") {
     return err("Forbidden", 403);
   }
@@ -59,8 +67,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     expiresAt: expiresAt.toISOString(),
   });
 
-  // Bump view count (cheap denormalised counter; not security-critical).
-  await db.update(classRecordings)
+  await db
+    .update(classRecordings)
     .set({ viewCount: (rec.viewCount ?? 0) + 1 })
     .where(eq(classRecordings.id, rec.id));
 
