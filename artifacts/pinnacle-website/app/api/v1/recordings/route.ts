@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@workspace/db";
-import { classRecordings, batches, users } from "@workspace/db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { classRecordings, batches, users, students } from "@workspace/db/schema";
+import { eq, desc, inArray, and, or, isNull, sql } from "drizzle-orm";
 import { getDbUser, getRealAdminUser } from "@/lib/server/portal-auth";
 import { ok, err, created } from "@/lib/server/api-response";
 import { logAudit } from "@/lib/server/audit";
@@ -36,7 +36,47 @@ function normaliseBatchIds(input: unknown, fallback?: string | null): string[] {
 
 export async function GET() {
   const user = await getDbUser();
-  if (!user || user.role !== "admin") return err("Forbidden", 403);
+  if (!user) return err("Not signed in", 401);
+
+  // Student-scoped projection: only the recordings their batch can see, and
+  // never the raw recordingUrl. The mobile app and other student-only
+  // surfaces consume this shape.
+  if (user.role === "student") {
+    const [enrol] = await db
+      .select({ batchId: students.batchId })
+      .from(students)
+      .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
+      .limit(1);
+    if (!enrol?.batchId) return ok([]);
+
+    const studentRows = await db
+      .select({
+        id: classRecordings.id,
+        title: classRecordings.title,
+        subject: classRecordings.subject,
+        teacherName: classRecordings.teacherName,
+        durationMinutes: classRecordings.durationMinutes,
+        viewCount: classRecordings.viewCount,
+        classDate: classRecordings.classDate,
+        createdAt: classRecordings.createdAt,
+      })
+      .from(classRecordings)
+      .where(
+        and(
+          or(
+            sql`${enrol.batchId} = ANY(${classRecordings.batchIds})`,
+            eq(classRecordings.batchId, enrol.batchId),
+          ),
+          eq(classRecordings.isVisible, true),
+          isNull(classRecordings.archivedAt),
+        ),
+      )
+      .orderBy(desc(classRecordings.createdAt))
+      .limit(200);
+    return ok(studentRows);
+  }
+
+  if (user.role !== "admin") return err("Forbidden", 403);
 
   const rows = await db
     .select({

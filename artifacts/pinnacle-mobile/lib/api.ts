@@ -270,6 +270,116 @@ export async function upvoteDoubtAnswer(
   return null;
 }
 
+// ---------- Recordings ----------
+// Mobile counterpart to the web `/portal/student/recordings` flow. The
+// website returns a student-scoped projection of `/api/v1/recordings`
+// (no raw recordingUrl) plus a stream-url endpoint that hands out
+// short-lived, single-use signed tokens. We then ask the proxy
+// `/stream?token=...` endpoint to redirect us to the source URL — using
+// `redirect: "manual"` so we read the Location header in JS and feed it
+// straight to the player without persisting the proxy URL anywhere.
+export type StudentRecording = {
+  id: string;
+  title: string;
+  subject: string;
+  teacherName: string | null;
+  durationMinutes: number | null;
+  viewCount: number;
+  classDate: string | null;
+  createdAt: string | null;
+};
+
+export type RecordingWatermark = {
+  enabled: boolean;
+  text: string;
+  opacity: number;
+  fontSize: number;
+  color: string;
+  cycleSeconds: number;
+  anchors: string[];
+};
+
+export type RecordingStream = {
+  streamUrl: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+  watermark: RecordingWatermark;
+};
+
+function websiteOrigin(): string | null {
+  if (!WEBSITE_BASE) return null;
+  try {
+    return new URL(WEBSITE_BASE).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** Convert a server-relative URL like "/pinnacle-website/api/..." into an
+ * absolute URL on the same origin as the website API. */
+export function absoluteWebsiteUrl(pathOrUrl: string): string | null {
+  if (!pathOrUrl) return null;
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const origin = websiteOrigin();
+  if (!origin) return null;
+  return `${origin}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+}
+
+export async function fetchStudentRecordings(): Promise<StudentRecording[]> {
+  const data = await getJson<{ data?: StudentRecording[] }>(`/api/v1/recordings`);
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function requestRecordingStream(
+  recordingId: string,
+): Promise<RecordingStream | null> {
+  const data = await sendJson<{ success?: boolean; data?: RecordingStream }>(
+    `/api/v1/recordings/${recordingId}/stream-url`,
+    "POST",
+  );
+  if (data?.success && data.data) return data.data;
+  return null;
+}
+
+/**
+ * Resolve the proxy stream URL into the underlying source URL by reading
+ * the 302 Location header. Mobile WebViews can't carry our bearer token
+ * to a same-origin GET, so we do the redirect dance in JS and hand the
+ * resulting source URL to the player. This mirrors what the browser does
+ * silently for the web build.
+ */
+export async function resolveRecordingSource(streamUrl: string): Promise<string | null> {
+  const abs = absoluteWebsiteUrl(streamUrl);
+  if (!abs) return null;
+  try {
+    const res = await fetch(abs, {
+      method: "GET",
+      headers: await buildHeaders(),
+      credentials: "include",
+      redirect: "manual",
+    });
+    // Some RN fetch impls follow redirects regardless; if the final URL
+    // looks different from the proxy we just use it.
+    const loc = res.headers.get("location");
+    if (loc) return loc;
+    if (res.url && res.url !== abs) return res.url;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function postRecordingTelemetry(
+  recordingId: string,
+  event: "play_seek" | "watermark_removed",
+  positionSec?: number,
+): Promise<void> {
+  await sendJson(`/api/v1/recordings/${recordingId}/telemetry`, "POST", {
+    event,
+    positionSec,
+  });
+}
+
 export function formatRelativeTime(iso: string | null): string {
   if (!iso) return "";
   try {

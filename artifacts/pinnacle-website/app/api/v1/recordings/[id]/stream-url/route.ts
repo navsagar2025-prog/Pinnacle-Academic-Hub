@@ -5,7 +5,12 @@ import { eq, and } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { ok, err } from "@/lib/server/api-response";
 import { logAudit } from "@/lib/server/audit";
-import { generateStreamToken, TOKEN_TTL_SECONDS } from "@/lib/server/video-watermark";
+import {
+  expandVideoTemplate,
+  generateStreamToken,
+  getVideoWatermarkConfig,
+  TOKEN_TTL_SECONDS,
+} from "@/lib/server/video-watermark";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,9 +77,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .set({ viewCount: (rec.viewCount ?? 0) + 1 })
     .where(eq(classRecordings.id, rec.id));
 
+  // Include the watermark config + already-expanded overlay text so non-web
+  // clients (the mobile app) don't need a separate round-trip — and so the
+  // identity in the overlay is built from the validated DB user, never from
+  // a value the client could tamper with.
+  const wmCfg = await getVideoWatermarkConfig();
+  const overlayText = expandVideoTemplate(wmCfg.textTemplate, {
+    userName: user.name ?? "Student",
+    userPhone: user.phone ?? "",
+    userEmail: user.email ?? "",
+  });
+
   return ok({
     streamUrl: `${BASE}/api/v1/recordings/${rec.id}/stream?token=${encodeURIComponent(token)}`,
     expiresAt: expiresAt.toISOString(),
     expiresInSeconds: TOKEN_TTL_SECONDS,
+    watermark: {
+      enabled: wmCfg.enabled,
+      text: overlayText,
+      opacity: wmCfg.opacity,
+      fontSize: wmCfg.fontSize,
+      color: wmCfg.color,
+      cycleSeconds: wmCfg.cycleSeconds,
+      anchors: wmCfg.anchors,
+    },
   });
 }
