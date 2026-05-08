@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { label: "Audit Logs", href: "/portal/admin/audit-logs", icon: "ScrollText" },
   { label: "Settings", href: "/portal/admin/settings", icon: "Settings" },
   { label: "Watermark (PDF + Video)", href: "/portal/admin/settings/watermark", icon: "Stamp" },
+  { label: "Security", href: "/portal/admin/settings/security", icon: "ShieldAlert" },
   { label: "Operations", href: "#", icon: "Activity", divider: true },
   { label: "System Health", href: "/portal/admin/ops/health", icon: "Activity" },
   { label: "Test Email", href: "/portal/admin/ops/test-email", icon: "Mail" },

@@ -783,6 +783,41 @@ export const watermarkSettings = pgTable("watermark_settings", {
 export type WatermarkSettings = typeof watermarkSettings.$inferSelect;
 export type InsertWatermarkSettings = typeof watermarkSettings.$inferInsert;
 
+export const securityEvents = pgTable("security_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventType: text("event_type").notNull(), // login_success | login_fail | rate_limited | ip_blocked | ip_unblocked
+  actorEmail: text("actor_email"),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  route: text("route"),
+  outcome: text("outcome").notNull(), // success | fail | blocked
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("security_events_ip_idx").on(t.ip),
+  index("security_events_created_at_idx").on(t.createdAt),
+  index("security_events_event_type_idx").on(t.eventType),
+]);
+
+export const ipLockouts = pgTable("ip_lockouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ip: text("ip").unique().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
+  route: text("route"),
+  unlockedAt: timestamp("unlocked_at"),
+  unlockedBy: text("unlocked_by"), // admin email
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("ip_lockouts_ip_idx").on(t.ip),
+  index("ip_lockouts_locked_until_idx").on(t.lockedUntil),
+]);
+
+export type SecurityEvent = typeof securityEvents.$inferSelect;
+export type InsertSecurityEvent = typeof securityEvents.$inferInsert;
+export type IpLockout = typeof ipLockouts.$inferSelect;
+export type InsertIpLockout = typeof ipLockouts.$inferInsert;
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   actorId: uuid("actor_id"),

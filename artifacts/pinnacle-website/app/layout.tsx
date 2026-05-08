@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { SITE_URL } from "@/lib/seo/page-registry";
 
@@ -87,11 +88,16 @@ const ORGANIZATION_JSONLD = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Read the per-request CSP nonce injected by middleware via the x-nonce
+  // request header. Apply it to all inline scripts (JSON-LD, etc.) so they
+  // pass the Content-Security-Policy without needing 'unsafe-inline'.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <ClerkProvider
       signInUrl={`${base}/sign-in`}
@@ -103,6 +109,7 @@ export default function RootLayout({
         <body className="font-[family-name:var(--font-jakarta)]">
           {children}
           <script
+            nonce={nonce}
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
