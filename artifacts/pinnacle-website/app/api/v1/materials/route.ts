@@ -100,6 +100,9 @@ export async function POST(request: Request) {
     if (!title || !fileUrl || !batchId) {
       return err("title, fileUrl, and batchId are required", 400);
     }
+    if (typeof fileUrl !== "string" || !/\/objects\/public\/materials\//.test(fileUrl)) {
+      return err("fileUrl must reference /objects/public/materials/...", 400);
+    }
 
     const [row] = await db
       .insert(studyMaterials)

@@ -48,10 +48,24 @@ function forbidden() {
   return new Response("Forbidden", { status: 403 });
 }
 
+// Restrict file-backed downloads to the public object prefixes that
+// teachers/admins are supposed to upload into. This blocks a crafted
+// fileUrl pointing at /objects/private/... from exfiltrating private
+// objects through the proxy's privileged storage credentials.
+const ALLOWED_PUBLIC_PREFIXES = [
+  "/objects/public/materials/",
+  "/objects/public/assignments/",
+  "/objects/public/papers/",
+  "/objects/public/practice-papers/",
+];
+
 function objectPathFromFileUrl(fileUrl: string | null | undefined): string | null {
   if (!fileUrl) return null;
   const idx = fileUrl.indexOf("/objects/");
-  return idx < 0 ? null : fileUrl.slice(idx);
+  if (idx < 0) return null;
+  const path = fileUrl.slice(idx);
+  if (!ALLOWED_PUBLIC_PREFIXES.some((p) => path.startsWith(p))) return null;
+  return path;
 }
 
 function attachmentHeaders(filename: string, size: number) {

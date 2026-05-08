@@ -156,6 +156,14 @@ export async function POST(req: NextRequest) {
   if (!title || !subject || !batchId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+  if (fileUrl !== undefined && fileUrl !== null && fileUrl !== "") {
+    if (typeof fileUrl !== "string" || !/\/objects\/public\/assignments\//.test(fileUrl)) {
+      return NextResponse.json(
+        { error: "fileUrl must reference /objects/public/assignments/..." },
+        { status: 400 },
+      );
+    }
+  }
 
   // Recurring path: create a schedule + materialise its first occurrences immediately
   if (schedule) {

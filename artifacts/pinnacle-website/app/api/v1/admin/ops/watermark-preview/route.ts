@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       ? (body.config!.position as WatermarkConfig["position"])
       : "tile",
     opacity: clamp(body.config?.opacity ?? 12, 0, 100),
-    rotation: clamp(body.config?.rotation ?? 45, -180, 180),
+    rotation: clamp(body.config?.rotation ?? 45, 0, 90),
     fontSize: clamp(body.config?.fontSize ?? 36, 6, 200),
     color: /^#?[0-9a-fA-F]{6}$/.test(body.config?.color ?? "")
       ? (body.config!.color!.startsWith("#") ? body.config!.color! : `#${body.config!.color!}`)
