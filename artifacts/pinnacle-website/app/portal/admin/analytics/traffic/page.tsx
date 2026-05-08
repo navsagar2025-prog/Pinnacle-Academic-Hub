@@ -99,6 +99,13 @@ async function fetchGa4Data(propertyId: string, serviceAccountJson: string) {
   const daily: DailyRow[] = (() => {
     if (dailyRes.status !== "fulfilled" || !dailyRes.value) return [];
     return dailyRes.value.rows
+      // Sort by raw YYYYMMDD string first so chart order is always chronological.
+      // Sorting by the formatted label ("Apr 1", "Apr 10", ...) gives wrong order.
+      .sort((a, b) => {
+        const da = a.dimensionValues[0]?.value ?? "";
+        const db2 = b.dimensionValues[0]?.value ?? "";
+        return da < db2 ? -1 : da > db2 ? 1 : 0;
+      })
       .map((r) => {
         const d = r.dimensionValues[0]?.value ?? "";
         // Format YYYYMMDD → "MMM D"
@@ -107,8 +114,7 @@ async function fetchGa4Data(propertyId: string, serviceAccountJson: string) {
         const day = d.slice(6, 8);
         const label = new Date(`${year}-${month}-${day}`).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
         return { day: label, Views: parseInt(r.metricValues[0]?.value ?? "0", 10) };
-      })
-      .sort((a, b) => a.day.localeCompare(b.day));
+      });
   })();
 
   return { summary, topPages, sources, devices, daily };

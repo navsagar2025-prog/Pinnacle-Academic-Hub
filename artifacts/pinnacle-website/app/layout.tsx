@@ -113,6 +113,51 @@ export default async function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
+          {/* GA4 Measurement Protocol proxy transport override.
+              Overrides window.gtag so that GA4 events are forwarded through
+              our own /api/v1/telemetry/ga4-proxy endpoint instead of going
+              directly to google-analytics.com. This bypasses ad-blockers that
+              block the GA4 collection endpoint while still sending events to
+              your GA4 property via the Measurement Protocol.
+              Falls back gracefully if no GA4 Measurement ID is configured. */}
+          {process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID && (
+            <script
+              nonce={nonce}
+              dangerouslySetInnerHTML={{
+                __html: `(function(){
+  try {
+    var mid = '${process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID ?? ""}';
+    if (!mid) return;
+    // Install a minimal gtag stub that routes events through our proxy so
+    // ad-blockers targeting google-analytics.com do not silently drop them.
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){
+      var args = Array.prototype.slice.call(arguments);
+      if (args[0] === 'event') {
+        var eventName = args[1];
+        var eventParams = args[2] || {};
+        var clientId = (document.cookie.match(/_ga=([^;]+)/) || [])[1] || 'anon.' + Date.now();
+        fetch('${base}/api/v1/telemetry/ga4-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: clientId,
+            events: [{ name: eventName, params: eventParams }]
+          }),
+          keepalive: true
+        }).catch(function(){});
+        return;
+      }
+      window.dataLayer.push(args);
+    }
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', mid, { send_page_view: false });
+  } catch(e) {}
+})();`,
+              }}
+            />
+          )}
           {/* Server-side page-view beacon — fires on every public page load.
               Uses sendBeacon so it never blocks navigation or page close.
               Portal routes (/portal/*) are excluded to keep the tracker

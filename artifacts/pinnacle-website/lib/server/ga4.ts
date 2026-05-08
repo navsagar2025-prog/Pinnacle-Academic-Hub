@@ -39,11 +39,22 @@ export async function getGa4Credentials(): Promise<Ga4Credentials | null> {
 // OAuth token (JWT → access token exchange)
 // ---------------------------------------------------------------------------
 
-let _tokenCache: { token: string; expiresAt: number } | null = null;
+// Cache keyed by client_email so swapping service-account credentials in
+// Settings (or running testGa4Connection with different creds) never reuses
+// a token issued for a different account until its natural expiry.
+const _tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
 async function getAccessToken(serviceAccountJson: string): Promise<string> {
-  if (_tokenCache && _tokenCache.expiresAt > Date.now() + 60_000) {
-    return _tokenCache.token;
+  // Use client_email as the cache key — cheap to extract, uniquely identifies
+  // the service account without storing the full key material in the Map.
+  let cacheKey = "unknown";
+  try {
+    cacheKey = (JSON.parse(serviceAccountJson) as { client_email?: string }).client_email ?? "unknown";
+  } catch { /* fall through to "unknown" — cache miss is harmless */ }
+
+  const cached = _tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 60_000) {
+    return cached.token;
   }
 
   const sa = JSON.parse(serviceAccountJson) as {
@@ -81,7 +92,7 @@ async function getAccessToken(serviceAccountJson: string): Promise<string> {
   const data = (await res.json()) as { access_token?: string; expires_in?: number };
   if (!data.access_token) throw new Error("GA4 token exchange failed");
 
-  _tokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 };
+  _tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 });
   return data.access_token;
 }
 
