@@ -18,6 +18,13 @@ const isDev = process.env.NODE_ENV !== "production";
 // avoid affecting the Replit dev workflow.
 const useStandalone = process.env.NEXT_OUTPUT_STANDALONE === "true";
 
+// Static security response headers applied to every route.
+//
+// Content-Security-Policy is intentionally NOT listed here because the app
+// uses nonce-based CSP (required by Clerk's hosted UI and Next.js inline
+// scripts). A static CSP header cannot carry per-request nonces, so the full
+// CSP is generated and emitted in middleware.ts on every request. See:
+//   artifacts/pinnacle-website/middleware.ts → buildCsp()
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },

@@ -6,13 +6,19 @@
  *   blocks the auth flow.
  * - Lockout decisions are read synchronously in middleware; the DB lookup is
  *   bounded by Postgres connection pool, not an external call.
- * - Threshold constants are intentionally conservative defaults; they can be
- *   moved to siteSettings later without code changes.
+ * - Thresholds are read from the `site_settings` table (keys below) so admins
+ *   can tune them from the Settings UI without a code deploy. Hard-coded
+ *   defaults are used when a key is absent.
+ *
+ * Threshold keys in site_settings:
+ *   security_fail_threshold    – failures before IP lockout     (default 10)
+ *   security_lockout_minutes   – lockout duration in minutes    (default 30)
+ *   security_window_minutes    – rolling failure window         (default 15)
  */
 
 import { db } from "@workspace/db";
-import { securityEvents, ipLockouts } from "@workspace/db/schema";
-import { eq, gt, sql, and } from "drizzle-orm";
+import { securityEvents, ipLockouts, siteSettings } from "@workspace/db/schema";
+import { eq, gt, sql, and, inArray } from "drizzle-orm";
 
 export type SecurityEventType =
   | "login_success"
@@ -23,10 +29,45 @@ export type SecurityEventType =
 
 export type SecurityOutcome = "success" | "fail" | "blocked";
 
-// --- Thresholds ---
-const FAIL_THRESHOLD = 10; // failures before lockout
-const LOCKOUT_MINUTES = 30; // initial lockout duration
-const WINDOW_MINUTES = 15; // rolling window for failure counting
+// --- Default thresholds (overridden by site_settings rows) ---
+const DEFAULT_FAIL_THRESHOLD = 10;
+const DEFAULT_LOCKOUT_MINUTES = 30;
+const DEFAULT_WINDOW_MINUTES = 15;
+
+const THRESHOLD_KEYS = [
+  "security_fail_threshold",
+  "security_lockout_minutes",
+  "security_window_minutes",
+] as const;
+
+interface SecurityThresholds {
+  failThreshold: number;
+  lockoutMinutes: number;
+  windowMinutes: number;
+}
+
+/** Read security thresholds from site_settings (with hard-coded fallbacks). */
+async function getSecurityThresholds(): Promise<SecurityThresholds> {
+  try {
+    const rows = await db
+      .select({ key: siteSettings.key, value: siteSettings.value })
+      .from(siteSettings)
+      .where(inArray(siteSettings.key, [...THRESHOLD_KEYS]));
+
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value ?? ""]));
+    return {
+      failThreshold: parseInt(map["security_fail_threshold"] ?? "") || DEFAULT_FAIL_THRESHOLD,
+      lockoutMinutes: parseInt(map["security_lockout_minutes"] ?? "") || DEFAULT_LOCKOUT_MINUTES,
+      windowMinutes: parseInt(map["security_window_minutes"] ?? "") || DEFAULT_WINDOW_MINUTES,
+    };
+  } catch {
+    return {
+      failThreshold: DEFAULT_FAIL_THRESHOLD,
+      lockoutMinutes: DEFAULT_LOCKOUT_MINUTES,
+      windowMinutes: DEFAULT_WINDOW_MINUTES,
+    };
+  }
+}
 
 export async function logSecurityEvent(opts: {
   eventType: SecurityEventType;
@@ -57,7 +98,9 @@ export async function logSecurityEvent(opts: {
 
 async function maybeAutoLockIp(ip: string, route: string | null) {
   try {
-    const windowStart = new Date(Date.now() - WINDOW_MINUTES * 60_000);
+    const { failThreshold, lockoutMinutes, windowMinutes } = await getSecurityThresholds();
+
+    const windowStart = new Date(Date.now() - windowMinutes * 60_000);
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(securityEvents)
@@ -69,8 +112,8 @@ async function maybeAutoLockIp(ip: string, route: string | null) {
         ),
       );
 
-    if (count >= FAIL_THRESHOLD) {
-      const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60_000);
+    if (count >= failThreshold) {
+      const lockedUntil = new Date(Date.now() + lockoutMinutes * 60_000);
       await db
         .insert(ipLockouts)
         .values({ ip, attempts: count, lockedUntil, route })
@@ -86,7 +129,14 @@ async function maybeAutoLockIp(ip: string, route: string | null) {
           },
         });
 
-      await logSecurityEvent({ eventType: "ip_blocked", ip, route, outcome: "blocked" });
+      // Log the auto-lockout event (best-effort; avoid recursive loop by not
+      // passing eventType=login_fail here)
+      await db.insert(securityEvents).values({
+        eventType: "ip_blocked",
+        ip,
+        route,
+        outcome: "blocked",
+      }).catch(() => {});
     }
   } catch {
     // Best-effort

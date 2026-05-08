@@ -4,6 +4,13 @@ import { enquiries } from "@workspace/db/schema";
 import { desc, sql } from "drizzle-orm";
 import { paginatedOk, created, err } from "@/lib/server/api-response";
 import { sendEnquiryAcknowledgement, sendAdminEnquiryAlert } from "@/lib/server/email";
+import { rateLimit } from "@/lib/server/rate-limit";
+
+function getIp(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
 
 export async function GET(request: Request) {
   const dbUser = await getDbUser();
@@ -26,6 +33,20 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Rate-limit: 5 enquiry submissions per IP per 5 minutes.
+  // Limits are intentionally generous for a public enquiry form — a human
+  // filling multiple courses will rarely exceed this; bots will.
+  const ip = getIp(request);
+  const { allowed } = await rateLimit(
+    `ip:${ip}`,
+    "api.enquiry.submit",
+    5,
+    5 * 60_000,
+  );
+  if (!allowed) {
+    return err("Too many enquiries submitted. Please wait a few minutes.", 429);
+  }
+
   try {
     const body = await request.json();
     const { name, phone, email, courseInterest, message, source } = body;

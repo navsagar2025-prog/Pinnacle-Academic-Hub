@@ -4,11 +4,30 @@ import { feeRecords, students } from "@workspace/db/schema";
 import { and, eq } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
 import { getRazorpay } from "@/lib/server/razorpay";
+import { rateLimit } from "@/lib/server/rate-limit";
+
+function getIp(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
 
 export async function POST(request: Request) {
   const actor = await getDbUser();
   if (!actor) return err("Unauthorized", 401);
   if (actor.role !== "student") return err("Only students can initiate payments", 403);
+
+  // Rate-limit per student account: 10 order attempts per 10 minutes.
+  // Prevents accidental double-clicks and programmatic order-flooding.
+  const { allowed } = await rateLimit(
+    `user:${actor.id}`,
+    "api.payment.create-order",
+    10,
+    10 * 60_000,
+  );
+  if (!allowed) {
+    return err("Too many payment requests. Please wait a few minutes.", 429);
+  }
 
   const body = await request.json().catch(() => null);
   const feeId = body?.feeId as string | undefined;

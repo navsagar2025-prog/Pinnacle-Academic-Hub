@@ -28,6 +28,7 @@
     "recharts": "^3.8.1",
     "resend": "^6.12.2",
     "sharp": "^0.34.5",
+    "svix": "^1.92.2",
     "tailwind-merge": "catalog:",
     "xlsx": "^0.18.5",
     "zod": "catalog:"
