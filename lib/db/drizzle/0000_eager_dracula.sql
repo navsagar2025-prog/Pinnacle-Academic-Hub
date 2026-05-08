@@ -123,10 +123,6 @@ CREATE TABLE "blog_posts" (
         "status" "blog_status" DEFAULT 'draft' NOT NULL,
         "read_minutes" integer DEFAULT 5,
         "published_at" timestamp,
-        "seo_title" text,
-        "meta_description" text,
-        "focus_keyword" text,
-        "ai_enhanced_at" timestamp,
         "created_at" timestamp DEFAULT now() NOT NULL,
         "updated_at" timestamp DEFAULT now() NOT NULL,
         CONSTRAINT "blog_posts_slug_unique" UNIQUE("slug")

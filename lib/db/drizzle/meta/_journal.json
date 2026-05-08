@@ -8,6 +8,13 @@
       "when": 1778231256409,
       "tag": "0000_eager_dracula",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1746693600000,
+      "tag": "0001_blog_ai_columns",
+      "breakpoints": true
     }
   ]
 }

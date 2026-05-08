@@ -1,7 +1,7 @@
 import { getDbUser } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { enquiries } from "@workspace/db/schema";
-import { and, desc, gte, lte, eq } from "drizzle-orm";
+import { and, desc, gte, lte, eq, or, ilike, SQL } from "drizzle-orm";
 
 function escapeCsv(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -25,8 +25,9 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const status = searchParams.get("status");
+  const keyword = (searchParams.get("keyword") ?? "").trim();
 
-  const conditions = [];
+  const conditions: SQL[] = [];
   if (from) {
     const d = new Date(from);
     if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); conditions.push(gte(enquiries.createdAt, d)); }
@@ -37,6 +38,18 @@ export async function GET(request: Request) {
   }
   if (status === "pending") conditions.push(eq(enquiries.isFollowedUp, false));
   if (status === "done") conditions.push(eq(enquiries.isFollowedUp, true));
+  if (keyword) {
+    const pattern = `%${keyword}%`;
+    conditions.push(
+      or(
+        ilike(enquiries.name, pattern),
+        ilike(enquiries.phone, pattern),
+        ilike(enquiries.email, pattern),
+        ilike(enquiries.courseInterest, pattern),
+        ilike(enquiries.message, pattern),
+      )!,
+    );
+  }
 
   const rows = await db
     .select()
