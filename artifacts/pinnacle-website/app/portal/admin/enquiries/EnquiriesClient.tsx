@@ -81,7 +81,7 @@ export default function EnquiriesClient({ rows, total, pending, initialKeyword =
           download
           className="inline-flex items-center gap-2 btn-secondary py-2.5 px-4 text-sm whitespace-nowrap"
         >
-          <Download size={14} /> Export CSV{hasActiveFilters ? " (filtered)" : ""}
+          <Download size={14} /> Download CSV{hasActiveFilters ? " (filtered)" : ""}
         </a>
       </div>
 

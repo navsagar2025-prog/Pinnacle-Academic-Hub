@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slug, title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status } = body;
+    const { slug, title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status, seoTitle, metaDescription, focusKeyword } = body;
     if (!slug || !title || !authorName) return err("slug, title and authorName are required", 400);
 
     const [row] = await db.insert(blogPosts).values({
@@ -64,6 +64,9 @@ export async function POST(request: Request) {
       readMinutes: readMinutes ? Number(readMinutes) : 5,
       status: status ?? "draft",
       publishedAt: status === "published" ? new Date() : undefined,
+      seoTitle: seoTitle || undefined,
+      metaDescription: metaDescription || undefined,
+      focusKeyword: focusKeyword || undefined,
     }).returning();
 
     await logAudit(actor.id, actor.name, "blog.create", "blogPost", row.id, { title, status });
