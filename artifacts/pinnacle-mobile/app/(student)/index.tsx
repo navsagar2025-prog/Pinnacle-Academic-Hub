@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import Svg, { Circle, Polyline } from "react-native-svg";
 import ClassRow from "@/components/ClassRow";
+import LiveClassCard from "@/components/LiveClassCard";
 import NoticeRow from "@/components/NoticeRow";
 import RoleHeader from "@/components/RoleHeader";
 import ScreenContainer from "@/components/ScreenContainer";
@@ -13,6 +14,7 @@ import StreakBadge from "@/components/StreakBadge";
 import { useColors } from "@/hooks/useColors";
 import { lightHaptic } from "@/lib/haptics";
 import { fetchPublicNotices, formatNoticeDate } from "@/lib/api";
+import { pickFeatured, useLiveClasses } from "@/lib/liveClassStore";
 
 const upcomingClasses = [
   { subject: "Physics", topic: "Thermodynamics", time: "5:00 – 7:00 PM", date: "Today", teacher: "Dr. Ramesh Kumar" },
@@ -70,6 +72,8 @@ function SparklineChart() {
 export default function StudentDashboard() {
   const colors = useColors();
   const [feeAlertVisible, setFeeAlertVisible] = useState(true);
+  const { items: liveClasses, refresh: refreshLive } = useLiveClasses();
+  const featuredClass = pickFeatured(liveClasses);
 
   const noticesQuery = useQuery({
     queryKey: ["public-notices", 5],
@@ -78,8 +82,8 @@ export default function StudentDashboard() {
   });
 
   const refetch = useCallback(async () => {
-    await noticesQuery.refetch();
-  }, [noticesQuery]);
+    await Promise.all([noticesQuery.refetch(), refreshLive()]);
+  }, [noticesQuery, refreshLive]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -114,7 +118,21 @@ export default function StudentDashboard() {
 
         <SparklineChart />
 
-        <View style={{ marginTop: 20 }}>
+        {featuredClass && (
+          <View style={{ marginTop: 20 }}>
+            <SectionHeader
+              title="Live Class"
+              action={
+                <TouchableOpacity onPress={() => { lightHaptic(); router.push("/(student)/classes"); }}>
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700" }}>View All</Text>
+                </TouchableOpacity>
+              }
+            />
+            <LiveClassCard liveClass={featuredClass} variant="featured" />
+          </View>
+        )}
+
+        <View style={{ marginTop: featuredClass ? 8 : 20 }}>
           <SectionHeader title="Upcoming Classes" />
           {upcomingClasses.map((c, i) => (
             <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => lightHaptic()}>

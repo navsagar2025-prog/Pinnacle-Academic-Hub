@@ -1,14 +1,18 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ClassRow from "@/components/ClassRow";
 import DemoButton from "@/components/DemoButton";
+import LiveClassCard from "@/components/LiveClassCard";
 import NoticeRow from "@/components/NoticeRow";
 import RoleHeader from "@/components/RoleHeader";
+import ScheduleClassSheet from "@/components/ScheduleClassSheet";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import StatCard from "@/components/StatCard";
 import { useColors } from "@/hooks/useColors";
+import { mediumHaptic } from "@/lib/haptics";
+import { bucketize, useLiveClasses } from "@/lib/liveClassStore";
 
 const enquiries = [
   { name: "Ananya Singh", course: "JEE 2026", date: "Today, 10:12 AM", status: "New" },
@@ -30,6 +34,10 @@ const pendingTasks = [
 
 export default function AdminDashboard() {
   const colors = useColors();
+  const [scheduleVisible, setScheduleVisible] = useState(false);
+  const { items: liveClasses } = useLiveClasses();
+  const { liveNow, upcoming } = bucketize(liveClasses);
+  const featured = liveNow[0] ?? upcoming[0] ?? null;
   return (
     <>
       <RoleHeader
@@ -97,6 +105,44 @@ export default function AdminDashboard() {
               )}
             </View>
           ))}
+        </View>
+
+        <View style={{ marginTop: 8 }}>
+          <SectionHeader
+            title="Live Classes"
+            action={
+              <TouchableOpacity
+                onPress={() => {
+                  mediumHaptic();
+                  setScheduleVisible(true);
+                }}
+                style={[
+                  styles.scheduleBtn,
+                  { backgroundColor: colors.primary, borderRadius: colors.radius - 4 },
+                ]}
+              >
+                <Feather name="plus" size={12} color={colors.primaryForeground} />
+                <Text style={[styles.scheduleBtnText, { color: colors.primaryForeground }]}>
+                  Schedule
+                </Text>
+              </TouchableOpacity>
+            }
+          />
+          {featured ? (
+            <LiveClassCard liveClass={featured} variant="featured" />
+          ) : (
+            <View
+              style={[
+                styles.emptyLive,
+                { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
+              ]}
+            >
+              <Feather name="video-off" size={20} color={colors.mutedForeground} />
+              <Text style={[styles.emptyLiveText, { color: colors.mutedForeground }]}>
+                No upcoming live classes — tap Schedule to add one
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={{ marginTop: 8 }}>
@@ -169,6 +215,7 @@ export default function AdminDashboard() {
           ))}
         </View>
       </ScreenContainer>
+      <ScheduleClassSheet visible={scheduleVisible} onClose={() => setScheduleVisible(false)} />
     </>
   );
 }
@@ -257,4 +304,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
+  scheduleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  scheduleBtnText: { fontSize: 11, fontWeight: "700" },
+  emptyLive: {
+    borderWidth: 1,
+    padding: 18,
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  emptyLiveText: { fontSize: 12, textAlign: "center" },
 });
