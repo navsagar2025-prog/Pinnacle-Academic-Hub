@@ -14,6 +14,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import type { Metadata } from "next";
 import { SignInFailureTracker } from "./SignInFailureTracker";
+import { SignInSuccessTracker } from "./SignInSuccessTracker";
 
 export const metadata: Metadata = { title: "Sign In | Pinnacle Academic Classes" };
 
@@ -30,8 +31,9 @@ export default function SignInPage() {
             <p className="text-slate-500 text-sm mt-1">Sign in to access your Pinnacle portal</p>
           </div>
           <SignIn appearance={{ elements: { rootBox: "w-full", card: "shadow-elevated border border-slate-100 rounded-2xl" } }} />
-          {/* Invisible tracker — shares useSignIn() context with <SignIn /> */}
+          {/* Invisible trackers — share useSignIn()/useSession() context with <SignIn /> above */}
           <SignInFailureTracker />
+          <SignInSuccessTracker />
         </div>
       </main>
       <Footer />
