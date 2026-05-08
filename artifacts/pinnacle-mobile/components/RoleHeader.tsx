@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -12,15 +11,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useRole } from "@/context/RoleContext";
-import { lightHaptic } from "@/lib/haptics";
 
 interface Props {
   name: string;
   sub: string;
   roleLabel: string;
+  onMenuPress?: () => void;
 }
 
-export default function RoleHeader({ name, sub, roleLabel }: Props) {
+export default function RoleHeader({ name, sub, roleLabel, onMenuPress }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { setRole } = useRole();
@@ -37,11 +36,6 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
     ]);
   };
 
-  const handleMenu = () => {
-    lightHaptic();
-    router.push("/(student)/more");
-  };
-
   return (
     <View
       style={[
@@ -53,13 +47,15 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
       ]}
     >
       <View style={styles.row}>
-        <TouchableOpacity
-          onPress={handleMenu}
-          style={[styles.menuBtn, { backgroundColor: colors.primaryForeground + "20" }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Feather name="menu" size={20} color={colors.primaryForeground} />
-        </TouchableOpacity>
+        {onMenuPress ? (
+          <TouchableOpacity
+            onPress={onMenuPress}
+            style={[styles.menuBtn, { backgroundColor: colors.primaryForeground + "20" }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="menu" size={20} color={colors.primaryForeground} />
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.textBlock}>
           <View style={styles.roleRow}>

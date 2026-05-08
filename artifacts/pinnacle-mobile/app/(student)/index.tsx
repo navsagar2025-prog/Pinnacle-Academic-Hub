@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import Svg, { Circle, Polyline } from "react-native-svg";
 import ClassRow from "@/components/ClassRow";
 import NoticeRow from "@/components/NoticeRow";
@@ -95,7 +96,12 @@ export default function StudentDashboard() {
 
   return (
     <>
-      <RoleHeader name="Arjun Mehta" sub="JEE 2026 Batch · Roll No: JEE26-047" roleLabel="Student" />
+      <RoleHeader
+        name="Arjun Mehta"
+        sub="JEE 2026 Batch · Roll No: JEE26-047"
+        roleLabel="Student"
+        onMenuPress={() => { lightHaptic(); router.push("/(student)/more"); }}
+      />
       <ScreenContainer onRefresh={onRefresh} refreshing={refreshing}>
         <StreakBadge days={7} />
 
