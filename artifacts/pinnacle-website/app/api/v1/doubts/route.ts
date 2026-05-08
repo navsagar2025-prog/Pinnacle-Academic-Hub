@@ -12,12 +12,13 @@ export async function POST(req: NextRequest) {
   // Rate-limit: 10 doubt submissions per student per 10 minutes (tunable via
   // site_settings "security_rate_limits" → "api.doubts.post").
   const ip = extractIp(req);
+  const ua = req.headers.get("user-agent");
   const { allowed } = await rateLimit(
     `user:${user.id}`,
     "api.doubts.post",
     10,
     10 * 60_000,
-    { ip, actorEmail: user.email },
+    { ip, actorEmail: user.email, userAgent: ua },
   );
   if (!allowed) return NextResponse.json({ error: "Too many doubt submissions. Please wait a few minutes." }, { status: 429 });
 

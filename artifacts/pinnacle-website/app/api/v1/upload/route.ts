@@ -37,12 +37,13 @@ export async function POST(req: NextRequest) {
   // site_settings "security_rate_limits" → "api.upload"). Prevents storage
   // exhaustion from a single compromised account.
   const ip = extractIp(req);
+  const ua = req.headers.get("user-agent");
   const { allowed } = await rateLimit(
     `user:${user.id}`,
     "api.upload",
     30,
     60 * 60_000,
-    { ip, actorEmail: user.email },
+    { ip, actorEmail: user.email, userAgent: ua },
   );
   if (!allowed) {
     return NextResponse.json({ error: "Upload rate limit exceeded. Please wait before uploading more files." }, { status: 429 });

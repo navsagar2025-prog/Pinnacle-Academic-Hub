@@ -14,12 +14,13 @@ export async function POST(request: Request) {
   // Rate-limit per student: 10 order attempts per 10 minutes (tunable via
   // site_settings "security_rate_limits" → "api.payment.create-order").
   const ip = extractIp(request);
+  const ua = request.headers.get("user-agent");
   const { allowed } = await rateLimit(
     `user:${actor.id}`,
     "api.payment.create-order",
     10,
     10 * 60_000,
-    { ip, actorEmail: actor.email },
+    { ip, actorEmail: actor.email, userAgent: ua },
   );
   if (!allowed) return err("Too many payment requests. Please wait a few minutes.", 429);
 

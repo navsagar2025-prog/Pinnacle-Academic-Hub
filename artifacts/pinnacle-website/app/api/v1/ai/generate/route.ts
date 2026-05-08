@@ -150,12 +150,13 @@ export async function POST(request: Request) {
   // site_settings "security_rate_limits" → "api.ai.generate"). AI calls are
   // expensive; this prevents run-away usage from a single account.
   const ip = extractIp(request);
+  const ua = request.headers.get("user-agent");
   const { allowed } = await rateLimit(
     `user:${dbUser.id}`,
     "api.ai.generate",
     20,
     60 * 60_000,
-    { ip, actorEmail: dbUser.email },
+    { ip, actorEmail: dbUser.email, userAgent: ua },
   );
   if (!allowed) {
     return new Response(

@@ -74,7 +74,7 @@ export async function rateLimit(
   route: string,     // e.g. "api.enquiry.submit"
   defaultLimit: number,   // used when no site_setting override exists
   defaultWindowMs: number,
-  metadata?: { ip?: string | null; actorEmail?: string | null },
+  metadata?: { ip?: string | null; actorEmail?: string | null; userAgent?: string | null },
 ): Promise<RateLimitResult> {
   // Resolve effective limit + window (settings override > caller default)
   let limit = defaultLimit;
@@ -113,6 +113,7 @@ export async function rateLimit(
         eventType: "rate_limited",
         actorEmail: metadata?.actorEmail ?? key,
         ip: metadata?.ip ?? null,
+        userAgent: metadata?.userAgent ?? null,
         route,
         outcome: "blocked",
       }).catch(() => {});

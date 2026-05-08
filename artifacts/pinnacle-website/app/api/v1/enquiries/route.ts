@@ -30,12 +30,13 @@ export async function POST(request: Request) {
   // Rate-limit: 5 submissions per IP per 5 minutes (default; tunable via
   // site_settings key "security_rate_limits" → "api.enquiry.submit").
   const ip = extractIp(request);
+  const ua = request.headers.get("user-agent");
   const { allowed } = await rateLimit(
     `ip:${ip}`,
     "api.enquiry.submit",
     5,
     5 * 60_000,
-    { ip },
+    { ip, userAgent: ua },
   );
   if (!allowed) return err("Too many enquiries submitted. Please wait a few minutes.", 429);
 
