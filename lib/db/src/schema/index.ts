@@ -783,6 +783,23 @@ export const watermarkSettings = pgTable("watermark_settings", {
 export type WatermarkSettings = typeof watermarkSettings.$inferSelect;
 export type InsertWatermarkSettings = typeof watermarkSettings.$inferInsert;
 
+/**
+ * Per-request hit tracker for sliding-window rate limiting.
+ * Separate from security_events so rate limit counting does not pollute the
+ * admin security event log. Only security_events gets a row when a request
+ * is actually *blocked*; this table is for the counter side only.
+ */
+export const rateLimitHits = pgTable("rate_limit_hits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  hitKey: text("hit_key").notNull(),  // "ip:1.2.3.4" or "user:<uuid>"
+  route: text("route").notNull(),     // route identifier, e.g. "api.enquiry.submit"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("rl_hits_key_route_created_idx").on(t.hitKey, t.route, t.createdAt),
+]);
+
+export type RateLimitHit = typeof rateLimitHits.$inferSelect;
+
 export const securityEvents = pgTable("security_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   eventType: text("event_type").notNull(), // login_success | login_fail | rate_limited | ip_blocked | ip_unblocked

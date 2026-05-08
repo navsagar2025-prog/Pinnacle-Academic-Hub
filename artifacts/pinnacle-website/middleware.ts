@@ -22,8 +22,9 @@
  *   1. CSP nonces: a per-request nonce is generated, forwarded to RSC pages
  *      via x-nonce request header, and emitted as Content-Security-Policy.
  *   2. IP lockout: if the requesting IP is in ip_lockouts (active, not expired),
- *      the request is rejected with 429 before Clerk sees it. Falls open on
- *      any DB error so a transient PG hiccup never blocks legitimate users.
+ *      the request is rejected with 429 before Clerk sees it. Covers all
+ *      portal, API, and sign-in/sign-up routes so brute-force attempts at the
+ *      login surface are blocked at the edge. Falls open on any DB error.
  *      Note: runs in Node.js runtime (not Edge) — see config below.
  *
  * MIGRATING AWAY FROM CLERK? Replace clerkMiddleware() with your own
@@ -41,15 +42,19 @@ const isProtectedRoute = createRouteMatcher([
   "/portal/admin(.*)",
 ]);
 
-// Only block on portal + API routes; skip static assets (matcher handles that)
+// Routes where the IP lockout check fires.
+// Critically includes /sign-in and /sign-up so brute-force attempts at the
+// Clerk-hosted login surface are stopped before Clerk processes credentials.
 const isCheckableRoute = createRouteMatcher([
   "/portal/(.*)",
   "/api/(.*)",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
 ]);
 
 const base = process.env.BASE_PATH?.replace(/\/$/, "") ?? "/pinnacle-website";
 
-/** Extract the client IP from standard proxy headers. */
+/** Extract the real client IP from standard proxy headers. */
 function getClientIp(req: NextRequest): string | null {
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0]!.trim();
@@ -78,31 +83,25 @@ function buildCsp(nonce: string): string {
   return directives.join("; ");
 }
 
-/** Check the ip_lockouts table via a raw Postgres query (avoids importing the
- *  full Drizzle client which has Edge-incompatible deps). Falls open on error. */
+/** Check the ip_lockouts table via a dynamic Drizzle import (Node.js runtime).
+ *  Falls open on any error so a DB hiccup never blocks legitimate users. */
 async function isIpLockedOut(ip: string): Promise<boolean> {
   try {
-    // Dynamic import so Edge bundler doesn't tree-shake; in Node.js runtime
-    // this resolves correctly. On true Edge deployments this would need to be
-    // replaced with an external KV lookup.
     const { db } = await import("@workspace/db");
     const { ipLockouts } = await import("@workspace/db/schema");
     const { eq } = await import("drizzle-orm");
 
     const rows = await db
-      .select({
-        lockedUntil: ipLockouts.lockedUntil,
-        unlockedAt: ipLockouts.unlockedAt,
-      })
+      .select({ lockedUntil: ipLockouts.lockedUntil, unlockedAt: ipLockouts.unlockedAt })
       .from(ipLockouts)
       .where(eq(ipLockouts.ip, ip))
       .limit(1);
 
     if (rows.length === 0) return false;
     const row = rows[0]!;
-    if (row.unlockedAt) return false; // manually unblocked
+    if (row.unlockedAt) return false;
     if (!row.lockedUntil) return false;
-    return row.lockedUntil > new Date(); // still within lockout window
+    return row.lockedUntil > new Date();
   } catch {
     return false; // fail open
   }
@@ -112,13 +111,16 @@ export default clerkMiddleware(async (auth, req) => {
   // --- 1. CSP nonce ---
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
-  // --- 2. IP lockout check (before Clerk processes auth) ---
+  // --- 2. IP lockout check (before Clerk processes credentials) ---
+  // Covers portal routes, API routes, AND sign-in/sign-up so attackers
+  // can't keep hitting the login surface after being locked out.
   if (isCheckableRoute(req)) {
     const ip = getClientIp(req);
     if (ip) {
       const locked = await isIpLockedOut(ip);
       if (locked) {
-        // Log the block (best-effort, fire-and-forget)
+        // Log the block (best-effort, fire-and-forget; import is dynamic to
+        // avoid circular deps at module load time)
         try {
           const { logSecurityEvent } = await import("@/lib/server/security-events");
           logSecurityEvent({

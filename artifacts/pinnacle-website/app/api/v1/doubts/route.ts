@@ -3,10 +3,23 @@ import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@/lib/db";
 import { doubts, students } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { rateLimit, extractIp } from "@/lib/server/rate-limit";
 
 export async function POST(req: NextRequest) {
   let user;
   try { user = await requirePortalRole("student"); } catch { return NextResponse.json({ error: "Login required" }, { status: 401 }); }
+
+  // Rate-limit: 10 doubt submissions per student per 10 minutes (tunable via
+  // site_settings "security_rate_limits" → "api.doubts.post").
+  const ip = extractIp(req);
+  const { allowed } = await rateLimit(
+    `user:${user.id}`,
+    "api.doubts.post",
+    10,
+    10 * 60_000,
+    { ip, actorEmail: user.email },
+  );
+  if (!allowed) return NextResponse.json({ error: "Too many doubt submissions. Please wait a few minutes." }, { status: 429 });
 
   const body = await req.json().catch(() => null);
   const subject = typeof body?.subject === "string" ? body.subject.trim().slice(0, 100) : "";

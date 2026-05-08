@@ -4,6 +4,7 @@ import { getModelForFeature, type AiFeatureKey } from "@/lib/server/ai-models";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
+import { rateLimit, extractIp } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -139,14 +140,28 @@ async function* generateTokens(
 export async function POST(request: Request) {
   const dbUser = await getDbUser();
   if (!dbUser) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-    });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
   if (dbUser.role !== "admin" && dbUser.role !== "teacher") {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-    });
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+  }
+
+  // Rate-limit: 20 AI generation requests per user per hour (tunable via
+  // site_settings "security_rate_limits" → "api.ai.generate"). AI calls are
+  // expensive; this prevents run-away usage from a single account.
+  const ip = extractIp(request);
+  const { allowed } = await rateLimit(
+    `user:${dbUser.id}`,
+    "api.ai.generate",
+    20,
+    60 * 60_000,
+    { ip, actorEmail: dbUser.email },
+  );
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ success: false, error: "AI generation rate limit exceeded. Please wait before trying again.", data: null }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
   }
 
   let body: {
@@ -159,9 +174,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-      status: 400,
-    });
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400 });
   }
 
   const { tool, context } = body;
@@ -201,12 +214,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const token of generateTokens(
-          provider,
-          model,
-          systemPrompt,
-          userPrompt
-        )) {
+        for await (const token of generateTokens(provider, model, systemPrompt, userPrompt)) {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ content: token })}\n\n`)
           );
@@ -216,8 +224,7 @@ export async function POST(request: Request) {
         );
       } catch (err) {
         console.error("AI generate error:", err);
-        const msg =
-          err instanceof Error ? err.message : "AI generation failed";
+        const msg = err instanceof Error ? err.message : "AI generation failed";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`)
         );

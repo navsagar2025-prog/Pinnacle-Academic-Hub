@@ -6,6 +6,7 @@ import {
   validateSize,
   type UploadCategory,
 } from "@/lib/server/object-storage";
+import { rateLimit, extractIp } from "@/lib/server/rate-limit";
 
 const VALID_CATEGORIES: UploadCategory[] = [
   "material_pdf",
@@ -30,6 +31,21 @@ export async function POST(req: NextRequest) {
   const user = await getDbUser();
   if (!user || (user.role !== "teacher" && user.role !== "admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate-limit: 30 upload URL requests per user per hour (tunable via
+  // site_settings "security_rate_limits" → "api.upload"). Prevents storage
+  // exhaustion from a single compromised account.
+  const ip = extractIp(req);
+  const { allowed } = await rateLimit(
+    `user:${user.id}`,
+    "api.upload",
+    30,
+    60 * 60_000,
+    { ip, actorEmail: user.email },
+  );
+  if (!allowed) {
+    return NextResponse.json({ error: "Upload rate limit exceeded. Please wait before uploading more files." }, { status: 429 });
   }
 
   let body: { name?: string; size?: number; contentType?: string; category?: string };
