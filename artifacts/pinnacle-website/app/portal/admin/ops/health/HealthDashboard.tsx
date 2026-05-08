@@ -44,7 +44,7 @@ interface SparkRow {
 
 type CleanupTarget =
   | "expired_stream_tokens"
-  | "expired_reset_tokens"
+  | "expired_impersonation_sessions"
   | "old_audit_logs"
   | "old_rate_limit_hits"
   | "old_security_events";
@@ -124,11 +124,11 @@ function GaugeBar({ value, max, color = "#0A1F5C", unit = "%" }: {
 // Cleanup action row
 // ---------------------------------------------------------------------------
 const CLEANUP_LABELS: Record<CleanupTarget, string> = {
-  expired_stream_tokens:  "Expired stream tokens",
-  expired_reset_tokens:   "Expired impersonation sessions",
-  old_audit_logs:         "Audit logs > 180 days",
-  old_rate_limit_hits:    "Rate-limit hits > 24 h",
-  old_security_events:    "Security events > 90 days",
+  expired_stream_tokens:          "Expired recording stream tokens",
+  expired_impersonation_sessions: "Expired impersonation sessions",
+  old_audit_logs:                 "Audit logs > 180 days",
+  old_rate_limit_hits:            "Rate-limit hits > 24 h",
+  old_security_events:            "Security events > 90 days",
 };
 
 function CleanupRow({ target }: { target: CleanupTarget }) {
@@ -542,7 +542,7 @@ export function HealthDashboard({
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-[var(--color-navy)] flex items-center gap-2 mb-1"><Trash2 size={15} /> Cleanup Actions</h2>
         <p className="text-xs text-slate-400 mb-4">Run a dry-run first to see how many rows will be affected before confirming deletion.</p>
-        {(["expired_stream_tokens", "expired_reset_tokens", "old_audit_logs", "old_rate_limit_hits", "old_security_events"] as CleanupTarget[])
+        {(["expired_stream_tokens", "expired_impersonation_sessions", "old_audit_logs", "old_rate_limit_hits", "old_security_events"] as CleanupTarget[])
           .map((t) => <CleanupRow key={t} target={t} />)}
       </section>
 

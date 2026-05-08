@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 
 type CleanupTarget =
   | "expired_stream_tokens"
-  | "expired_reset_tokens"
+  | "expired_impersonation_sessions"
   | "old_audit_logs"
   | "old_rate_limit_hits"
   | "old_security_events";
@@ -34,8 +34,8 @@ const CLEANUP_SPECS: Record<CleanupTarget, CleanupSpec> = {
     countSql: sql`SELECT count(*)::int AS n FROM recording_stream_tokens WHERE expires_at < now()`,
     deleteSql: sql`DELETE FROM recording_stream_tokens WHERE expires_at < now()`,
   },
-  expired_reset_tokens: {
-    description: "Expired impersonation sessions (ended_at or expires_at in past)",
+  expired_impersonation_sessions: {
+    description: "Impersonation sessions whose expiry has passed",
     countSql: sql`SELECT count(*)::int AS n FROM impersonation_sessions WHERE expires_at < now()`,
     deleteSql: sql`DELETE FROM impersonation_sessions WHERE expires_at < now()`,
   },
