@@ -91,8 +91,7 @@ export default async function TeacherAssignmentsPage() {
                   </div>
                   {a.fileUrl && (
                     <a
-                      href={a.fileUrl}
-                      target="_blank" rel="noopener noreferrer"
+                      href={`/pinnacle-website/api/v1/downloads/assignment/${a.id}`}
                       className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 self-start"
                     >
                       <Download size={12} /> Question Paper

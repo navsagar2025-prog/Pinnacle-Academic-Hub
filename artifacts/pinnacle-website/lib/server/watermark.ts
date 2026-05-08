@@ -30,6 +30,7 @@ export const WATERMARK_DOC_TYPES = [
   "receipt",
   "study_material",
   "assignment",
+  "practice_paper",
   "question_bank",
 ] as const;
 export type WatermarkDocType = (typeof WATERMARK_DOC_TYPES)[number];
@@ -39,6 +40,7 @@ export const WATERMARK_DOC_TYPE_LABELS: Record<WatermarkDocType, string> = {
   receipt: "Fee receipts",
   study_material: "Study materials",
   assignment: "Assignments",
+  practice_paper: "Practice papers / PYQs",
   question_bank: "Question-bank exports",
 };
 
@@ -95,10 +97,6 @@ let cacheLoaded = false;
 // briefly observe a partial map.
 let inflightLoad: Promise<void> | null = null;
 
-// Hard cap on pages we will stamp per document. Anything larger is served
-// unstamped (with an audit note) rather than risking OOM under concurrent
-// downloads.
-const MAX_STAMPED_PAGES = 200;
 
 function rowToConfig(row: WatermarkSettings): WatermarkConfig {
   return {
@@ -189,7 +187,12 @@ export async function getAllWatermarkSettings(): Promise<{
 
 export async function upsertWatermarkSetting(
   docType: WatermarkScopeKey,
-  patch: Partial<WatermarkConfig> & { useGlobal?: boolean },
+  // Note: `logoObjectPath` is intentionally three-state — `undefined` means
+  // "leave unchanged", `null` means "clear it", and a string sets a new path.
+  patch: Partial<Omit<WatermarkConfig, "logoObjectPath">> & {
+    logoObjectPath?: string | null;
+    useGlobal?: boolean;
+  },
   updatedBy: string,
 ): Promise<WatermarkSettings> {
   const existing = await db
@@ -198,6 +201,11 @@ export async function upsertWatermarkSetting(
     .where(eq(watermarkSettings.docType, docType))
     .limit(1)
     .then((r) => r[0]);
+
+  // Distinguish "clear" (null) from "leave unchanged" (undefined) for the
+  // logo path so admins can actually remove a previously set logo.
+  const hasLogoChange = Object.prototype.hasOwnProperty.call(patch, "logoObjectPath");
+  const nextLogo = hasLogoChange ? (patch.logoObjectPath ?? null) : (existing?.logoObjectPath ?? null);
 
   const values = {
     docType,
@@ -208,7 +216,7 @@ export async function upsertWatermarkSetting(
     rotation: patch.rotation ?? existing?.rotation ?? 45,
     fontSize: patch.fontSize ?? existing?.fontSize ?? 36,
     color: patch.color ?? existing?.color ?? "#888888",
-    logoObjectPath: patch.logoObjectPath ?? existing?.logoObjectPath ?? null,
+    logoObjectPath: nextLogo,
     useGlobal: docType === "global" ? false : (patch.useGlobal ?? existing?.useGlobal ?? true),
     updatedBy,
     updatedAt: new Date(),
@@ -277,8 +285,21 @@ async function loadLogoImage(
   if (!isAllowedLogoPath(objectPath)) return null;
   try {
     const { bytes, contentType } = await downloadObjectBytes(objectPath!);
-    if (contentType.includes("png")) return await pdf.embedPng(bytes);
-    if (contentType.includes("jpeg") || contentType.includes("jpg")) return await pdf.embedJpg(bytes);
+    const ct = contentType.toLowerCase();
+    if (ct.includes("png")) return await pdf.embedPng(bytes);
+    if (ct.includes("jpeg") || ct.includes("jpg")) return await pdf.embedJpg(bytes);
+    if (ct.includes("svg") || objectPath!.toLowerCase().endsWith(".svg")) {
+      // pdf-lib has no native SVG support, so we rasterise to PNG via sharp
+      // (already a dependency for image processing). This is admin-supplied
+      // content from the public bucket so the conversion happens at most
+      // once per cache miss.
+      const sharp = (await import("sharp")).default;
+      const png = await sharp(Buffer.from(bytes), { density: 300 })
+        .resize({ width: 1024, withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      return await pdf.embedPng(png);
+    }
     return null;
   } catch {
     return null;
@@ -377,16 +398,12 @@ export async function stampWithConfig(
 ): Promise<{ bytes: Uint8Array; configHash: string }> {
   const text = expandTemplate(cfg.textTemplate, ctx);
   const pdf = await PDFDocument.load(pdfBytes);
-  const pages = pdf.getPages();
-  // Skip stamping for very large PDFs to bound CPU/memory usage. We still
-  // return the original document so the user gets their file; the caller
-  // audit-logs the size so this is observable.
-  if (pages.length > MAX_STAMPED_PAGES) {
-    return { bytes: pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes), configHash: configHash(cfg) };
-  }
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const logo = await loadLogoImage(pdf, cfg.logoObjectPath);
-  for (const page of pages) {
+  // Stamp every page — the requirement is that ALL downloaded pages carry
+  // the watermark for traceability. Large documents pay a higher CPU cost
+  // but never bypass stamping.
+  for (const page of pdf.getPages()) {
     if (logo) drawLogoStamp(page, logo, cfg);
     if (text) drawTextStamp(page, text, font, cfg);
   }

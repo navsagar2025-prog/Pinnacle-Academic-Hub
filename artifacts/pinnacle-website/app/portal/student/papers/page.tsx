@@ -80,7 +80,7 @@ export default async function PapersPage() {
                 </div>
               </div>
               {p.fileUrl && p.fileUrl !== "#" ? (
-                <a href={p.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-maroon)] text-white text-sm font-semibold hover:bg-[var(--color-maroon-light)] transition-colors flex-shrink-0">
+                <a href={`/pinnacle-website/api/v1/downloads/practice_paper/${p.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-maroon)] text-white text-sm font-semibold hover:bg-[var(--color-maroon-light)] transition-colors flex-shrink-0">
                   <Download size={14} /> Download
                 </a>
               ) : (

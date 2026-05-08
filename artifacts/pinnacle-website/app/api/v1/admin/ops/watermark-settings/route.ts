@@ -76,6 +76,12 @@ export async function PUT(req: NextRequest) {
     return err("logoObjectPath must be a /objects/public/... path", 400);
   }
 
+  // Forward the three-state `logoObjectPath` faithfully so admins can clear
+  // a previously set logo (null) without touching it (undefined).
+  const logoChange = Object.prototype.hasOwnProperty.call(body, "logoObjectPath")
+    ? { logoObjectPath: body.logoObjectPath === "" ? null : (body.logoObjectPath ?? null) }
+    : {};
+
   const row = await upsertWatermarkSetting(
     docType,
     {
@@ -86,7 +92,7 @@ export async function PUT(req: NextRequest) {
       rotation: body.rotation,
       fontSize: body.fontSize,
       color: body.color?.startsWith("#") ? body.color : body.color ? `#${body.color}` : undefined,
-      logoObjectPath: body.logoObjectPath ?? undefined,
+      ...logoChange,
       useGlobal: body.useGlobal,
     },
     actor.id,

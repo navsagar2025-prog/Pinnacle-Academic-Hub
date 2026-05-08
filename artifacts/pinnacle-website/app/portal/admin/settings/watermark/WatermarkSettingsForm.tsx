@@ -6,7 +6,7 @@ import { Save, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 type Position = "tile" | "center" | "footer";
-type DocTypeKey = "receipt" | "study_material" | "assignment" | "question_bank";
+type DocTypeKey = "receipt" | "study_material" | "assignment" | "practice_paper" | "question_bank";
 type ScopeKey = "global" | DocTypeKey;
 
 interface RowShape {
@@ -87,12 +87,49 @@ export function WatermarkSettingsForm({
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [previewing, setPreviewing] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const previewObjectUrlRef = useRef<string | null>(null);
 
   const placeholderInsertRef = useRef<HTMLTextAreaElement | null>(null);
 
   function update(patch: Partial<FormState>) {
     setForms((f) => ({ ...f, [activeScope]: { ...f[activeScope], ...patch } }));
+  }
+
+  async function uploadLogo(file: File) {
+    setUploadingLogo(true);
+    setFeedback(null);
+    try {
+      // Step 1: ask the backend for a presigned upload URL in the public
+      // blog_image category (admin-only, public bucket).
+      const presign = await fetch(`${BASE}/api/v1/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type || "application/octet-stream",
+          category: "blog_image",
+        }),
+      });
+      const presignJson = await presign.json();
+      if (!presign.ok) throw new Error(presignJson.error ?? "Upload pre-sign failed");
+
+      // Step 2: PUT the file bytes to GCS.
+      const put = await fetch(presignJson.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) throw new Error("Upload to storage failed");
+
+      update({ logoObjectPath: presignJson.objectPath });
+      setFeedback({ ok: true, msg: "Logo uploaded — remember to save." });
+    } catch (e) {
+      setFeedback({ ok: false, msg: e instanceof Error ? e.message : "Upload failed" });
+    } finally {
+      setUploadingLogo(false);
+    }
   }
 
   function insertPlaceholder(key: string) {
@@ -361,16 +398,37 @@ export function WatermarkSettingsForm({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600">Logo object path (optional)</label>
-            <input
-              value={current.logoObjectPath ?? ""}
-              onChange={(e) => update({ logoObjectPath: e.target.value || null })}
-              placeholder="/objects/public/blog/<uuid>"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
-            />
+            <label className="text-xs font-semibold text-slate-600">Logo (optional)</label>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadLogo(file);
+                  e.target.value = "";
+                }}
+                disabled={uploadingLogo}
+                className="text-xs"
+              />
+              {current.logoObjectPath && (
+                <button
+                  type="button"
+                  onClick={() => update({ logoObjectPath: null })}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  Remove logo
+                </button>
+              )}
+            </div>
+            {uploadingLogo && <p className="text-[11px] text-slate-500 mt-1">Uploading…</p>}
+            {current.logoObjectPath && (
+              <p className="text-[11px] text-slate-500 mt-1 font-mono break-all">
+                {current.logoObjectPath}
+              </p>
+            )}
             <p className="text-[11px] text-slate-500 mt-1">
-              Upload the logo via the Blog/Gallery image upload, then paste the resulting object
-              path here. PNG and JPG are supported.
+              PNG, JPG, or SVG. Files are stored in the public bucket.
             </p>
           </div>
         </div>

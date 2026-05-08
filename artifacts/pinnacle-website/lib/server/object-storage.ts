@@ -153,7 +153,7 @@ export function validateCategoryMime(
   contentType: string,
 ): { ok: true } | { ok: false; error: string } {
   const PDF = ["application/pdf"];
-  const IMAGES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+  const IMAGES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
 
   const isPdf = category === "material_pdf" || category === "assignment_pdf" || category === "pyq_pdf";
   const allowedMimes: string[] = isPdf ? PDF : IMAGES;

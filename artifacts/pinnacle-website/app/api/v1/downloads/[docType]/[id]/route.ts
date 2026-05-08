@@ -15,6 +15,7 @@ import {
   courses,
   studyMaterials,
   assignments,
+  practicePapers,
   parents,
 } from "@workspace/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -210,6 +211,27 @@ export async function GET(
     bytes = downloaded.bytes;
     filename = `${(a.title ?? "assignment").replace(/\s+/g, "_")}.pdf`;
     resourceMeta = { assignmentId: a.id, batchId: a.batchId, fileObjectPath: objectPath };
+  } else if (docType === "practice_paper") {
+    const [p] = await db.select().from(practicePapers).where(eq(practicePapers.id, id)).limit(1);
+    if (!p || !p.isVisible) return notFound();
+    const objectPath = objectPathFromFileUrl(p.fileUrl);
+    if (!objectPath) return notFound();
+
+    const isStaff = user.role === "admin" || user.role === "teacher";
+    if (!isStaff) {
+      if (user.role !== "student") return forbidden();
+      const [enrollment] = await db
+        .select({ batchId: students.batchId })
+        .from(students)
+        .where(and(eq(students.userId, user.id), eq(students.isActive, true)))
+        .limit(1);
+      if (!enrollment || enrollment.batchId !== p.batchId) return forbidden();
+    }
+
+    const downloaded = await downloadObjectBytes(objectPath);
+    bytes = downloaded.bytes;
+    filename = `${(p.title ?? "paper").replace(/\s+/g, "_")}.pdf`;
+    resourceMeta = { paperId: p.id, batchId: p.batchId, fileObjectPath: objectPath };
   } else if (docType === "question_bank") {
     // Question-bank exports are built and stored under /objects/private/exports
     // by the export generator; the proxy just streams them with watermark. To
@@ -242,16 +264,25 @@ export async function GET(
 
   const { bytes: stamped, configHash } = await withWatermark(bytes, ctx, docType);
 
-  // Best-effort audit. Failures must not block the download.
+  // The "snapshot id" combines docType and the resolved config hash so each
+  // audit entry pinpoints the exact watermark policy that was applied at the
+  // moment of download. Useful when investigating leaks.
+  const watermarkSnapshotId = `${docType}:${configHash}`;
+
+  // Best-effort audit. Failures must not block the download but must be
+  // surfaced in server logs so we notice silent gaps.
   try {
     await logAudit(user.id, user.name, "download.pdf", docType, id, {
       ...resourceMeta,
       ipAddress: ip,
       userAgent: req.headers.get("user-agent") ?? "",
       watermarkConfigHash: configHash,
+      watermarkSnapshotId,
       bytes: stamped.byteLength,
     });
-  } catch {}
+  } catch (err) {
+    console.error("[downloads] audit log failed", { docType, id, err });
+  }
 
   return new Response(stamped as BodyInit, { headers: attachmentHeaders(filename, stamped.byteLength) });
 }
