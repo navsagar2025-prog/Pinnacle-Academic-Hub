@@ -7,12 +7,12 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { ok, err } from "@/lib/server/api-response";
-import { getDbUser } from "@/lib/server/portal-auth";
+import { getRealAdminUser } from "@/lib/server/portal-auth";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const actor = await getDbUser();
+  const actor = await getRealAdminUser();
   if (!actor) return err("Unauthorized", 401);
   if (actor.role !== "admin") return err("Forbidden — admin only", 403);
 

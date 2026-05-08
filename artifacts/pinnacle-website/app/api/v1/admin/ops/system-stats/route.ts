@@ -7,7 +7,7 @@
  *   - Process uptime, RSS, heap
  */
 import { ok, err } from "@/lib/server/api-response";
-import { getDbUser } from "@/lib/server/portal-auth";
+import { getRealAdminUser } from "@/lib/server/portal-auth";
 import os from "os";
 import { readFileSync } from "fs";
 import { execSync } from "child_process";
@@ -65,7 +65,7 @@ function getDiskUsage(): { usedGb: number; totalGb: number } | null {
 }
 
 export async function GET() {
-  const actor = await getDbUser();
+  const actor = await getRealAdminUser();
   if (!actor) return err("Unauthorized", 401);
   if (actor.role !== "admin") return err("Forbidden — admin only", 403);
 

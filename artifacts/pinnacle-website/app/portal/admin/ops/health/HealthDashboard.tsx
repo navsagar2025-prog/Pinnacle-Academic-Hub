@@ -44,6 +44,7 @@ interface SparkRow {
 
 type CleanupTarget =
   | "expired_stream_tokens"
+  | "expired_reset_tokens"
   | "expired_impersonation_sessions"
   | "old_audit_logs"
   | "old_rate_limit_hits"
@@ -125,6 +126,7 @@ function GaugeBar({ value, max, color = "#0A1F5C", unit = "%" }: {
 // ---------------------------------------------------------------------------
 const CLEANUP_LABELS: Record<CleanupTarget, string> = {
   expired_stream_tokens:          "Expired recording stream tokens",
+  expired_reset_tokens:           "Expired password-reset tokens",
   expired_impersonation_sessions: "Expired impersonation sessions",
   old_audit_logs:                 "Audit logs > 180 days",
   old_rate_limit_hits:            "Rate-limit hits > 24 h",
@@ -274,11 +276,17 @@ export function HealthDashboard({
 
   async function runVacuum() {
     setVacuuming(true);
-    await apiFetch("/api/v1/admin/ops/db-stats?vacuum=1");
-    setVacuuming(false);
-    setVacuumed(true);
-    setTimeout(() => setVacuumed(false), 3000);
-    await loadDbStats();
+    try {
+      const res = await apiFetch("/api/v1/admin/ops/db-stats?vacuum=1");
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setVacuumed(true);
+        setTimeout(() => setVacuumed(false), 3000);
+      }
+    } finally {
+      setVacuuming(false);
+      await loadDbStats();
+    }
   }
 
   // ---- Storage stats ----
@@ -542,7 +550,7 @@ export function HealthDashboard({
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-[var(--color-navy)] flex items-center gap-2 mb-1"><Trash2 size={15} /> Cleanup Actions</h2>
         <p className="text-xs text-slate-400 mb-4">Run a dry-run first to see how many rows will be affected before confirming deletion.</p>
-        {(["expired_stream_tokens", "expired_impersonation_sessions", "old_audit_logs", "old_rate_limit_hits", "old_security_events"] as CleanupTarget[])
+        {(["expired_stream_tokens", "expired_reset_tokens", "expired_impersonation_sessions", "old_audit_logs", "old_rate_limit_hits", "old_security_events"] as CleanupTarget[])
           .map((t) => <CleanupRow key={t} target={t} />)}
       </section>
 
