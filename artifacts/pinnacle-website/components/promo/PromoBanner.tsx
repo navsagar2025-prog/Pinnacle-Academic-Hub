@@ -1,30 +1,18 @@
 "use client";
 /**
- * PromoBanner — public site top-bar.
- *
- * Fetches currently-active public promotions on mount.
- * Renders the first one as a dismissible sticky top bar.
- * Dismissal is stored in localStorage keyed by `promo-dismissed-{id}` so it
- * persists across page reloads.
+ * PromoBanner — public site top-bar announcement.
+ * Fetches active public promotions on mount; respects localStorage-keyed
+ * per-promo dismissal.  Skips rendering on /portal/* routes automatically.
+ * Uses the shared PromoBannerDisplay so the appearance is identical to the
+ * admin preview.
  */
 import { useEffect, useState } from "react";
-import { X, Megaphone } from "lucide-react";
+import { PromoBannerDisplay, type PromoDisplayData } from "./PromoDisplay";
 
-interface Promo {
-  id: string;
-  title: string;
-  body: string;
-  displayType: "banner" | "popup";
-  ctaLabel: string | null;
-  ctaUrl: string | null;
-  bgColour: string;
-  ctaColour: string;
-}
-
-const LS_KEY = (id: string) => `promo-dismissed-${id}`;
+const LS_KEY = (id: string) => `promo-banner-dismissed-${id}`;
 
 export function PromoBanner({ basePath }: { basePath: string }) {
-  const [promo, setPromo] = useState<Promo | null>(null);
+  const [promo, setPromo] = useState<PromoDisplayData | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -44,10 +32,10 @@ export function PromoBanner({ basePath }: { basePath: string }) {
         });
         if (!res.ok) return;
         const json = await res.json();
-        const items: Promo[] = json.data ?? [];
+        const items: PromoDisplayData[] = json.data ?? [];
 
         const banner = items.find(
-          (p) => p.displayType === "banner" && !localStorage.getItem(LS_KEY(p.id)),
+          (p) => p.displayType === "banner" && p.id && !localStorage.getItem(LS_KEY(p.id!)),
         );
 
         if (!cancelled && banner) {
@@ -64,46 +52,11 @@ export function PromoBanner({ basePath }: { basePath: string }) {
   }, [basePath]);
 
   function dismiss() {
-    if (promo) localStorage.setItem(LS_KEY(promo.id), "1");
+    if (promo?.id) localStorage.setItem(LS_KEY(promo.id), "1");
     setVisible(false);
   }
 
-  if (!visible || !promo) return null;
+  if (!promo || !visible) return null;
 
-  return (
-    <div
-      className="w-full z-50 flex items-center justify-between gap-3 px-4 py-2.5 text-white text-sm"
-      style={{ backgroundColor: promo.bgColour }}
-      role="banner"
-      aria-label="Announcement"
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <Megaphone size={14} className="shrink-0 opacity-80" />
-        <p className="font-semibold truncate">{promo.title}</p>
-        <span className="hidden sm:inline text-white/80 text-xs truncate">— {promo.body}</span>
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        {promo.ctaLabel && promo.ctaUrl && (
-          <a
-            href={promo.ctaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-bold px-3 py-1 rounded-full text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: promo.ctaColour }}
-            onClick={dismiss}
-          >
-            {promo.ctaLabel}
-          </a>
-        )}
-        <button
-          onClick={dismiss}
-          aria-label="Dismiss announcement"
-          className="text-white/60 hover:text-white transition-colors"
-        >
-          <X size={15} />
-        </button>
-      </div>
-    </div>
-  );
+  return <PromoBannerDisplay promo={promo} onDismiss={dismiss} />;
 }
