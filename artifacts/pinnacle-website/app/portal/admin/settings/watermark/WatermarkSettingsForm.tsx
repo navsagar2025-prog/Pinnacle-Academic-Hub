@@ -364,7 +364,7 @@ export function WatermarkSettingsForm({
               </span>
               <input
                 type="range"
-                min={1}
+                min={0}
                 max={100}
                 value={current.opacity}
                 onChange={(e) => update({ opacity: Number(e.target.value) })}

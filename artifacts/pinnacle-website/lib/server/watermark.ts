@@ -367,6 +367,13 @@ function drawLogoStamp(page: PDFPage, image: PDFImage, cfg: WatermarkConfig) {
  * Apply the watermark for `docType` onto the given PDF bytes.
  * If the resolved config has `enabled=false` the original bytes are returned.
  */
+export class InvalidPdfError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidPdfError";
+  }
+}
+
 export async function withWatermark(
   pdfBytes: Uint8Array | Buffer,
   ctx: WatermarkContext,
@@ -387,7 +394,13 @@ export async function stampWithConfig(
   cfg: WatermarkConfig,
 ): Promise<{ bytes: Uint8Array; configHash: string }> {
   const text = expandTemplate(cfg.textTemplate, ctx);
-  const pdf = await PDFDocument.load(pdfBytes);
+  let pdf;
+  try {
+    pdf = await PDFDocument.load(pdfBytes);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new InvalidPdfError(`Cannot stamp watermark: source bytes are not a valid PDF (${msg})`);
+  }
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const logo = await loadLogoImage(pdf, cfg.logoObjectPath);
   // Stamp every page — the requirement is that ALL downloaded pages carry

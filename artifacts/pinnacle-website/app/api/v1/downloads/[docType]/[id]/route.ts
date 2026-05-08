@@ -22,6 +22,7 @@ import {
   type WatermarkDocType,
   buildWatermarkContext,
   withWatermark,
+  InvalidPdfError,
 } from "@/lib/server/watermark";
 import { buildReceiptPdf } from "@/lib/server/receipt-pdf";
 
@@ -264,7 +265,17 @@ export async function GET(
     centreEmail: contact.contact_email,
   } as Parameters<typeof buildWatermarkContext>[0]);
 
-  const { bytes: stamped, configHash } = await withWatermark(bytes, ctx, docType);
+  let stamped: Uint8Array;
+  let configHash: string;
+  try {
+    ({ bytes: stamped, configHash } = await withWatermark(bytes, ctx, docType));
+  } catch (e) {
+    if (e instanceof InvalidPdfError) {
+      console.error("[downloads] non-PDF source rejected", { docType, id, err: e.message });
+      return new Response("Stored file is not a valid PDF and cannot be watermarked", { status: 415 });
+    }
+    throw e;
+  }
 
   // The "snapshot id" combines docType and the resolved config hash so each
   // audit entry pinpoints the exact watermark policy that was applied at the

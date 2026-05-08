@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     return err("Invalid JSON", 400);
   }
   const cfg: WatermarkConfig = {
-    enabled: true,
+    enabled: body.config?.enabled !== false,
     textTemplate: body.config?.textTemplate ?? "{{centreName}} • {{userName}} • {{date}}",
     position: VALID_POSITIONS.includes(body.config?.position as (typeof VALID_POSITIONS)[number])
       ? (body.config!.position as WatermarkConfig["position"])
