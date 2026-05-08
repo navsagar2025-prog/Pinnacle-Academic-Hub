@@ -135,8 +135,24 @@ export async function rateLimit(
 // Convenience helper: extract client IP from a Next.js Request
 // ---------------------------------------------------------------------------
 
+// Derive the client IP from proxy headers.
+//
+// x-real-ip is preferred: typically set by Nginx/trusted reverse proxy to the
+// verified client address and not forwarded from upstream — harder to spoof.
+//
+// x-forwarded-for is a comma-separated list where each proxy appends the
+// upstream address it received the request from. Naively trusting the FIRST
+// value is spoof-prone: a client can inject a fake leading IP before the
+// request reaches our proxy. We take the LAST non-empty value, which is the
+// one most recently appended by our infrastructure layer and therefore
+// trustworthy in a single-hop setup.
 export function extractIp(request: Request): string {
+  const xri = request.headers.get("x-real-ip")?.trim();
+  if (xri) return xri;
   const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1]!;
+  }
+  return "unknown";
 }

@@ -1,19 +1,32 @@
-// Clerk webhook receiver — secondary audit log for login events.
-// Verifies Svix signatures, then logs session.created (login_success) and
-// user.updated (login_fail delta) to security_events.
+// Clerk webhook receiver — supplementary audit log for login failures.
+// Verifies Svix signatures; on user.updated detects failed_sign_in_attempts
+// increases and logs login_fail events as a fallback for non-browser flows
+// (API clients, mobile apps, automated scripts).
 //
-// IP/UA are null here: webhook payloads arrive from Clerk's infrastructure,
-// not the end-user's browser. Primary IP-bearing records come from the
-// browser-side trackers at /api/v1/auth/record-success and record-failure.
+// login_success is NOT logged here — the browser-side SignInSuccessTracker
+// calls /api/v1/auth/record-success with the real client IP/UA, which is
+// the canonical source of truth for success events.
+//
+// IP/UA are null in webhook payloads: they arrive from Clerk's infrastructure.
+// Browser tracker records carry real client IP; webhook records act as backup.
 //
 // Setup: add CLERK_WEBHOOK_SECRET to Replit Secrets; in Clerk Dashboard →
-// Webhooks create an endpoint for session.created + user.updated events.
+// Webhooks create an endpoint for user.updated events.
 
 import { Webhook } from "svix";
 import { logSecurityEvent } from "@/lib/server/security-events";
+import { rateLimit, extractIp } from "@/lib/server/rate-limit";
 import type { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
+  // Rate-limit webhook calls per source IP (covers non-v1 mutating endpoint gap).
+  // Svix signatures prevent forged payloads; this limits raw request flooding.
+  const ip = extractIp(req);
+  const { allowed } = await rateLimit(`ip:${ip}`, "api.webhooks.clerk", 30, 60_000, { ip });
+  if (!allowed) {
+    return new Response("Too many requests", { status: 429 });
+  }
+
   const secret = process.env.CLERK_WEBHOOK_SECRET;
   if (!secret) {
     console.warn("[clerk-webhook] CLERK_WEBHOOK_SECRET not set");
@@ -45,20 +58,7 @@ export async function POST(req: NextRequest) {
   const eventType = payload.type as string;
   const data = payload.data as Record<string, unknown>;
 
-  if (eventType === "session.created") {
-    const actorEmail =
-      (data.public_user_data as Record<string, unknown> | undefined)
-        ?.identifier as string | undefined ?? null;
-    await logSecurityEvent({
-      eventType: "login_success",
-      actorEmail,
-      ip: null,       // not available in webhook payload — see header comment
-      userAgent: null,
-      route: "/sign-in",
-      outcome: "success",
-    });
-
-  } else if (eventType === "user.updated") {
+  if (eventType === "user.updated") {
     const previousAttributes = payload.previous_attributes as Record<string, unknown> | undefined;
     const currentFailed = (data.failed_sign_in_attempts as number) ?? 0;
     const previousFailed = previousAttributes?.failed_sign_in_attempts as number | undefined;
@@ -73,9 +73,9 @@ export async function POST(req: NextRequest) {
           logSecurityEvent({
             eventType: "login_fail",
             actorEmail,
-            ip: null,   // not available in webhook payload — see header comment
+            ip: null,       // not available in webhook payload
             userAgent: null,
-            route: "/sign-in",
+            route: "/sign-in [webhook]", // prefix distinguishes from browser-tracker records
             outcome: "fail",
           }),
         ),

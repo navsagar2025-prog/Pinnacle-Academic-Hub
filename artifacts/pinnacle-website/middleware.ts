@@ -37,10 +37,19 @@ const isLockoutCheckedRoute = createRouteMatcher([
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const base = process.env.BASE_PATH?.replace(/\/$/, "") ?? "/pinnacle-website";
 
+// Uses the same proxy-hardened strategy as lib/server/rate-limit.ts extractIp:
+// prefer x-real-ip (proxy-set), then last x-forwarded-for value (most recently
+// appended by our infrastructure). Avoids blindly trusting client-injectable
+// leading x-forwarded-for entries.
 function getClientIp(req: NextRequest): string | null {
+  const xri = req.headers.get("x-real-ip")?.trim();
+  if (xri) return xri;
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return req.headers.get("x-real-ip");
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1]!;
+  }
+  return null;
 }
 
 function buildCsp(nonce: string): string {
