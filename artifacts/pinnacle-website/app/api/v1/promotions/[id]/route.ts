@@ -24,6 +24,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const [existing] = await db.select().from(promotions).where(eq(promotions.id, id));
     if (!existing) return err("Promotion not found", 404);
 
+    // Validate start/end ordering using merged values (existing + incoming).
+    const resolvedStart = startsAt !== undefined ? new Date(startsAt) : existing.startsAt;
+    const resolvedEnd   = endsAt   !== undefined ? new Date(endsAt)   : existing.endsAt;
+    if (resolvedEnd <= resolvedStart) {
+      return err("endsAt must be after startsAt", 400);
+    }
+
     const [row] = await db
       .update(promotions)
       .set({

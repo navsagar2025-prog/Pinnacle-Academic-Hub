@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { promotions } from "@workspace/db/schema";
 import { isNull, desc } from "drizzle-orm";
 import { Megaphone } from "lucide-react";
+import Link from "next/link";
 import { AddPromotionButton, EditPromotionButton, ArchivePromotionButton, PreviewPromotionButton } from "./PromotionsModal";
 
 export const metadata = { title: "Promotions & Banners — Admin Panel" };
@@ -14,17 +15,29 @@ function statusBadge(promo: { startsAt: Date; endsAt: Date; archivedAt: Date | n
   return { label: "Live", cls: "bg-emerald-100 text-emerald-700" };
 }
 
-export default async function AdminPromotionsPage() {
-  const rows = await db
+export default async function AdminPromotionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ showArchived?: string }>;
+}) {
+  const { showArchived } = await searchParams;
+  const includeArchived = showArchived === "1";
+
+  const query = db
     .select()
     .from(promotions)
-    .where(isNull(promotions.archivedAt))
     .orderBy(desc(promotions.createdAt));
+
+  const rows = includeArchived
+    ? await query
+    : await db.select().from(promotions).where(isNull(promotions.archivedAt)).orderBy(desc(promotions.createdAt));
 
   const live = rows.filter((r) => {
     const now = new Date();
     return now >= r.startsAt && now <= r.endsAt && !r.archivedAt;
   }).length;
+
+  const archivedCount = rows.filter((r) => r.archivedAt).length;
 
   const formatDt = (d: Date) =>
     new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -34,14 +47,29 @@ export default async function AdminPromotionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Promotions & Banners</h1>
-          <p className="text-slate-500 text-sm mt-1">{rows.length} active · {live} currently live</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {rows.filter((r) => !r.archivedAt).length} active · {live} currently live
+            {includeArchived && archivedCount > 0 && ` · ${archivedCount} archived`}
+          </p>
         </div>
-        <AddPromotionButton />
+        <div className="flex items-center gap-3">
+          <Link
+            href={includeArchived ? "/portal/admin/promotions" : "/portal/admin/promotions?showArchived=1"}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              includeArchived
+                ? "bg-slate-100 border-slate-200 text-slate-700"
+                : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {includeArchived ? "Hide Archived" : "Show Archived"}
+          </Link>
+          <AddPromotionButton />
+        </div>
       </div>
 
       <div className="card p-4 border-l-4 border-l-[var(--color-teal)] bg-[var(--color-teal)]/5">
         <p className="text-xs text-slate-600">
-          <strong>How it works:</strong> Promotions outside their start–end window are never shown. Banner promotions appear as a dismissible top bar on the public website or student portal. Modal promotions appear as a full popup on a student's first login of the day.
+          <strong>How it works:</strong> Promotions outside their start–end window are never shown. <strong>Banner</strong> promotions appear as a dismissible top bar. <strong>Modal Popup</strong> promotions appear as a full overlay on a student's first portal visit of the day, then collapse to a compact bar.
         </p>
       </div>
 
@@ -64,8 +92,9 @@ export default async function AdminPromotionsPage() {
               <tbody className="divide-y divide-slate-50">
                 {rows.map((p) => {
                   const { label, cls } = statusBadge(p);
+                  const isArchived = !!p.archivedAt;
                   return (
-                    <tr key={p.id} className="hover:bg-[var(--color-slate-light)]/50 transition-colors">
+                    <tr key={p.id} className={`hover:bg-[var(--color-slate-light)]/50 transition-colors ${isArchived ? "opacity-50" : ""}`}>
                       <td className="px-4 py-3 max-w-[220px]">
                         <div className="font-semibold text-sm text-[var(--color-navy)] line-clamp-1">{p.title}</div>
                         <div className="text-xs text-slate-400 line-clamp-1 mt-0.5">{p.body}</div>
@@ -96,9 +125,10 @@ export default async function AdminPromotionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <PreviewPromotionButton promo={p} />
-                          <EditPromotionButton promo={p} />
-                          <ArchivePromotionButton promoId={p.id} />
+                          {!isArchived && <PreviewPromotionButton promo={p} />}
+                          {!isArchived && <EditPromotionButton promo={p} />}
+                          {!isArchived && <ArchivePromotionButton promoId={p.id} />}
+                          {isArchived && <span className="text-xs text-slate-400 italic">Archived</span>}
                         </div>
                       </td>
                     </tr>

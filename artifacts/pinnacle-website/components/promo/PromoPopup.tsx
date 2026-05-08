@@ -45,15 +45,21 @@ export function PromoPopup({ basePath }: { basePath: string }) {
         const active = items.find((p) => !localStorage.getItem(BANNER_KEY(p.id)));
         if (!active || cancelled) return;
 
-        const todayKey = `${MODAL_KEY(active.id)}-${todayStr()}`;
-        const modalAlreadyShownToday = !!localStorage.getItem(todayKey);
-
         setPromo(active);
-        if (!modalAlreadyShownToday) {
-          setShowModal(true);
-          localStorage.setItem(todayKey, "1");
-        } else {
+
+        if (active.displayType === "banner") {
+          // Banner-type promos: always render as compact top bar, never as modal.
           setShowBanner(true);
+        } else {
+          // Popup-type promos: show modal on first visit of the day, compact bar after.
+          const todayKey = `${MODAL_KEY(active.id)}-${todayStr()}`;
+          const modalAlreadyShownToday = !!localStorage.getItem(todayKey);
+          if (!modalAlreadyShownToday) {
+            setShowModal(true);
+            localStorage.setItem(todayKey, "1");
+          } else {
+            setShowBanner(true);
+          }
         }
       } catch {
         /* silently ignore */
