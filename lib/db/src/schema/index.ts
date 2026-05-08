@@ -849,7 +849,7 @@ export const pageViews = pgTable("page_views", {
   // Storing only the domain, not the full URL, keeps cardinality manageable
   // while still enabling traffic-source breakdown in the fallback dashboard.
   deviceType: text("device_type").notNull().default("desktop"), // desktop | mobile | tablet
-  referrer: text("referrer"), // normalised hostname or NULL for direct/unknown
+  referrer: text("referrer").notNull().default("direct"), // normalised hostname or "direct"
   count: integer("count").notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD — stored as text to avoid timezone drift
   createdAt: timestamp("created_at").defaultNow().notNull(),

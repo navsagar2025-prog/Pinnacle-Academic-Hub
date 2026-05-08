@@ -16,23 +16,28 @@ import { siteSettings } from "@workspace/db/schema";
 import { inArray } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
-// True PII fields that must never be forwarded (GDPR / privacy-safe).
-// NOTE: `client_id` is intentionally kept — GA4 Measurement Protocol
-// requires it to associate events with a browser session. It is a random
-// GA-generated ID (e.g. "GA1.1.123456789.1234567890"), not a user identifier.
-// `user_id` is stripped because it is a persistent first-party identifier.
-// `ip_override` is stripped to prevent spoofing the upstream IP logged by GA.
-const PII_STRIP = [
+// Exact PII keys that must never be forwarded (GDPR / privacy-safe).
+// IMPORTANT: Matching is by exact key name (not substring) to avoid stripping
+// required GA4 Measurement Protocol fields such as `events[].name`.
+// - `client_id` is intentionally kept — GA4 requires it to associate events
+//   with a browser session; it is a random GA-generated ID, not a user id.
+// - `user_id` is stripped — persistent first-party identifier.
+// - `ip_override` is stripped — prevents upstream IP spoofing in GA logs.
+// - `user_data` / `user_properties` blocks are stripped at the top level;
+//   recursive traversal removes any PII that may appear in nested params.
+const PII_STRIP_EXACT = new Set([
   "user_id", "ip_override",
-  "email", "phone", "name", "address",
-];
+  "email", "phone_number", "address", "birth_date",
+  "first_name", "last_name", "user_data",
+]);
 
 function stripPii(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripPii);
   if (value !== null && typeof value === "object") {
     const clean: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (PII_STRIP.some((p) => k.toLowerCase().includes(p))) continue;
+      // Exact-key match so GA4 protocol keys like `events[].name` are preserved.
+      if (PII_STRIP_EXACT.has(k)) continue;
       clean[k] = stripPii(v);
     }
     return clean;

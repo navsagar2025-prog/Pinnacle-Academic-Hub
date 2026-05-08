@@ -59,13 +59,19 @@ export async function POST(req: NextRequest) {
     path = path.slice(0, 500);
 
     // Normalise referrer to just the hostname (avoids full-URL cardinality
-    // explosion while still enabling traffic-source breakdown).
-    let referrerDomain: string | null = null;
+    // explosion while still enabling traffic-source breakdown in the fallback
+    // dashboard). Direct/unknown traffic gets the sentinel value "direct".
+    //
+    // IMPORTANT: PostgreSQL unique indexes treat NULL values as non-equal, so
+    // an ON CONFLICT clause on a nullable column never fires for NULL rows.
+    // Using the sentinel "direct" instead of NULL ensures that direct-traffic
+    // hits are correctly aggregated into a single row per (path, date, device).
+    let referrerDomain = "direct";
     if (typeof body.referrer === "string" && body.referrer.length > 0) {
       try {
         referrerDomain = new URL(body.referrer).hostname.replace(/^www\./, "");
       } catch {
-        referrerDomain = null;
+        referrerDomain = "direct";
       }
     }
     const deviceType = getDeviceType(ua);
@@ -73,8 +79,7 @@ export async function POST(req: NextRequest) {
 
     // Upsert: one row per (path, date, device_type, referrer) so both the
     // device-breakdown and traffic-source charts in the fallback dashboard are
-    // correct. referrer is stored as the normalised hostname (or NULL for
-    // direct/unknown) to prevent cardinality explosion from full referrer URLs.
+    // correct. referrer is always a non-null string so ON CONFLICT works.
     await db.execute(sql`
       INSERT INTO page_views (id, path, device_type, referrer, count, date, created_at, updated_at)
       VALUES (gen_random_uuid(), ${path}, ${deviceType}, ${referrerDomain}, 1, ${date}, now(), now())

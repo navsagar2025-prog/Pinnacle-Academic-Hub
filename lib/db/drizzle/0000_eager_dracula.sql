@@ -408,7 +408,7 @@ CREATE TABLE "page_views" (
         "path" text NOT NULL,
         "country" text,
         "device_type" text DEFAULT 'desktop' NOT NULL,
-        "referrer" text,
+        "referrer" text DEFAULT 'direct' NOT NULL,
         "count" integer DEFAULT 1 NOT NULL,
         "date" text NOT NULL,
         "created_at" timestamp DEFAULT now() NOT NULL,

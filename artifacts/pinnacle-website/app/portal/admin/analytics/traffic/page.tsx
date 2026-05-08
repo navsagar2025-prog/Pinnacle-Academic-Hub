@@ -119,8 +119,9 @@ async function fetchGa4Data(propertyId: string, serviceAccountJson: string) {
 // ---------------------------------------------------------------------------
 
 // Classify a normalised referrer hostname into a GA4-style channel group.
+// "direct" is the sentinel value used for visits with no referrer header.
 function classifyReferrer(host: string | null): string {
-  if (!host) return "Direct";
+  if (!host || host === "direct") return "Direct";
   const h = host.toLowerCase();
   if (/google\.|bing\.|yahoo\.|duckduckgo\.|baidu\.|yandex\.|ecosia\./.test(h)) return "Organic Search";
   if (/facebook\.|instagram\.|twitter\.|t\.co|linkedin\.|pinterest\.|reddit\.|youtube\.|tiktok\.|snapchat\./.test(h)) return "Social";
