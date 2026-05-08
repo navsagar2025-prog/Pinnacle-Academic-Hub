@@ -91,10 +91,7 @@ const ORGANIZATION_JSONLD = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Cached settings fetch — 60 s revalidation so admin changes are reflected
-// promptly without a DB round-trip on every server render.
-// ---------------------------------------------------------------------------
+// Fetch head_injection + body_injection from site_settings, cached 60 s.
 const getScriptSettings = unstable_cache(
   async () => {
     const rows = await db
@@ -110,44 +107,22 @@ const getScriptSettings = unstable_cache(
   { revalidate: 60 },
 );
 
-// ---------------------------------------------------------------------------
-// Head-injection loader script
-// ---------------------------------------------------------------------------
-// Embeds the raw head_injection HTML string as a JSON literal inside a
-// nonce-bearing <script> tag placed in <head>.  The loader runs synchronously
-// as the browser parses <head>, creates proper DOM nodes for every child
-// element in the snippet (preserving exact order), and for <script> children
-// uses document.createElement('script') so the browser executes them — this
-// is the same technique used by Google Tag Manager itself.  Non-script
-// elements (meta, link, style, noscript) are cloned directly into <head>.
-// ---------------------------------------------------------------------------
+// Builds a nonce-bearing loader script that injects arbitrary HTML into <head>.
+// The raw snippet is embedded via JSON.stringify (no parsing/rewriting).
+// The loader walks childNodes in order: <script> children are recreated via
+// document.createElement so the browser executes them; all other nodes are
+// cloned directly. This is the same pattern used by Google Tag Manager itself.
 function buildHeadLoaderScript(html: string): string {
-  // JSON.stringify escapes the HTML safely for embedding inside a JS string.
   const escaped = JSON.stringify(html);
-  return `(function(){
-try{
-var html=${escaped};
-var h=document.head||document.getElementsByTagName('head')[0];
-if(!h)return;
-var d=document.createElement('div');
-d.innerHTML=html;
-var nodes=Array.prototype.slice.call(d.childNodes);
-for(var i=0;i<nodes.length;i++){
-  var n=nodes[i];
-  if(n.nodeType!==1)continue;
-  if(n.tagName==='SCRIPT'){
-    var s=document.createElement('script');
-    for(var j=0;j<n.attributes.length;j++){
-      s.setAttribute(n.attributes[j].name,n.attributes[j].value);
-    }
-    s.textContent=n.textContent;
-    h.appendChild(s);
-  }else{
-    h.appendChild(n.cloneNode(true));
-  }
+  return `(function(){try{var h=document.head||document.getElementsByTagName('head')[0];if(!h)return;var d=document.createElement('div');d.innerHTML=${escaped};var nodes=Array.prototype.slice.call(d.childNodes);for(var i=0;i<nodes.length;i++){var n=nodes[i];if(n.nodeType!==1)continue;if(n.tagName==='SCRIPT'){var s=document.createElement('script');for(var j=0;j<n.attributes.length;j++){s.setAttribute(n.attributes[j].name,n.attributes[j].value);}s.textContent=n.textContent;h.appendChild(s);}else{h.appendChild(n.cloneNode(true));}}}catch(e){}})();`;
 }
-}catch(e){}
-})();`;
+
+// Same pattern as buildHeadLoaderScript but targets document.body.
+// Runs synchronously at the position of the loader <script> in the SSR HTML,
+// so injected nodes appear at the end of <body> in their original order.
+function buildBodyLoaderScript(html: string): string {
+  const escaped = JSON.stringify(html);
+  return `(function(){try{var b=document.body;if(!b)return;var d=document.createElement('div');d.innerHTML=${escaped};var nodes=Array.prototype.slice.call(d.childNodes);for(var i=0;i<nodes.length;i++){var n=nodes[i];if(n.nodeType!==1)continue;if(n.tagName==='SCRIPT'){var s=document.createElement('script');for(var j=0;j<n.attributes.length;j++){s.setAttribute(n.attributes[j].name,n.attributes[j].value);}s.textContent=n.textContent;b.appendChild(s);}else{b.appendChild(n.cloneNode(true));}}}catch(e){}})();`;
 }
 
 export default async function RootLayout({
@@ -156,14 +131,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const headersList = await headers();
-  // Per-request CSP nonce injected by middleware.
   const nonce = headersList.get("x-nonce") ?? undefined;
-  // Pathname forwarded by middleware — used to exclude portal routes from
-  // public-only script injection.
+  // Exclude portal routes from public-facing script injection.
   const pathname = headersList.get("x-pathname") ?? "";
   const isPortal = pathname.startsWith("/portal");
 
-  // Fetch script injection settings only for public pages.
   const { headInjection, bodyInjection } = isPortal
     ? { headInjection: null, bodyInjection: null }
     : await getScriptSettings();
@@ -176,22 +148,7 @@ export default async function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        {/*
-          head_injection: arbitrary HTML snippet stored verbatim in site_settings.
-          Injected via a nonce-bearing loader <script> in <head> that:
-            1. Embeds the raw snippet bytes as a JSON string (no parsing/rewriting)
-            2. Runs synchronously while the browser parses <head>
-            3. Creates DOM nodes that preserve the original snippet order
-            4. Uses document.createElement('script') for <script> children so
-               they execute — this is the same pattern used by GTM itself.
-            5. Directly clones non-script elements (<meta>, <link>, <style>,
-               <noscript>) into <head>.
-          External vendor scripts (<script src="…">) are allowed by the CSP
-          script-src allowlist in middleware (GTM, GA4, Meta Pixel, Clarity,
-          HotJar, Intercom, Crisp are all pre-approved).
-          Inline scripts embedded in the snippet run via the trusted-script
-          propagation path and do not need a separate nonce.
-        */}
+        {/* head_injection: nonce-bearing loader embeds raw snippet as JSON, injects nodes into <head> in order */}
         {headInjection ? (
           <head>
             <script
@@ -208,7 +165,6 @@ export default async function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
-          {/* GA4 Measurement Protocol proxy */}
           {process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID && (
             <script
               nonce={nonce}
@@ -245,25 +201,13 @@ export default async function RootLayout({
               }}
             />
           )}
-          {/*
-            body_injection: arbitrary HTML snippet stored verbatim in site_settings,
-            injected via dangerouslySetInnerHTML so the exact bytes (including
-            <script>, <noscript>, <iframe>, chat-widget markup, etc.) are
-            preserved in the SSR output in their original order.
-
-            The browser parses and executes inline <script> blocks found in the
-            SSR HTML at initial page-load time.  External vendor scripts load
-            from the CDN hosts allowlisted in the CSP script-src directive
-            (middleware.ts).  Inline scripts that do not originate from an
-            external nonce-bearing script may require 'unsafe-inline' in the
-            Content-Security-Policy if the site operator enforces strict nonces;
-            admins should prefer external-src variants of vendor snippets where
-            available.
-          */}
+          {/* body_injection: nonce-bearing loader embeds raw snippet as JSON, injects nodes into <body> in order */}
           {bodyInjection ? (
-            <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
+            <script
+              nonce={nonce}
+              dangerouslySetInnerHTML={{ __html: buildBodyLoaderScript(bodyInjection) }}
+            />
           ) : null}
-          {/* Server-side page-view beacon */}
           <script
             nonce={nonce}
             dangerouslySetInnerHTML={{

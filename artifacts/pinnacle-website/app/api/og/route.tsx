@@ -4,34 +4,24 @@ export const runtime = "edge";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const title = searchParams.get("title") ?? "Pinnacle Academic Classes";
-  const description =
+  const title = (searchParams.get("title") ?? "Pinnacle Academic Classes").slice(0, 200);
+  const description = (
     searchParams.get("description") ??
-    "Greater Noida's Premier JEE · NEET · Board Coaching Institute";
-  // Sanitise inputs — apply length limits to prevent oversized render work.
-  const safeTitle = title.slice(0, 200);
-  const safeDesc = description.slice(0, 500);
+    "Greater Noida's Premier JEE · NEET · Board Coaching Institute"
+  ).slice(0, 500);
 
-  // ?image= param: restrict to same-origin relative paths only.
-  // Accepting arbitrary remote URLs would allow server-side fetch of internal
-  // or private network resources (SSRF).  Same-origin paths are safe since
-  // the OG endpoint itself is on the same host.
+  // ?image= accepts same-origin relative paths only (SSRF prevention).
   const imageParam = searchParams.get("image") ?? null;
   let featuredImageUrl: string | null = null;
-  if (imageParam) {
-    // Accept only path-relative URLs (start with /) — same origin guaranteed.
-    if (imageParam.startsWith("/") && !imageParam.startsWith("//")) {
-      try {
-        featuredImageUrl = new URL(imageParam, request.url).href;
-      } catch {
-        // Malformed path — ignore.
-      }
+  if (imageParam && imageParam.startsWith("/") && !imageParam.startsWith("//")) {
+    try {
+      featuredImageUrl = new URL(imageParam, request.url).href;
+    } catch {
+      // ignore malformed path
     }
-    // Absolute URLs from external origins are rejected (SSRF prevention).
   }
 
-  // Attempt to fetch the Pinnacle logo from the same origin so it renders
-  // in the card.  Falls back gracefully if the asset is unreachable.
+  // Fetch logo from same origin and convert to base64 for ImageResponse.
   let logoDataUrl: string | null = null;
   try {
     const logoSrc = new URL(
@@ -47,7 +37,7 @@ export async function GET(request: Request) {
       logoDataUrl = `data:image/png;base64,${btoa(binary)}`;
     }
   } catch {
-    // Logo fetch failed — continue without it.
+    // Logo unavailable — render card without it.
   }
 
   return new ImageResponse(
@@ -99,10 +89,9 @@ export async function GET(request: Request) {
           }}
         />
 
-        {/* Content area — split if a featured image is present */}
+        {/* Content area */}
         <div style={{ display: "flex", flex: 1, gap: 40, alignItems: "flex-start" }}>
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-            {/* Title */}
             <div
               style={{
                 fontSize: title.length > 55 ? 40 : 50,
@@ -114,8 +103,6 @@ export async function GET(request: Request) {
             >
               {title}
             </div>
-
-            {/* Description */}
             <div
               style={{
                 fontSize: 21,
@@ -124,13 +111,10 @@ export async function GET(request: Request) {
                 maxWidth: featuredImageUrl ? 600 : 840,
               }}
             >
-              {description.length > 140
-                ? description.slice(0, 137) + "…"
-                : description}
+              {description.length > 140 ? description.slice(0, 137) + "…" : description}
             </div>
           </div>
 
-          {/* Featured image (when ?image= is provided) */}
           {featuredImageUrl && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -182,9 +166,6 @@ export async function GET(request: Request) {
         </div>
       </div>
     ),
-    {
-      width: 1200,
-      height: 630,
-    },
+    { width: 1200, height: 630 },
   );
 }
