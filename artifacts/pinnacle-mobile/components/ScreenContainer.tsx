@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DemoBanner from "@/components/DemoBanner";
 import { useColors } from "@/hooks/useColors";
@@ -9,6 +9,8 @@ interface Props {
   scrollable?: boolean;
   padBottom?: number;
   showDemoBanner?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 export default function ScreenContainer({
@@ -16,6 +18,8 @@ export default function ScreenContainer({
   scrollable = true,
   padBottom = 100,
   showDemoBanner = true,
+  onRefresh,
+  refreshing = false,
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -52,6 +56,16 @@ export default function ScreenContainer({
         },
       ]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        ) : undefined
+      }
     >
       {showDemoBanner && <DemoBanner />}
       {children}

@@ -58,15 +58,9 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
           ) : null,
       }}
     >
@@ -75,11 +69,7 @@ function ClassicTabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="house" tintColor={color} size={24} /> : <Feather name="home" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -87,11 +77,7 @@ function ClassicTabLayout() {
         options={{
           title: "Classes",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="video" tintColor={color} size={24} />
-            ) : (
-              <Feather name="video" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="video" tintColor={color} size={24} /> : <Feather name="video" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -99,11 +85,7 @@ function ClassicTabLayout() {
         options={{
           title: "Materials",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="doc.text" tintColor={color} size={24} />
-            ) : (
-              <Feather name="file-text" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="doc.text" tintColor={color} size={24} /> : <Feather name="file-text" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -111,11 +93,7 @@ function ClassicTabLayout() {
         options={{
           title: "Schedule",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="calendar" tintColor={color} size={24} />
-            ) : (
-              <Feather name="calendar" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="calendar" tintColor={color} size={24} /> : <Feather name="calendar" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -123,13 +101,24 @@ function ClassicTabLayout() {
         options={{
           title: "More",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="ellipsis" tintColor={color} size={24} />
-            ) : (
-              <Feather name="more-horizontal" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="ellipsis" tintColor={color} size={24} /> : <Feather name="more-horizontal" size={22} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="mock-test-runner"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen name="attendance" options={{ href: null }} />
+      <Tabs.Screen name="doubts" options={{ href: null }} />
+      <Tabs.Screen name="fees" options={{ href: null }} />
+      <Tabs.Screen name="mock-tests" options={{ href: null }} />
+      <Tabs.Screen name="results" options={{ href: null }} />
+      <Tabs.Screen name="question-bank" options={{ href: null }} />
+      <Tabs.Screen name="recordings" options={{ href: null }} />
     </Tabs>
   );
 }
