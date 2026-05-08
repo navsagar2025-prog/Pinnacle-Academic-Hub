@@ -223,12 +223,30 @@ export const classRecordings = pgTable("class_recordings", {
   subject: text("subject").notNull(),
   teacherName: text("teacher_name"),
   recordingUrl: text("recording_url").notNull(),
+  sourceProvider: text("source_provider").default("zoom"),
+  classDate: timestamp("class_date"),
   durationMinutes: integer("duration_minutes"),
   isVisible: boolean("is_visible").default(true),
   viewCount: integer("view_count").default(0),
+  createdById: uuid("created_by_id").references(() => users.id),
+  archivedAt: timestamp("archived_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const recordingStreamTokens = pgTable("recording_stream_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  token: text("token").unique().notNull(),
+  recordingId: uuid("recording_id").notNull().references(() => classRecordings.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type RecordingStreamToken = typeof recordingStreamTokens.$inferSelect;
 
 export const enquiries = pgTable("enquiries", {
   id: uuid("id").primaryKey().defaultRandom(),

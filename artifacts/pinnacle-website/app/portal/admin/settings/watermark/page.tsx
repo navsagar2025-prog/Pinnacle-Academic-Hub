@@ -6,15 +6,20 @@ import {
   WATERMARK_DOC_TYPE_LABELS,
   getAllWatermarkSettings,
 } from "@/lib/server/watermark";
+import { getVideoWatermarkConfig } from "@/lib/server/video-watermark";
 import { Stamp } from "lucide-react";
 import { WatermarkSettingsForm } from "./WatermarkSettingsForm";
+import { VideoWatermarkSection } from "./VideoWatermarkSection";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "PDF Watermark — Admin Settings" };
+export const metadata = { title: "Watermark — Admin Settings" };
 
 export default async function WatermarkSettingsPage() {
-  await requirePortalRole("admin");
-  const { global, overrides } = await getAllWatermarkSettings();
+  const admin = await requirePortalRole("admin");
+  const [{ global, overrides }, videoCfg] = await Promise.all([
+    getAllWatermarkSettings(),
+    getVideoWatermarkConfig(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -39,6 +44,12 @@ export default async function WatermarkSettingsPage() {
         initialOverrides={overrides}
         docTypes={WATERMARK_DOC_TYPES.map((k) => ({ key: k, label: WATERMARK_DOC_TYPE_LABELS[k] }))}
         placeholders={ALL_PLACEHOLDERS.map((k) => ({ key: k, description: PLACEHOLDER_DESCRIPTIONS[k] }))}
+      />
+
+      <VideoWatermarkSection
+        initialConfig={videoCfg}
+        previewName={admin.name ?? "Student"}
+        previewPhone={admin.phone ?? "+91 9XXXX XXXXX"}
       />
     </div>
   );

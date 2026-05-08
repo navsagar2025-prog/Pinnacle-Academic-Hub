@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { requirePortalRole } from "@/lib/server/portal-auth";
 import { db } from "@workspace/db";
 import { students, classRecordings, batches } from "@workspace/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { Play, Clock, Calendar, AlertCircle } from "lucide-react";
 
 export const metadata = { title: "Recorded Classes — Student Portal" };
@@ -17,16 +18,14 @@ function RecordingThumbnail({
   subject,
   dur,
   sc,
-  interactive,
 }: {
   subject: string;
   dur: string | null;
   sc: { bg: string; text: string };
-  interactive: boolean;
 }) {
   return (
     <div className={`${sc.bg} h-36 flex items-center justify-center relative`}>
-      <div className={`w-12 h-12 bg-white/20 rounded-full flex items-center justify-center ${interactive ? "group-hover:scale-110 transition-transform" : ""}`}>
+      <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
         <Play size={20} className="text-white ml-0.5" fill="white" />
       </div>
       <div className="absolute top-3 left-3 bg-black/30 backdrop-blur-sm rounded-full px-2 py-0.5 text-xs text-white font-medium">
@@ -62,12 +61,18 @@ export default async function RecordingsPage() {
           subject: classRecordings.subject,
           teacherName: classRecordings.teacherName,
           durationMinutes: classRecordings.durationMinutes,
-          recordingUrl: classRecordings.recordingUrl,
           viewCount: classRecordings.viewCount,
+          classDate: classRecordings.classDate,
           createdAt: classRecordings.createdAt,
         })
         .from(classRecordings)
-        .where(and(eq(classRecordings.batchId, enrollment.batchId), eq(classRecordings.isVisible, true)))
+        .where(
+          and(
+            eq(classRecordings.batchId, enrollment.batchId),
+            eq(classRecordings.isVisible, true),
+            isNull(classRecordings.archivedAt),
+          ),
+        )
         .orderBy(desc(classRecordings.createdAt))
     : [];
 
@@ -100,49 +105,28 @@ export default async function RecordingsPage() {
         {recordings.map((r) => {
           const sc = SUBJECT_COLORS[r.subject] ?? { bg: "bg-slate-700", text: "text-white" };
           const dur = r.durationMinutes ? `${Math.floor(r.durationMinutes / 60)}h ${r.durationMinutes % 60}m` : null;
-          const hasLink = Boolean(r.recordingUrl && r.recordingUrl !== "#");
-
-          if (hasLink) {
-            return (
-              <a
-                key={r.id}
-                href={r.recordingUrl!}
-                target="_blank" rel="noopener noreferrer"
-                className="card group hover:shadow-elevated transition-all p-0 overflow-hidden block"
-              >
-                <RecordingThumbnail subject={r.subject} dur={dur} sc={sc} interactive />
-                <div className="p-4">
-                  <div className="font-semibold text-[var(--color-navy)] text-sm line-clamp-2">{r.title}</div>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                    {r.teacherName && <span>{r.teacherName}</span>}
-                    <span className="flex items-center gap-1">
-                      <Calendar size={10} />
-                      {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                    </span>
-                  </div>
-                  <span className="mt-3 text-xs font-semibold text-[var(--color-teal)] flex items-center gap-1">
-                    Watch Recording
-                  </span>
-                </div>
-              </a>
-            );
-          }
-
+          const dateLabel = r.classDate ?? r.createdAt;
           return (
-            <div key={r.id} className="card p-0 overflow-hidden opacity-70">
-              <RecordingThumbnail subject={r.subject} dur={dur} sc={sc} interactive={false} />
+            <Link
+              key={r.id}
+              href={`/portal/student/recordings/${r.id}`}
+              className="card group hover:shadow-elevated transition-all p-0 overflow-hidden block"
+            >
+              <RecordingThumbnail subject={r.subject} dur={dur} sc={sc} />
               <div className="p-4">
                 <div className="font-semibold text-[var(--color-navy)] text-sm line-clamp-2">{r.title}</div>
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
                   {r.teacherName && <span>{r.teacherName}</span>}
                   <span className="flex items-center gap-1">
                     <Calendar size={10} />
-                    {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    {new Date(dateLabel).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                   </span>
                 </div>
-                <span className="mt-3 text-xs text-slate-300 block">Link coming soon</span>
+                <span className="mt-3 text-xs font-semibold text-[var(--color-teal)] flex items-center gap-1">
+                  Watch in portal
+                </span>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
