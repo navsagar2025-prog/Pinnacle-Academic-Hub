@@ -77,6 +77,19 @@ export function AuditLogViewer() {
       .then((j) => j.success && setFacets(j.data));
   }, []);
 
+  // One-click preset for the most common compliance query: "show me every
+  // watermarked PDF download". The action name is fixed by the download
+  // proxy so we can hard-code it here without consulting facets.
+  function showWatermarkDownloads() {
+    setQ("");
+    setEntityType("");
+    setActorId("");
+    setDateFrom("");
+    setDateTo("");
+    setAction("download.pdf");
+    setPage(1);
+  }
+
   function clearFilters() {
     setQ("");
     setAction("");
@@ -107,9 +120,18 @@ export function AuditLogViewer() {
             <p className="text-slate-500 text-sm">{total.toLocaleString("en-IN")} events · page {page} of {totalPages}</p>
           </div>
         </div>
-        <button onClick={exportCsv} className="btn btn-secondary inline-flex items-center gap-2 text-sm">
-          <Download size={14} /> Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={showWatermarkDownloads}
+            className={`btn inline-flex items-center gap-2 text-sm ${action === "download.pdf" ? "btn-gold" : "btn-secondary"}`}
+            title="Show every watermarked PDF download"
+          >
+            <Filter size={14} /> Watermark downloads
+          </button>
+          <button onClick={exportCsv} className="btn btn-secondary inline-flex items-center gap-2 text-sm">
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="card p-4 space-y-3">

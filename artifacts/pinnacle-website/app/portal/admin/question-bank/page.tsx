@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import { questionBank, questionBankSavedViews } from "@workspace/db/schema";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { notDeleted } from "@/lib/server/question-bank-deletion";
-import { Sparkles, Plus } from "lucide-react";
+import { Sparkles, Plus, Download } from "lucide-react";
 import Link from "next/link";
 import { QuestionBankFilters } from "./QuestionBankFilters";
 import { QuestionImporter } from "./QuestionImporter";
@@ -185,6 +185,15 @@ export default async function AdminQuestionBankPage({
           <QuestionGenerator />
           <QuestionPdfImporter />
           <QuestionImporter />
+          <a
+            href={`/pinnacle-website/api/v1/admin/question-bank/export?${new URLSearchParams(
+              Object.fromEntries(Object.entries(sp).filter(([, v]) => v != null && v !== "")) as Record<string, string>,
+            ).toString()}`}
+            className="text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold hover:bg-slate-50 flex items-center gap-1.5"
+            title="Export current view as a watermarked PDF"
+          >
+            <Download size={14} /> Export PDF
+          </a>
           <Link href="/portal/admin/question-bank/new" className="btn-gold text-sm px-4 py-2 flex items-center gap-1.5">
             <Plus size={16} /> Add Question
           </Link>
