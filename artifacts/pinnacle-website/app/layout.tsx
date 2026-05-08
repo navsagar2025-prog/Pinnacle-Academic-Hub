@@ -107,24 +107,6 @@ const getScriptSettings = unstable_cache(
   { revalidate: 60 },
 );
 
-// Builds a nonce-bearing loader script that injects arbitrary HTML into <head>.
-// The raw snippet is embedded via JSON.stringify (no parsing/rewriting).
-// The loader walks childNodes in order: <script> children are recreated via
-// document.createElement so the browser executes them; all other nodes are
-// cloned directly. This is the same pattern used by Google Tag Manager itself.
-function buildHeadLoaderScript(html: string): string {
-  const escaped = JSON.stringify(html);
-  return `(function(){try{var h=document.head||document.getElementsByTagName('head')[0];if(!h)return;var d=document.createElement('div');d.innerHTML=${escaped};var nodes=Array.prototype.slice.call(d.childNodes);for(var i=0;i<nodes.length;i++){var n=nodes[i];if(n.nodeType!==1)continue;if(n.tagName==='SCRIPT'){var s=document.createElement('script');for(var j=0;j<n.attributes.length;j++){s.setAttribute(n.attributes[j].name,n.attributes[j].value);}s.textContent=n.textContent;h.appendChild(s);}else{h.appendChild(n.cloneNode(true));}}}catch(e){}})();`;
-}
-
-// Same pattern as buildHeadLoaderScript but targets document.body.
-// Runs synchronously at the position of the loader <script> in the SSR HTML,
-// so injected nodes appear at the end of <body> in their original order.
-function buildBodyLoaderScript(html: string): string {
-  const escaped = JSON.stringify(html);
-  return `(function(){try{var b=document.body;if(!b)return;var d=document.createElement('div');d.innerHTML=${escaped};var nodes=Array.prototype.slice.call(d.childNodes);for(var i=0;i<nodes.length;i++){var n=nodes[i];if(n.nodeType!==1)continue;if(n.tagName==='SCRIPT'){var s=document.createElement('script');for(var j=0;j<n.attributes.length;j++){s.setAttribute(n.attributes[j].name,n.attributes[j].value);}s.textContent=n.textContent;b.appendChild(s);}else{b.appendChild(n.cloneNode(true));}}}catch(e){}})();`;
-}
-
 export default async function RootLayout({
   children,
 }: {
@@ -132,7 +114,6 @@ export default async function RootLayout({
 }) {
   const headersList = await headers();
   const nonce = headersList.get("x-nonce") ?? undefined;
-  // Exclude portal routes from public-facing script injection.
   const pathname = headersList.get("x-pathname") ?? "";
   const isPortal = pathname.startsWith("/portal");
 
@@ -148,13 +129,16 @@ export default async function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        {/* head_injection: nonce-bearing loader embeds raw snippet as JSON, injects nodes into <head> in order */}
+        {/*
+          head_injection: raw snippet bytes from site_settings injected verbatim
+          into <head> via dangerouslySetInnerHTML so the content appears in the
+          SSR HTML source (visible to crawlers and verification tools without JS).
+          Intended for <meta>, <link rel="...">, and <script src="..."> tags.
+        */}
         {headInjection ? (
           <head>
-            <script
-              nonce={nonce}
-              dangerouslySetInnerHTML={{ __html: buildHeadLoaderScript(headInjection) }}
-            />
+            {/* eslint-disable-next-line react/no-danger */}
+            <div dangerouslySetInnerHTML={{ __html: headInjection }} />
           </head>
         ) : null}
         <body className="font-[family-name:var(--font-jakarta)]">
@@ -201,12 +185,13 @@ export default async function RootLayout({
               }}
             />
           )}
-          {/* body_injection: nonce-bearing loader embeds raw snippet as JSON, injects nodes into <body> in order */}
+          {/*
+            body_injection: raw snippet bytes from site_settings injected verbatim
+            at end of <body> via dangerouslySetInnerHTML — SSR-visible and executed
+            by the browser parser at initial page load. Order is preserved exactly.
+          */}
           {bodyInjection ? (
-            <script
-              nonce={nonce}
-              dangerouslySetInnerHTML={{ __html: buildBodyLoaderScript(bodyInjection) }}
-            />
+            <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
           ) : null}
           <script
             nonce={nonce}
