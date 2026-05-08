@@ -16,8 +16,9 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { db } from "@workspace/db";
-import { rateLimitHits, securityEvents, ipLockouts, siteSettings } from "@workspace/db/schema";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { securityEvents, ipLockouts } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
+import { rateLimit } from "@/lib/server/rate-limit";
 
 const isProtectedRoute = createRouteMatcher([
   "/portal/student(.*)",
@@ -57,54 +58,6 @@ function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
-interface RateLimitConfig { limit: number; windowMs: number }
-let rlConfigCache: { value: Record<string, RateLimitConfig>; expiresAt: number } | null = null;
-
-async function getRlConfig(): Promise<Record<string, RateLimitConfig>> {
-  if (rlConfigCache && rlConfigCache.expiresAt > Date.now()) return rlConfigCache.value;
-  try {
-    const [row] = await db.select({ value: siteSettings.value }).from(siteSettings)
-      .where(eq(siteSettings.key, "security_rate_limits")).limit(1);
-    const value = row?.value ? JSON.parse(row.value) as Record<string, RateLimitConfig> : {};
-    rlConfigCache = { value, expiresAt: Date.now() + 60_000 };
-    return value;
-  } catch {
-    return {};
-  }
-}
-
-// Covers all mutating API requests per IP. Per-route handlers may add tighter limits.
-async function checkGlobalApiRateLimit(ip: string, ua: string | null): Promise<boolean> {
-  try {
-    const config = await getRlConfig();
-    const override = config["api.global.mutation"];
-    const limit = override?.limit ?? 60;
-    const windowMs = override?.windowMs ?? 60_000;
-    const windowStart = new Date(Date.now() - windowMs);
-
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(rateLimitHits)
-      .where(and(
-        eq(rateLimitHits.hitKey, `ip:${ip}`),
-        eq(rateLimitHits.route, "api.global.mutation"),
-        gt(rateLimitHits.createdAt, windowStart),
-      ));
-
-    if (count >= limit) {
-      db.insert(securityEvents).values({
-        eventType: "rate_limited", ip, userAgent: ua,
-        route: "api.global.mutation", outcome: "blocked",
-      }).catch(() => {});
-      return false;
-    }
-    db.insert(rateLimitHits).values({ hitKey: `ip:${ip}`, route: "api.global.mutation" }).catch(() => {});
-    return true;
-  } catch {
-    return true;
-  }
-}
-
 // When a lockout row has expired, persist unlockedAt so the admin dashboard
 // shows the correct lifecycle (auto-expired vs. manually unblocked).
 async function isIpLockedOut(ip: string): Promise<boolean> {
@@ -130,9 +83,13 @@ export default clerkMiddleware(async (auth, req) => {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const path = req.nextUrl.pathname;
 
-  // 1. Global API mutation rate limit
+  // 1. Global API mutation rate limit — delegates to lib/server/rate-limit.ts
+  // (same primitive used by per-route handlers; no duplicated logic)
   if (ip && MUTATION_METHODS.has(req.method) && path.includes("/api/v1/")) {
-    const allowed = await checkGlobalApiRateLimit(ip, ua);
+    const { allowed } = await rateLimit(
+      `ip:${ip}`, "api.global.mutation", 60, 60_000,
+      { ip, userAgent: ua },
+    );
     if (!allowed) {
       return new NextResponse(
         JSON.stringify({ success: false, error: "Too many requests. Please slow down.", data: null, meta: null }),

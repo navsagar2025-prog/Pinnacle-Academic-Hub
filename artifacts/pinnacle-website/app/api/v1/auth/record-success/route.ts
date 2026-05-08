@@ -1,10 +1,10 @@
 // POST /api/v1/auth/record-success
 // Called by SignInSuccessTracker immediately after a successful Clerk sign-in.
-// Being a browser-to-server request, the real client IP and user-agent are
-// present in request headers — unlike the Clerk webhook where IP is unavailable.
+// Browser-to-server request: real client IP, user-agent, and authenticated
+// Clerk session are all available — produces a complete login_success event.
 
 import type { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { logSecurityEvent } from "@/lib/server/security-events";
 import { extractIp } from "@/lib/server/rate-limit";
 
@@ -17,8 +17,14 @@ export async function POST(req: NextRequest) {
   const ip = extractIp(req);
   const ua = req.headers.get("user-agent") ?? null;
 
+  // Fetch the full user to get the primary email — completes the event record
+  // with actor email + IP + user-agent + timestamp in one canonical row.
+  const user = await currentUser();
+  const actorEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+
   await logSecurityEvent({
     eventType: "login_success",
+    actorEmail,
     ip,
     userAgent: ua,
     route: "/sign-in",
