@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -11,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useRole } from "@/context/RoleContext";
+import { lightHaptic } from "@/lib/haptics";
 
 interface Props {
   name: string;
@@ -35,6 +37,11 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
     ]);
   };
 
+  const handleMenu = () => {
+    lightHaptic();
+    router.push("/(student)/more");
+  };
+
   return (
     <View
       style={[
@@ -46,6 +53,14 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
       ]}
     >
       <View style={styles.row}>
+        <TouchableOpacity
+          onPress={handleMenu}
+          style={[styles.menuBtn, { backgroundColor: colors.primaryForeground + "20" }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="menu" size={20} color={colors.primaryForeground} />
+        </TouchableOpacity>
+
         <View style={styles.textBlock}>
           <View style={styles.roleRow}>
             <View
@@ -68,6 +83,7 @@ export default function RoleHeader({ name, sub, roleLabel }: Props) {
             {sub}
           </Text>
         </View>
+
         <TouchableOpacity
           onPress={handleSwitch}
           style={[
@@ -120,6 +136,15 @@ const styles = StyleSheet.create({
   },
   sub: {
     fontSize: 13,
+  },
+  menuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+    marginRight: 10,
   },
   switchBtn: {
     width: 36,

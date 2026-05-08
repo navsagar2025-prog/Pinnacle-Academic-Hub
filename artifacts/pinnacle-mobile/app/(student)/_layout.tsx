@@ -27,10 +27,6 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
         <Label>Schedule</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="more">
-        <Icon sf={{ default: "ellipsis", selected: "ellipsis.circle.fill" }} />
-        <Label>More</Label>
-      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -98,11 +94,7 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="more"
-        options={{
-          title: "More",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="ellipsis" tintColor={color} size={24} /> : <Feather name="more-horizontal" size={22} color={color} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="mock-test-runner"
