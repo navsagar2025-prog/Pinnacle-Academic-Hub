@@ -216,7 +216,12 @@ export default async function RootLayout({
   const headersList = await headers();
   const nonce = headersList.get("x-nonce") ?? undefined;
   const pathname = headersList.get("x-pathname") ?? "";
-  const isPortal = pathname.startsWith("/portal");
+  // Strip basePath prefix before checking — Next.js middleware sets pathname
+  // from req.nextUrl.pathname which is normally basePath-free, but strip
+  // defensively so portal exclusion works correctly in all deployment modes.
+  const bp = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const normalizedPath = bp && pathname.startsWith(bp) ? pathname.slice(bp.length) : pathname;
+  const isPortal = normalizedPath.startsWith("/portal");
 
   const { headInjection, bodyInjection } = isPortal
     ? { headInjection: null, bodyInjection: null }
