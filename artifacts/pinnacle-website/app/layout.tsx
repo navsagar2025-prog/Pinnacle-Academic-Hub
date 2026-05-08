@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import { headers } from "next/headers";
@@ -91,8 +92,103 @@ const ORGANIZATION_JSONLD = {
   },
 };
 
-// Cached 60 s — avoid a DB round-trip on every page render while still
-// picking up changes within a minute of the admin saving new scripts.
+// ---------------------------------------------------------------------------
+// Head-snippet parser
+// ---------------------------------------------------------------------------
+// Parses an arbitrary HTML string (as stored in the head_injection site
+// setting) and returns React elements suitable for rendering as children of
+// <head>.  Supports the full set of valid <head> children:
+//   • <script>  → <script dangerouslySetInnerHTML> with CSP nonce
+//   • <style>   → <style dangerouslySetInnerHTML>
+//   • <noscript>→ <noscript dangerouslySetInnerHTML>
+//   • <meta …>  → <meta> with parsed React-compatible attribute props
+//   • <link …>  → <link> with parsed React-compatible attribute props
+// ---------------------------------------------------------------------------
+
+function parseHtmlAttrs(raw: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const re = /(\w[\w-]*)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    const key = m[1]!;
+    const val = m[2] ?? m[3] ?? m[4] ?? "";
+    attrs[key] = val;
+  }
+  return attrs;
+}
+
+const HTML_TO_REACT_ATTR: Record<string, string> = {
+  class: "className",
+  crossorigin: "crossOrigin",
+  charset: "charSet",
+  "http-equiv": "httpEquiv",
+  for: "htmlFor",
+  tabindex: "tabIndex",
+  readonly: "readOnly",
+  maxlength: "maxLength",
+  minlength: "minLength",
+  hreflang: "hrefLang",
+  accesskey: "accessKey",
+};
+
+function toReactAttrs(raw: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [HTML_TO_REACT_ATTR[k] ?? k, v]),
+  );
+}
+
+/**
+ * Convert an arbitrary HTML snippet to an array of React elements that can be
+ * rendered as children of <head>.  Uses dangerouslySetInnerHTML for block
+ * elements (<script>, <style>, <noscript>) and passes parsed attribute props
+ * for void elements (<meta>, <link>).
+ */
+function renderHeadSnippet(html: string, nonce?: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let idx = 0;
+
+  for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const attrs = toReactAttrs(parseHtmlAttrs(m[1]!));
+    nodes.push(
+      <script
+        key={`hs-${idx++}`}
+        {...attrs}
+        nonce={nonce}
+        dangerouslySetInnerHTML={{ __html: m[2]! }}
+      />,
+    );
+  }
+
+  for (const m of html.matchAll(/<style([^>]*)>([\s\S]*?)<\/style>/gi)) {
+    nodes.push(
+      <style key={`hs-${idx++}`} dangerouslySetInnerHTML={{ __html: m[2]! }} />,
+    );
+  }
+
+  for (const m of html.matchAll(/<noscript([^>]*)>([\s\S]*?)<\/noscript>/gi)) {
+    nodes.push(
+      <noscript
+        key={`hs-${idx++}`}
+        dangerouslySetInnerHTML={{ __html: m[2]! }}
+      />,
+    );
+  }
+
+  for (const m of html.matchAll(/<meta([^>]*?)(?:\s*\/)?>/gi)) {
+    nodes.push(<meta key={`hs-${idx++}`} {...toReactAttrs(parseHtmlAttrs(m[1]!))} />);
+  }
+
+  for (const m of html.matchAll(/<link([^>]*?)(?:\s*\/)?>/gi)) {
+    nodes.push(<link key={`hs-${idx++}`} {...toReactAttrs(parseHtmlAttrs(m[1]!))} />);
+  }
+
+  return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// Cached settings fetch — 60 s revalidation so admin changes are reflected
+// promptly without a DB round-trip on every server render.
+// ---------------------------------------------------------------------------
 const getScriptSettings = unstable_cache(
   async () => {
     const rows = await db
@@ -116,15 +212,19 @@ export default async function RootLayout({
   const headersList = await headers();
   // Per-request CSP nonce injected by middleware.
   const nonce = headersList.get("x-nonce") ?? undefined;
-  // Pathname injected by middleware — used to skip public-only script injection
-  // on portal routes so admin pages stay clean.
+  // Pathname forwarded by middleware — used to exclude portal routes from
+  // public-only script injection.
   const pathname = headersList.get("x-pathname") ?? "";
   const isPortal = pathname.startsWith("/portal");
 
-  // Only load & inject site scripts on public pages. Portal routes skip this.
+  // Fetch script injection settings only for public pages; skip for portal.
   const { headInjection, bodyInjection } = isPortal
     ? { headInjection: null, bodyInjection: null }
     : await getScriptSettings();
+
+  // Parse the head snippet into React elements *before* rendering so that
+  // the result can be safely placed as children of <head>.
+  const headNodes = headInjection ? renderHeadSnippet(headInjection, nonce) : [];
 
   return (
     <ClerkProvider
@@ -134,18 +234,12 @@ export default async function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        {/* Explicit <head> block for admin-controlled head injection.
-            head_injection stores raw JavaScript — we wrap it in a <script>
-            tag with the per-request CSP nonce.  Arbitrary HTML elements
-            (e.g. <meta> verification tags) should use the Metadata API. */}
-        {headInjection ? (
-          <head>
-            <script
-              nonce={nonce}
-              dangerouslySetInnerHTML={{ __html: headInjection }}
-            />
-          </head>
-        ) : null}
+        {/* Explicit <head> block: renders the parsed head_injection snippet.
+            Each element is emitted as a proper React node (script, meta, link,
+            style, noscript) with dangerouslySetInnerHTML where appropriate,
+            so arbitrary HTML snippets — GTM scripts, verification <meta> tags,
+            preconnect <link>s, etc. — are all supported. */}
+        {headNodes.length > 0 ? <head>{headNodes}</head> : null}
         <body className="font-[family-name:var(--font-jakarta)]">
           <PromoBanner basePath={base} />
           {children}
@@ -154,7 +248,7 @@ export default async function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
-          {/* GA4 Measurement Protocol proxy transport override */}
+          {/* GA4 Measurement Protocol proxy */}
           {process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID && (
             <script
               nonce={nonce}
@@ -192,9 +286,10 @@ export default async function RootLayout({
             />
           )}
           {/* body_injection: arbitrary HTML snippet (may include <script>,
-              <noscript>, chat widgets, etc.) placed before the pageview beacon.
-              Rendered via dangerouslySetInnerHTML so full tags are preserved and
-              the browser executes any inline scripts in the SSR output. */}
+              <noscript>, chat widgets, etc.) injected before the pageview
+              beacon.  dangerouslySetInnerHTML on a <div> preserves all child
+              tags verbatim in the SSR output so the browser executes any
+              inline scripts at initial parse time. */}
           {bodyInjection && (
             <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
           )}

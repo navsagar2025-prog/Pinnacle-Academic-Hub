@@ -92,16 +92,16 @@ export function SettingsForm({ settings }: Props) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Head Injection <span className="font-normal text-slate-400">(injected into <code>&lt;head&gt;</code> — ideal for GTM, analytics &amp; tag managers)</span>
+              Head Injection <span className="font-normal text-slate-400">(injected into <code>&lt;head&gt;</code> — ideal for GTM, analytics, verification tags)</span>
             </label>
             <p className="text-[11px] text-slate-400 mb-1.5">
-              Paste <strong>raw JavaScript</strong> only — do <em>not</em> include <code>&lt;script&gt;</code> tags. For verification meta tags, use the Metadata API instead.
+              Paste the <strong>full HTML snippet</strong> exactly as provided by the third-party tool — include <code>&lt;script&gt;</code>, <code>&lt;meta&gt;</code>, <code>&lt;link&gt;</code>, or <code>&lt;style&gt;</code> tags. All element types are supported.
             </p>
             <textarea
               value={form["head_injection"] ?? ""}
               onChange={(e) => setForm((p) => ({ ...p, head_injection: e.target.value }))}
-              rows={5}
-              placeholder={"// Example: Google Tag Manager\n(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\nnew Date().getTime(),event:'gtm.js'});...})(window,document,'script','dataLayer','GTM-XXXX');"}
+              rows={6}
+              placeholder={"<!-- Paste the full snippet here, e.g.: -->\n<script>\n(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\nnew Date().getTime(),event:'gtm.js'});\n})(window,document,'script','dataLayer','GTM-XXXX');\n</script>\n<!-- or: -->\n<meta name=\"google-site-verification\" content=\"YOUR_CODE\" />"}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
             />
           </div>
@@ -110,13 +110,13 @@ export function SettingsForm({ settings }: Props) {
               Body Injection <span className="font-normal text-slate-400">(injected before <code>&lt;/body&gt;</code> — ideal for chat widgets, pixels &amp; <code>&lt;noscript&gt;</code> fallbacks)</span>
             </label>
             <p className="text-[11px] text-slate-400 mb-1.5">
-              Paste <strong>full HTML snippets</strong> — include <code>&lt;script&gt;</code>, <code>&lt;noscript&gt;</code>, or any other tags as needed.
+              Paste the <strong>full HTML snippet</strong> — <code>&lt;script&gt;</code>, <code>&lt;noscript&gt;</code>, <code>&lt;iframe&gt;</code>, and any other tags are supported verbatim.
             </p>
             <textarea
               value={form["body_injection"] ?? ""}
               onChange={(e) => setForm((p) => ({ ...p, body_injection: e.target.value }))}
               rows={5}
-              placeholder={"<!-- Example: GTM noscript fallback -->\n<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-XXXX\"\nheight=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>"}
+              placeholder={"<!-- Example: GTM <noscript> fallback -->\n<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-XXXX\"\nheight=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>"}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
             />
           </div>

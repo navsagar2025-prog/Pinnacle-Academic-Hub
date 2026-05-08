@@ -123,6 +123,7 @@ function parseJson(raw: string): { title: string; description: string; focusKeyw
 export async function POST(request: Request) {
   const admin = await getRealAdminUser();
   if (!admin) return err("Unauthorized", 401);
+  if (admin.role !== "admin") return err("Forbidden", 403);
 
   let body: {
     route?: string;
