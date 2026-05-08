@@ -51,7 +51,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.sourceProvider = body.sourceProvider;
   }
   if (body.classDate === null || typeof body.classDate === "string") {
-    patch.classDate = body.classDate ? new Date(body.classDate as string) : null;
+    if (body.classDate) {
+      const d = new Date(body.classDate as string);
+      if (Number.isNaN(d.getTime())) return err("classDate must be a valid date", 400);
+      patch.classDate = d;
+    } else {
+      patch.classDate = null;
+    }
   }
   if (body.durationMinutes === null || typeof body.durationMinutes === "number") {
     patch.durationMinutes = (body.durationMinutes as number | null) ?? null;

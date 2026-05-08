@@ -125,6 +125,13 @@ export async function POST(req: NextRequest) {
   const batchIds = normaliseBatchIds(body.batchIds, body.batchId);
   if (batchIds.length === 0) return err("At least one batch must be selected", 400);
 
+  let classDate: Date | null = null;
+  if (body.classDate) {
+    const d = new Date(body.classDate);
+    if (Number.isNaN(d.getTime())) return err("classDate must be a valid date", 400);
+    classDate = d;
+  }
+
   const [row] = await db
     .insert(classRecordings)
     .values({
@@ -133,7 +140,7 @@ export async function POST(req: NextRequest) {
       teacherName: body.teacherName ?? null,
       recordingUrl,
       sourceProvider,
-      classDate: body.classDate ? new Date(body.classDate) : null,
+      classDate: classDate,
       durationMinutes: body.durationMinutes ?? null,
       batchId: batchIds[0],
       batchIds,
