@@ -86,32 +86,37 @@ export function SettingsForm({ settings }: Props) {
       <div className="card">
         <h2 className="font-semibold text-[var(--color-navy)] mb-1 pb-3 border-b border-slate-100">Script Injection</h2>
         <p className="text-xs text-slate-500 mb-5">
-          Paste raw JavaScript snippets (e.g. Google Tag Manager, LiveChat, Clarity). These are injected on every public page.
-          The <strong>head injection</strong> runs before page content; the <strong>body injection</strong> runs after all content.
-          Do <em>not</em> wrap in <code>&lt;script&gt;</code> tags — paste only the inner code.
+          Inject third-party tracking, analytics, or widget code into every public page (portal pages are excluded).
+          Changes take effect within 60 seconds.
         </p>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Head Injection <span className="font-normal text-slate-400">(runs early — ideal for tag managers &amp; analytics)</span>
+              Head Injection <span className="font-normal text-slate-400">(injected into <code>&lt;head&gt;</code> — ideal for GTM, analytics &amp; tag managers)</span>
             </label>
+            <p className="text-[11px] text-slate-400 mb-1.5">
+              Paste <strong>raw JavaScript</strong> only — do <em>not</em> include <code>&lt;script&gt;</code> tags. For verification meta tags, use the Metadata API instead.
+            </p>
             <textarea
               value={form["head_injection"] ?? ""}
               onChange={(e) => setForm((p) => ({ ...p, head_injection: e.target.value }))}
               rows={5}
-              placeholder={"// Example: Google Tag Manager snippet\n(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-XXXX');"}
+              placeholder={"// Example: Google Tag Manager\n(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\nnew Date().getTime(),event:'gtm.js'});...})(window,document,'script','dataLayer','GTM-XXXX');"}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
             />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Body Injection <span className="font-normal text-slate-400">(runs after content — ideal for chat widgets &amp; exit-intent)</span>
+              Body Injection <span className="font-normal text-slate-400">(injected before <code>&lt;/body&gt;</code> — ideal for chat widgets, pixels &amp; <code>&lt;noscript&gt;</code> fallbacks)</span>
             </label>
+            <p className="text-[11px] text-slate-400 mb-1.5">
+              Paste <strong>full HTML snippets</strong> — include <code>&lt;script&gt;</code>, <code>&lt;noscript&gt;</code>, or any other tags as needed.
+            </p>
             <textarea
               value={form["body_injection"] ?? ""}
               onChange={(e) => setForm((p) => ({ ...p, body_injection: e.target.value }))}
               rows={5}
-              placeholder={"// Example: LiveChat, HotJar, etc.\n(function(h,o,t,j,a,r){ ... })();"}
+              placeholder={"<!-- Example: GTM noscript fallback -->\n<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-XXXX\"\nheight=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>"}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-y"
             />
           </div>

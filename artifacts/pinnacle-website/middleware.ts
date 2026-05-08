@@ -129,6 +129,7 @@ export default clerkMiddleware(async (auth, req) => {
   // 4. CSP nonce
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", path);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set("Content-Security-Policy", buildCsp(nonce));
 

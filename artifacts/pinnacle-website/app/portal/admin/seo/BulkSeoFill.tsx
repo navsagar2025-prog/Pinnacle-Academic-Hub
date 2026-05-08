@@ -78,7 +78,7 @@ export function BulkSeoFill({ rows }: { rows: BulkSeoRow[] }) {
 
   async function handleFillAll(onlyMissing: boolean) {
     const targets = onlyMissing
-      ? rows.filter((r) => !r.dbTitle && !r.dbDescription)
+      ? rows.filter((r) => !r.dbTitle || !r.dbDescription)
       : rows;
 
     setBulkFilling(true);
@@ -105,7 +105,7 @@ export function BulkSeoFill({ rows }: { rows: BulkSeoRow[] }) {
     router.refresh();
   }
 
-  const missingCount = rows.filter((r) => !r.dbTitle && !r.dbDescription).length;
+  const missingCount = rows.filter((r) => !r.dbTitle || !r.dbDescription).length;
   const doneCount = Object.values(states).filter((s) => s.status === "done").length;
 
   return (
@@ -194,7 +194,7 @@ export function BulkSeoFill({ rows }: { rows: BulkSeoRow[] }) {
               const effectiveTitle = st?.result?.title ?? row.dbTitle;
               const effectiveDesc = st?.result?.description ?? row.dbDescription;
               const effectiveKw = st?.result?.focusKeyword ?? row.dbFocusKeyword;
-              const isMissing = !effectiveTitle && !effectiveDesc;
+              const isMissing = !effectiveTitle || !effectiveDesc;
 
               return (
                 <tr

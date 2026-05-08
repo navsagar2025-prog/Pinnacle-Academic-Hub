@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import "./globals.css";
 import { SITE_URL } from "@/lib/seo/page-registry";
 import { PromoBanner } from "@/components/promo/PromoBanner";
@@ -72,8 +73,6 @@ export const metadata: Metadata = {
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
-// Site-wide Organization schema for the Knowledge Graph. Page-level schemas
-// (LocalBusiness on Home, Course on /courses) supplement this.
 const ORGANIZATION_JSONLD = {
   "@context": "https://schema.org",
   "@type": "EducationalOrganization",
@@ -92,22 +91,40 @@ const ORGANIZATION_JSONLD = {
   },
 };
 
+// Cached 60 s — avoid a DB round-trip on every page render while still
+// picking up changes within a minute of the admin saving new scripts.
+const getScriptSettings = unstable_cache(
+  async () => {
+    const rows = await db
+      .select()
+      .from(siteSettings)
+      .where(inArray(siteSettings.key, ["head_injection", "body_injection"]));
+    return {
+      headInjection: rows.find((r) => r.key === "head_injection")?.value ?? null,
+      bodyInjection: rows.find((r) => r.key === "body_injection")?.value ?? null,
+    };
+  },
+  ["script-injection-settings"],
+  { revalidate: 60 },
+);
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Read the per-request CSP nonce injected by middleware via the x-nonce
-  // request header. Apply it to all inline scripts (JSON-LD, etc.) so they
-  // pass the Content-Security-Policy without needing 'unsafe-inline'.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const headersList = await headers();
+  // Per-request CSP nonce injected by middleware.
+  const nonce = headersList.get("x-nonce") ?? undefined;
+  // Pathname injected by middleware — used to skip public-only script injection
+  // on portal routes so admin pages stay clean.
+  const pathname = headersList.get("x-pathname") ?? "";
+  const isPortal = pathname.startsWith("/portal");
 
-  const scriptRows = await db
-    .select()
-    .from(siteSettings)
-    .where(inArray(siteSettings.key, ["head_injection", "body_injection"]));
-  const headInjection = scriptRows.find((r) => r.key === "head_injection")?.value ?? null;
-  const bodyInjection = scriptRows.find((r) => r.key === "body_injection")?.value ?? null;
+  // Only load & inject site scripts on public pages. Portal routes skip this.
+  const { headInjection, bodyInjection } = isPortal
+    ? { headInjection: null, bodyInjection: null }
+    : await getScriptSettings();
 
   return (
     <ClerkProvider
@@ -117,13 +134,19 @@ export default async function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        <body className="font-[family-name:var(--font-jakarta)]">
-          {headInjection && (
+        {/* Explicit <head> block for admin-controlled head injection.
+            head_injection stores raw JavaScript — we wrap it in a <script>
+            tag with the per-request CSP nonce.  Arbitrary HTML elements
+            (e.g. <meta> verification tags) should use the Metadata API. */}
+        {headInjection ? (
+          <head>
             <script
               nonce={nonce}
               dangerouslySetInnerHTML={{ __html: headInjection }}
             />
-          )}
+          </head>
+        ) : null}
+        <body className="font-[family-name:var(--font-jakarta)]">
           <PromoBanner basePath={base} />
           {children}
           <script
@@ -131,13 +154,7 @@ export default async function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
           />
-          {/* GA4 Measurement Protocol proxy transport override.
-              Overrides window.gtag so that GA4 events are forwarded through
-              our own /api/v1/telemetry/ga4-proxy endpoint instead of going
-              directly to google-analytics.com. This bypasses ad-blockers that
-              block the GA4 collection endpoint while still sending events to
-              your GA4 property via the Measurement Protocol.
-              Falls back gracefully if no GA4 Measurement ID is configured. */}
+          {/* GA4 Measurement Protocol proxy transport override */}
           {process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID && (
             <script
               nonce={nonce}
@@ -146,8 +163,6 @@ export default async function RootLayout({
   try {
     var mid = '${process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID ?? ""}';
     if (!mid) return;
-    // Install a minimal gtag stub that routes events through our proxy so
-    // ad-blockers targeting google-analytics.com do not silently drop them.
     window.dataLayer = window.dataLayer || [];
     function gtag(){
       var args = Array.prototype.slice.call(arguments);
@@ -176,27 +191,22 @@ export default async function RootLayout({
               }}
             />
           )}
+          {/* body_injection: arbitrary HTML snippet (may include <script>,
+              <noscript>, chat widgets, etc.) placed before the pageview beacon.
+              Rendered via dangerouslySetInnerHTML so full tags are preserved and
+              the browser executes any inline scripts in the SSR output. */}
           {bodyInjection && (
-            <script
-              nonce={nonce}
-              dangerouslySetInnerHTML={{ __html: bodyInjection }}
-            />
+            <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
           )}
-          {/* Server-side page-view beacon — fires on every public page load.
-              Uses sendBeacon so it never blocks navigation or page close.
-              Portal routes (/portal/*) are excluded to keep the tracker
-              focused on public visitor traffic. */}
+          {/* Server-side page-view beacon */}
           <script
             nonce={nonce}
             dangerouslySetInnerHTML={{
               __html: `(function(){
   try {
     var p = location.pathname;
-    // Strip the base-path prefix so the check is always against the logical
-    // route, regardless of whether the app is mounted at / or /pinnacle-website.
     var bp = '${base}';
     var rel = (bp && p.indexOf(bp) === 0) ? p.slice(bp.length) || '/' : p;
-    // Exclude admin/student/parent/teacher portal — only public traffic.
     if (rel.indexOf('/portal') === 0) return;
     var payload = JSON.stringify({ path: p, referrer: document.referrer || null });
     if (navigator.sendBeacon) {
