@@ -901,6 +901,27 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/**
+ * Periodic system health snapshots written by the /api/v1/admin/ops/health-snapshot
+ * endpoint (called from an external cron / uptime service).  Used to render
+ * 30-day CPU and disk-usage sparklines on the admin System Health dashboard.
+ */
+export const healthSnapshots = pgTable("health_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  cpuPercent: real("cpu_percent").notNull(),
+  memUsedMb: real("mem_used_mb").notNull(),
+  memTotalMb: real("mem_total_mb").notNull(),
+  diskUsedGb: real("disk_used_gb").notNull(),
+  diskTotalGb: real("disk_total_gb").notNull(),
+  dbSizeMb: real("db_size_mb").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("health_snapshots_created_at_idx").on(t.createdAt),
+]);
+
+export type HealthSnapshot = typeof healthSnapshots.$inferSelect;
+export type InsertHealthSnapshot = typeof healthSnapshots.$inferInsert;
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Course = typeof courses.$inferSelect;
