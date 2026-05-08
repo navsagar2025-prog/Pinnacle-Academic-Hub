@@ -3,13 +3,24 @@
 /**
  * Invisible component mounted alongside Clerk's <SignIn /> on the sign-in page.
  *
- * Uses the same useSignIn() context that <SignIn /> writes to, so we can
- * observe authentication failures that happen inside Clerk's embedded UI
- * without building a custom form.
+ * Uses the same useSignIn() context that <SignIn /> writes to internally, so we
+ * can observe authentication failures without building a custom form. Clerk's
+ * embedded component calls signIn.attemptFirstFactor() / attemptSecondFactor()
+ * internally; after each failed attempt, firstFactorVerification.status
+ * transitions to "failed". When the user edits their credentials and submits
+ * again, the status transitions back to "unverified" or "needs_first_factor"
+ * before failing again — this is the signal we use to count each distinct attempt.
  *
- * On each new firstFactor failure, calls POST /api/v1/auth/record-failure.
+ * Counting strategy (avoids the one-report-per-session bug):
+ *   - Track the PREVIOUS status in a ref.
+ *   - Report only when status TRANSITIONS into "failed" from a non-"failed" state.
+ *   - This correctly counts N distinct failed attempts even when error code and
+ *     identifier are identical across all of them (e.g. repeated wrong passwords).
+ *
+ * On each transition, calls POST /api/v1/auth/record-failure.
  * That server route has the real client IP in its request headers (browser →
- * our server, not Clerk webhook → our server), so the IP is reliable.
+ * our server, not Clerk webhook → our server), so the IP is reliable for
+ * driving the ip_lockouts auto-lockout mechanism.
  */
 
 import { useSignIn } from "@clerk/nextjs";
@@ -19,37 +30,36 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website";
 
 export function SignInFailureTracker() {
   const { signIn } = useSignIn();
-  // Track the last error code we reported so we don't double-report the same error
-  const lastReportedError = useRef<string | null>(null);
+  // Track the previous verification status so we fire only on TRANSITIONS
+  // into "failed", not on every render while status remains "failed".
+  const prevVerificationStatus = useRef<string | null>(null);
+
+  const currentStatus = signIn?.firstFactorVerification?.status ?? null;
 
   useEffect(() => {
-    if (!signIn) return;
+    const prev = prevVerificationStatus.current;
+    prevVerificationStatus.current = currentStatus;
 
-    const verification = signIn.firstFactorVerification;
-    const status = verification?.status;
+    // Only report when we TRANSITION into "failed" from a different state.
+    // This handles repeated wrong-password attempts correctly:
+    //   attempt 1: null → "failed"  → report ✓
+    //   user edits field: "failed" → "unverified" → no report ✓
+    //   attempt 2: "unverified" → "failed" → report ✓
+    //   attempt 3: "unverified" → "failed" → report ✓  (etc.)
+    if (currentStatus !== "failed" || prev === "failed") return;
 
-    // Clerk sets status = 'failed' when credentials are incorrect
-    if (status !== "failed") return;
+    const identifier = signIn?.identifier ?? null;
 
-    const errorCode =
-      (verification?.error as { code?: string } | null)?.code ?? "unknown";
-    const identifier = signIn.identifier ?? null;
-
-    // Deduplicate: only report once per unique error code per attempt
-    const reportKey = `${errorCode}:${identifier}`;
-    if (lastReportedError.current === reportKey) return;
-    lastReportedError.current = reportKey;
-
-    // Fire-and-forget — do not await so we don't delay any UI feedback
+    // Fire-and-forget — do not await so we don't delay Clerk's UI feedback
     fetch(`${BASE}/api/v1/auth/record-failure`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier, errorCode }),
-      // credentials: include is default for same-origin fetches
+      body: JSON.stringify({ identifier }),
     }).catch(() => {
-      // Swallow network errors — this is best-effort telemetry
+      // Swallow network errors — this is best-effort telemetry; a network
+      // failure here must never affect the user's sign-in experience.
     });
-  }, [signIn, signIn?.firstFactorVerification?.status, signIn?.firstFactorVerification?.error]);
+  }, [currentStatus, signIn?.identifier]);
 
   return null;
 }
