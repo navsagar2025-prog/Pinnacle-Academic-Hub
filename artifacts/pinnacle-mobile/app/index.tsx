@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { Redirect } from "expo-router";
-import React, { type ComponentProps } from "react";
+import React, { type ComponentProps, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useRole, type Role } from "@/context/RoleContext";
+import {
+  authenticate,
+  getBiometricPreference,
+  getSupportedBiometricType,
+  isBiometricAvailable,
+  setBiometricPreference,
+} from "@/lib/biometric";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -53,12 +61,56 @@ const ROLES: {
   },
 ];
 
+type BiometricState = "checking" | "cleared" | "blocked";
+
 export default function RoleSelectorScreen() {
-  const { role, setRole } = useRole();
+  const { role, setRole, loading } = useRole();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  if (role) {
+  const [biometricState, setBiometricState] = useState<BiometricState>("checking");
+  const [biometricLabel, setBiometricLabel] = useState("Biometric");
+
+  useEffect(() => {
+    if (loading) return;
+    if (!role) {
+      setBiometricState("cleared");
+      return;
+    }
+
+    async function checkBiometric() {
+      const enabled = await getBiometricPreference();
+      if (!enabled) {
+        setBiometricState("cleared");
+        return;
+      }
+      const available = await isBiometricAvailable();
+      if (!available) {
+        await setBiometricPreference(false);
+        setBiometricState("cleared");
+        return;
+      }
+      const label = await getSupportedBiometricType();
+      setBiometricLabel(label);
+      const ok = await authenticate(`Use ${label} to open Pinnacle`);
+      setBiometricState(ok ? "cleared" : "blocked");
+    }
+
+    checkBiometric();
+  }, [loading, role]);
+
+  if (loading || (role && biometricState === "checking")) {
+    return (
+      <View style={[styles.root, styles.center, { backgroundColor: "#0A1F5C" }]}>
+        <View style={[styles.logoCircle, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
+          <Feather name="award" size={40} color="#C9A84C" />
+        </View>
+        <ActivityIndicator color="#C9A84C" size="large" style={{ marginTop: 24 }} />
+      </View>
+    );
+  }
+
+  if (role && biometricState === "cleared") {
     if (role === "student") return <Redirect href="/(student)" />;
     if (role === "parent") return <Redirect href="/(parent)" />;
     if (role === "teacher") return <Redirect href="/(teacher)" />;
@@ -92,46 +144,92 @@ export default function RoleSelectorScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.prompt}>Select your role to continue</Text>
-
-        <View style={styles.cards}>
-          {ROLES.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              onPress={() => setRole(r.id)}
-              activeOpacity={0.8}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  borderColor: "rgba(255,255,255,0.15)",
-                  borderRadius: colors.radius,
-                },
-              ]}
-            >
-              <View
+        {biometricState === "blocked" ? (
+          <>
+            <Text style={styles.prompt}>Biometric authentication failed</Text>
+            <View style={styles.cards}>
+              <TouchableOpacity
+                onPress={async () => {
+                  setBiometricState("checking");
+                  const ok = await authenticate(`Use ${biometricLabel} to open Pinnacle`);
+                  setBiometricState(ok ? "cleared" : "blocked");
+                }}
+                activeOpacity={0.8}
                 style={[
-                  styles.cardIcon,
+                  styles.card,
                   {
-                    backgroundColor: r.color + "35",
-                    borderRadius: colors.radius - 4,
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                    borderColor: "rgba(255,255,255,0.15)",
+                    borderRadius: colors.radius,
+                    justifyContent: "center",
                   },
                 ]}
               >
-                <Feather name={r.icon} size={24} color={r.color} />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardLabel}>{r.label}</Text>
-                <Text style={styles.cardSub}>{r.sub}</Text>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={20}
-                color="rgba(255,255,255,0.4)"
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Feather name="shield" size={20} color="#C9A84C" />
+                <Text style={[styles.cardLabel, { marginLeft: 10 }]}>Try Again</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setRole(null)}
+                activeOpacity={0.8}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderColor: "rgba(255,255,255,0.1)",
+                    borderRadius: colors.radius,
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <Feather name="log-out" size={20} color="rgba(255,255,255,0.5)" />
+                <Text style={[styles.cardSub, { marginLeft: 10, fontSize: 14 }]}>Sign out and switch role</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.prompt}>Select your role to continue</Text>
+            <View style={styles.cards}>
+              {ROLES.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => setRole(r.id)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      borderColor: "rgba(255,255,255,0.15)",
+                      borderRadius: colors.radius,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.cardIcon,
+                      {
+                        backgroundColor: r.color + "35",
+                        borderRadius: colors.radius - 4,
+                      },
+                    ]}
+                  >
+                    <Feather name={r.icon} size={24} color={r.color} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardLabel}>{r.label}</Text>
+                    <Text style={styles.cardSub}>{r.sub}</Text>
+                  </View>
+                  <Feather
+                    name="chevron-right"
+                    size={20}
+                    color="rgba(255,255,255,0.4)"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
 
         <Text style={styles.footer}>
           Demo platform · KCK Corporate Services Pvt. Ltd.
@@ -144,6 +242,10 @@ export default function RoleSelectorScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  center: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   scroll: {
     paddingHorizontal: 20,
