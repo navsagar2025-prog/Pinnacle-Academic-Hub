@@ -17,11 +17,13 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import AIQuickAnswer from "@/components/AIQuickAnswer";
 import DoubtDetailSheet from "@/components/DoubtDetailSheet";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { SkeletonList } from "@/components/SkeletonLoader";
 import { useColors } from "@/hooks/useColors";
+import { useAISettings } from "@/lib/aiSettings";
 import { lightHaptic, mediumHaptic, successHaptic } from "@/lib/haptics";
 import { useRefresh } from "@/lib/useRefresh";
 import {
@@ -48,6 +50,8 @@ export default function StudentDoubts() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [sheetDoubt, setSheetDoubt] = useState<DoubtFeedItem | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [aiAnswer, setAiAnswer] = useState<{ subject: string; question: string } | null>(null);
+  const { settings: aiSettings } = useAISettings();
 
   const [tabContainerWidth, setTabContainerWidth] = useState(0);
   const indicatorX = useSharedValue(0);
@@ -134,15 +138,33 @@ export default function StudentDoubts() {
   const submit = async () => {
     if (!draft.trim()) return;
     mediumHaptic();
+    const subjectSnapshot = draftSubject;
+    const questionSnapshot = draft.trim();
     setPosting(true);
-    const ok = await postDoubt({ subject: draftSubject, questionText: draft.trim() });
+    const ok = await postDoubt({ subject: subjectSnapshot, questionText: questionSnapshot });
     setPosting(false);
+    // If the AI Doubt Resolver is enabled, show the quick answer regardless
+    // of whether the post itself succeeded — students offline / not signed in
+    // still get instant value.
+    if (aiSettings.doubtResolverEnabled) {
+      setAiAnswer({ subject: subjectSnapshot, question: questionSnapshot });
+    }
     if (!ok) {
-      Alert.alert("Sign in required", "Please sign in on the web portal so your doubt is linked to your enrollment.");
+      if (!aiSettings.doubtResolverEnabled) {
+        Alert.alert(
+          "Sign in required",
+          "Please sign in on the web portal so your doubt is linked to your enrollment.",
+        );
+      }
       return;
     }
     successHaptic();
-    Alert.alert("Doubt posted", "Your question has been posted. Teachers usually reply within 24h.");
+    if (!aiSettings.doubtResolverEnabled) {
+      Alert.alert(
+        "Doubt posted",
+        "Your question has been posted. Teachers usually reply within 24h.",
+      );
+    }
     setDraft("");
     setSelectedImage(null);
     load();
@@ -257,6 +279,14 @@ export default function StudentDoubts() {
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+        {tab === "mine" && aiAnswer && (
+          <AIQuickAnswer
+            subject={aiAnswer.subject}
+            question={aiAnswer.question}
+            onClose={() => setAiAnswer(null)}
+          />
         )}
 
         {loading ? (

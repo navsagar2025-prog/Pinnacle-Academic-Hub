@@ -2,11 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import React, { type ComponentProps } from "react";
-import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useRole } from "@/context/RoleContext";
 import { useColors } from "@/hooks/useColors";
+import { useAISettings } from "@/lib/aiSettings";
+import { lightHaptic, successHaptic } from "@/lib/haptics";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -91,7 +93,14 @@ export default function AdminMore() {
   const colors = useColors();
   const { setRole } = useRole();
   const router = useRouter();
+  const { settings: aiSettings, setDoubtResolverEnabled } = useAISettings();
   const demo = () => Alert.alert("Demo Mode", "This action is disabled in demo.", [{ text: "OK" }]);
+
+  const toggleAIResolver = async (next: boolean) => {
+    if (next) successHaptic();
+    else lightHaptic();
+    await setDoubtResolverEnabled(next);
+  };
 
   return (
     <ScreenContainer>
@@ -188,6 +197,57 @@ export default function AdminMore() {
             </View>
           </View>
         ))}
+      </View>
+
+      <View style={{ marginTop: 16 }}>
+        <SectionHeader title="AI Dashboard" />
+        <View
+          style={[
+            styles.aiCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: aiSettings.doubtResolverEnabled ? "#7C3AED" : colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <View style={styles.aiRow}>
+            <View style={[styles.aiIcon, { backgroundColor: "#7C3AED15", borderRadius: 8 }]}>
+              <Feather name="zap" size={18} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.aiLabel, { color: colors.foreground }]}>AI Doubt Resolver</Text>
+              <Text style={[styles.aiSub, { color: colors.mutedForeground }]}>
+                Show students an instant AI-generated answer when they post a doubt.
+              </Text>
+            </View>
+            <Switch
+              value={aiSettings.doubtResolverEnabled}
+              onValueChange={toggleAIResolver}
+              trackColor={{ false: colors.border, true: "#7C3AED" }}
+              thumbColor="#fff"
+              ios_backgroundColor={colors.border}
+            />
+          </View>
+          <View style={[styles.aiStatusPill, { backgroundColor: aiSettings.doubtResolverEnabled ? colors.success + "18" : colors.muted }]}>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: aiSettings.doubtResolverEnabled ? colors.success : colors.mutedForeground },
+              ]}
+            />
+            <Text
+              style={[
+                styles.aiStatusText,
+                { color: aiSettings.doubtResolverEnabled ? colors.success : colors.mutedForeground },
+              ]}
+            >
+              {aiSettings.doubtResolverEnabled
+                ? "Active for all students"
+                : "Disabled — students see only teacher replies"}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <View style={{ marginTop: 16 }}>
@@ -301,4 +361,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   signOutText: { fontSize: 14, fontWeight: "600" },
+  aiCard: { borderWidth: 1, padding: 14, marginBottom: 8, gap: 12 },
+  aiRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  aiIcon: { width: 36, height: 36, justifyContent: "center", alignItems: "center" },
+  aiLabel: { fontSize: 14, fontWeight: "700" },
+  aiSub: { fontSize: 11, marginTop: 2, lineHeight: 15 },
+  aiStatusPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, alignSelf: "flex-start" },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  aiStatusText: { fontSize: 11, fontWeight: "700" },
 });
