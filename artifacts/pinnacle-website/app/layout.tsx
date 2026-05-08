@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import { headers } from "next/headers";
 import { unstable_cache } from "next/cache";
+import React from "react";
 import "./globals.css";
 import { SITE_URL } from "@/lib/seo/page-registry";
 import { PromoBanner } from "@/components/promo/PromoBanner";
@@ -107,6 +108,106 @@ const getScriptSettings = unstable_cache(
   { revalidate: 60 },
 );
 
+// ---------------------------------------------------------------------------
+// HEAD INJECTION HELPERS
+// Parse a raw HTML snippet into valid <head> React children. Each matched
+// element is rendered as its proper React element type so the SSR output
+// contains actual <script>, <meta>, <link>, etc. nodes — not a <div> wrapper.
+// <script> elements receive the page CSP nonce so they pass strict CSP.
+// ---------------------------------------------------------------------------
+
+const ATTR_REMAP: Record<string, string> = {
+  class: "className",
+  crossorigin: "crossOrigin",
+  "http-equiv": "httpEquiv",
+  nomodule: "noModule",
+  referrerpolicy: "referrerPolicy",
+  fetchpriority: "fetchPriority",
+  imagesrcset: "imageSrcSet",
+  imagesizes: "imageSizes",
+};
+
+function parseAttrs(attrStr: string): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+  const re = /(\w[\w:-]*)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(attrStr.trim())) !== null) {
+    const name = m[1]!;
+    const raw = m[2] ?? m[3] ?? m[4] ?? null;
+    const propName = ATTR_REMAP[name] ?? name;
+    // Boolean attributes (async, defer, noModule …) — value omitted or equals name
+    props[propName] = raw === null || raw === name ? true : raw;
+  }
+  return props;
+}
+
+function buildHeadNode(
+  tag: string,
+  attrs: Record<string, unknown>,
+  content: string | undefined,
+  nonce: string | undefined,
+  key: number,
+): React.ReactNode {
+  const props: Record<string, unknown> = { ...attrs, key };
+  if (tag === "script") {
+    if (nonce) props["nonce"] = nonce;
+    if (content !== undefined) props["dangerouslySetInnerHTML"] = { __html: content };
+    return React.createElement("script", props);
+  }
+  if (tag === "style") {
+    if (content !== undefined) props["dangerouslySetInnerHTML"] = { __html: content };
+    return React.createElement("style", props);
+  }
+  if (tag === "noscript") {
+    if (content !== undefined) props["dangerouslySetInnerHTML"] = { __html: content };
+    return React.createElement("noscript", props);
+  }
+  if (tag === "title") {
+    return React.createElement("title", props, content ?? "");
+  }
+  // meta, link, base — void elements
+  return React.createElement(tag, props);
+}
+
+function parseHeadSnippet(html: string, nonce: string | undefined): React.ReactNode[] {
+  type RawMatch = { pos: number; tag: string; attrStr: string; content?: string };
+  const raw: RawMatch[] = [];
+
+  // Pair tags: <script>, <style>, <noscript>, <title>
+  const pairRe = /<(script|style|noscript|title)((?:\s[^>]*)?)>([\s\S]*?)<\/\1>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = pairRe.exec(html)) !== null) {
+    raw.push({ pos: m.index, tag: m[1]!.toLowerCase(), attrStr: m[2] ?? "", content: m[3] ?? "" });
+  }
+
+  // Void tags: <meta>, <link>, <base>
+  const voidRe = /<(meta|link|base)((?:\s[^>]*)?)\s*\/?>/gi;
+  while ((m = voidRe.exec(html)) !== null) {
+    raw.push({ pos: m.index, tag: m[1]!.toLowerCase(), attrStr: m[2] ?? "" });
+  }
+
+  // Sort by source position so injection order matches snippet order
+  raw.sort((a, b) => a.pos - b.pos);
+
+  return raw.map((item, i) =>
+    buildHeadNode(item.tag, parseAttrs(item.attrStr), item.content, nonce, i),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BODY INJECTION HELPER
+// Stamp the page nonce onto every <script> tag in the snippet so inline
+// scripts pass the strict-nonce CSP enforced by middleware. Non-script nodes
+// are preserved verbatim (including <noscript>, <iframe>, etc.).
+// ---------------------------------------------------------------------------
+function stampNonces(html: string, nonce: string | undefined): string {
+  if (!nonce) return html;
+  return html.replace(/<script(\s[^>]*)?>/gi, (_full, attrs: string | undefined) => {
+    if (attrs && /\bnonce\s*=/i.test(attrs)) return _full; // already has nonce
+    return `<script${attrs ?? ""} nonce="${nonce}">`;
+  });
+}
+
 export default async function RootLayout({
   children,
 }: {
@@ -121,6 +222,8 @@ export default async function RootLayout({
     ? { headInjection: null, bodyInjection: null }
     : await getScriptSettings();
 
+  const headNodes = headInjection ? parseHeadSnippet(headInjection, nonce) : [];
+
   return (
     <ClerkProvider
       signInUrl={`${base}/sign-in`}
@@ -129,17 +232,8 @@ export default async function RootLayout({
       signUpFallbackRedirectUrl={`${base}/portal`}
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
-        {/*
-          head_injection: raw snippet bytes from site_settings injected verbatim
-          into <head> via dangerouslySetInnerHTML so the content appears in the
-          SSR HTML source (visible to crawlers and verification tools without JS).
-          Intended for <meta>, <link rel="...">, and <script src="..."> tags.
-        */}
-        {headInjection ? (
-          <head>
-            {/* eslint-disable-next-line react/no-danger */}
-            <div dangerouslySetInnerHTML={{ __html: headInjection }} />
-          </head>
+        {headNodes.length > 0 ? (
+          <head>{headNodes}</head>
         ) : null}
         <body className="font-[family-name:var(--font-jakarta)]">
           <PromoBanner basePath={base} />
@@ -185,13 +279,11 @@ export default async function RootLayout({
               }}
             />
           )}
-          {/*
-            body_injection: raw snippet bytes from site_settings injected verbatim
-            at end of <body> via dangerouslySetInnerHTML — SSR-visible and executed
-            by the browser parser at initial page load. Order is preserved exactly.
-          */}
+          {/* body_injection: raw bytes preserved verbatim; <script> tags stamped with
+              the page nonce so they pass CSP. SSR-visible; browser parser executes
+              inline scripts at initial page load. Order is preserved exactly. */}
           {bodyInjection ? (
-            <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
+            <div dangerouslySetInnerHTML={{ __html: stampNonces(bodyInjection, nonce) }} />
           ) : null}
           <script
             nonce={nonce}
