@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@workspace/db";
 import { assignments, assignmentSchedules, batches, students, parents } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { getDbUser } from "@/lib/server/portal-auth";
 import { logAudit } from "@/lib/server/audit";
 import {
@@ -18,54 +18,51 @@ export async function GET(req: NextRequest) {
   const batchIdParam = searchParams.get("batchId");
 
   // Build role-appropriate where conditions
+  // Common projection shared across all roles. We deliberately omit the raw
+  // storage URL — clients receive the watermarking download proxy URL only.
+  const projection = {
+    id: assignments.id,
+    title: assignments.title,
+    subject: assignments.subject,
+    description: assignments.description,
+    _hasFile: sql<boolean>`(${assignments.fileUrl} is not null)`,
+    dueDate: assignments.dueDate,
+    maxMarks: assignments.maxMarks,
+    isVisible: assignments.isVisible,
+    createdAt: assignments.createdAt,
+    batchId: assignments.batchId,
+    batchName: batches.name,
+  } as const;
+
+  function shape<T extends { id: string; _hasFile: unknown }>(rows: T[]) {
+    return rows.map(({ _hasFile, ...r }) => ({
+      ...r,
+      downloadUrl: _hasFile ? `/pinnacle-website/api/v1/downloads/assignment/${r.id}` : null,
+    }));
+  }
+
   if (user.role === "admin") {
-    // Admins see all assignments; optional batchId filter
     const rows = await db
-      .select({
-        id: assignments.id,
-        title: assignments.title,
-        subject: assignments.subject,
-        description: assignments.description,
-        fileUrl: assignments.fileUrl,
-        dueDate: assignments.dueDate,
-        maxMarks: assignments.maxMarks,
-        isVisible: assignments.isVisible,
-        createdAt: assignments.createdAt,
-        batchId: assignments.batchId,
-        batchName: batches.name,
-      })
+      .select(projection)
       .from(assignments)
       .leftJoin(batches, eq(assignments.batchId, batches.id))
       .where(batchIdParam ? eq(assignments.batchId, batchIdParam) : undefined)
       .orderBy(desc(assignments.createdAt));
-    return NextResponse.json({ success: true, data: rows });
+    return NextResponse.json({ success: true, data: shape(rows) });
   }
 
   if (user.role === "teacher") {
-    // Teachers only see assignments they created; optional batchId filter
     const condition =
       batchIdParam
         ? and(eq(assignments.postedBy, user.id), eq(assignments.batchId, batchIdParam))
         : eq(assignments.postedBy, user.id);
     const rows = await db
-      .select({
-        id: assignments.id,
-        title: assignments.title,
-        subject: assignments.subject,
-        description: assignments.description,
-        fileUrl: assignments.fileUrl,
-        dueDate: assignments.dueDate,
-        maxMarks: assignments.maxMarks,
-        isVisible: assignments.isVisible,
-        createdAt: assignments.createdAt,
-        batchId: assignments.batchId,
-        batchName: batches.name,
-      })
+      .select(projection)
       .from(assignments)
       .leftJoin(batches, eq(assignments.batchId, batches.id))
       .where(condition)
       .orderBy(desc(assignments.createdAt));
-    return NextResponse.json({ success: true, data: rows });
+    return NextResponse.json({ success: true, data: shape(rows) });
   }
 
   if (user.role === "student") {
@@ -81,18 +78,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await db
-      .select({
-        id: assignments.id,
-        title: assignments.title,
-        subject: assignments.subject,
-        description: assignments.description,
-        fileUrl: assignments.fileUrl,
-        dueDate: assignments.dueDate,
-        maxMarks: assignments.maxMarks,
-        createdAt: assignments.createdAt,
-        batchId: assignments.batchId,
-        batchName: batches.name,
-      })
+      .select(projection)
       .from(assignments)
       .leftJoin(batches, eq(assignments.batchId, batches.id))
       .where(
@@ -102,7 +88,7 @@ export async function GET(req: NextRequest) {
         ),
       )
       .orderBy(desc(assignments.createdAt));
-    return NextResponse.json({ success: true, data: rows });
+    return NextResponse.json({ success: true, data: shape(rows) });
   }
 
   if (user.role === "parent") {
@@ -128,18 +114,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await db
-      .select({
-        id: assignments.id,
-        title: assignments.title,
-        subject: assignments.subject,
-        description: assignments.description,
-        fileUrl: assignments.fileUrl,
-        dueDate: assignments.dueDate,
-        maxMarks: assignments.maxMarks,
-        createdAt: assignments.createdAt,
-        batchId: assignments.batchId,
-        batchName: batches.name,
-      })
+      .select(projection)
       .from(assignments)
       .leftJoin(batches, eq(assignments.batchId, batches.id))
       .where(
@@ -149,7 +124,7 @@ export async function GET(req: NextRequest) {
         ),
       )
       .orderBy(desc(assignments.createdAt));
-    return NextResponse.json({ success: true, data: rows });
+    return NextResponse.json({ success: true, data: shape(rows) });
   }
 
   return NextResponse.json({ error: "Unauthorized role" }, { status: 403 });
@@ -196,7 +171,7 @@ export async function POST(req: NextRequest) {
         title,
         subject,
         description: description ?? null,
-        fileUrl: fileUrl ?? null,
+        fileUrl: fileUrl ?? null, // allow-direct-pdf — write path, stored in DB only
         maxMarks: maxMarks ?? null,
         frequency: schedule.frequency,
         daysOfWeek: schedule.daysOfWeek ?? null,
@@ -236,7 +211,7 @@ export async function POST(req: NextRequest) {
       subject,
       batchId,
       description: description ?? null,
-      fileUrl: fileUrl ?? null,
+      fileUrl: fileUrl ?? null, // allow-direct-pdf — write path, stored in DB only
       dueDate: new Date(dueDate),
       maxMarks: maxMarks ?? null,
       postedBy: user.id,

@@ -50,7 +50,9 @@ export async function GET(request: Request) {
         title: studyMaterials.title,
         subject: studyMaterials.subject,
         type: studyMaterials.type,
-        fileUrl: studyMaterials.fileUrl,
+        // Internal storage URL; never returned to clients. Used here only as
+        // a presence flag so we can decide whether to expose `downloadUrl`.
+        _hasFile: sql<boolean>`(${studyMaterials.fileUrl} is not null)`,
         fileSize: studyMaterials.fileSize,
         downloadCount: studyMaterials.downloadCount,
         createdAt: studyMaterials.createdAt,
@@ -70,7 +72,15 @@ export async function GET(request: Request) {
       .from(studyMaterials)
       .where(whereClause);
 
-    return paginatedOk(rows, count, page, limit);
+    // Strip the internal storage URL from the wire payload and replace it
+    // with the watermarking download proxy URL. This keeps every PDF
+    // delivery on a single audited code path.
+    const shaped = rows.map(({ _hasFile, ...r }) => ({
+      ...r,
+      downloadUrl: _hasFile ? `/pinnacle-website/api/v1/downloads/study_material/${r.id}` : null,
+    }));
+
+    return paginatedOk(shaped, count, page, limit);
   } catch (e) {
     console.error("GET /api/v1/materials error:", e);
     return err("Failed to fetch materials");

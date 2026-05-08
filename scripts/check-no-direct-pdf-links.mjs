@@ -20,6 +20,16 @@ const ROOTS = [
   "artifacts/pinnacle-website/components",
 ];
 
+// API routes that are allowed to expose raw fileUrl in their response — admin
+// surfaces, the upload+download proxy itself, and the question-bank export
+// endpoint that builds + stamps PDFs server-side.
+const API_FILEURL_ALLOWLIST = [
+  "/api/v1/admin/",
+  "/api/v1/downloads/",
+  "/api/v1/upload",
+  "/api/v1/assignments/schedules/", // teacher/admin schedule editor only
+];
+
 // Each rule is a Perl-compatible regex passed to ripgrep. Keep the patterns
 // narrow so they target the *bypass* shapes — not legitimate uses of
 // fileUrl in admin upload widgets etc.
@@ -69,6 +79,33 @@ for (const rule of RULES) {
     failed = true;
     console.error(`\n✗ ${rule.name}`);
     for (const h of hits) console.error(`    ${h}`);
+  }
+}
+
+// Server-side rule: API route handlers under app/api/v1 must not project a
+// raw `fileUrl:` column into their JSON response unless they're on the
+// allow-list above. This catches API regressions that the JSX-only rules
+// above can't see.
+{
+  let out = "";
+  try {
+    out = execFileSync(
+      "rg",
+      ["-n", "--no-heading", "--color=never", "-g", "*.{ts,tsx}", "fileUrl:\\s*[a-zA-Z]", "artifacts/pinnacle-website/app/api/v1"],
+      { encoding: "utf8" },
+    );
+  } catch (err) {
+    if (!(err && typeof err === "object" && "status" in err && err.status === 1)) throw err;
+  }
+  const apiHits = out
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .filter((line) => !line.includes("// allow-direct-pdf"))
+    .filter((line) => !API_FILEURL_ALLOWLIST.some((p) => line.includes(p)));
+  if (apiHits.length > 0) {
+    failed = true;
+    console.error(`\n✗ raw fileUrl projected from non-admin API route`);
+    for (const h of apiHits) console.error(`    ${h}`);
   }
 }
 
