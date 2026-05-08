@@ -11,6 +11,12 @@ export const dynamic = "force-dynamic";
 
 const VALID_EVENTS = new Set(["play_seek", "watermark_removed"]);
 
+function getClientIp(req: NextRequest): string | null {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return req.headers.get("x-real-ip");
+}
+
 // POST /api/v1/recordings/[id]/telemetry — small client beacon for events
 // that the stream proxy can't see (seek, overlay-removal-detected). Cheap
 // and best-effort; failures are swallowed by the caller. We still gate on
@@ -58,6 +64,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   await logAudit(user.id, user.name, `recording.${event}`, "class_recording", rec.id, {
+    recordingId: rec.id,
+    viewerId: user.id,
+    ip: getClientIp(req),
+    userAgent: req.headers.get("user-agent"),
     positionSec: typeof body.positionSec === "number" ? body.positionSec : undefined,
   });
   return ok({ logged: true });
