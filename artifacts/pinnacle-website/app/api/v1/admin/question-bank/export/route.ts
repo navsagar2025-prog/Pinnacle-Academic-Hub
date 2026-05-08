@@ -16,7 +16,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { questionBank } from "@workspace/db/schema";
-import { getRealAdminUser } from "@/lib/server/portal-auth";
+import { requirePortalRole } from "@/lib/server/portal-auth";
 import { notDeleted } from "@/lib/server/question-bank-deletion";
 import { logAudit } from "@/lib/server/audit";
 import { withWatermark, buildWatermarkContext } from "@/lib/server/watermark";
@@ -26,10 +26,10 @@ export const runtime = "nodejs";
 const MAX_ROWS = 200;
 
 export async function GET(req: NextRequest) {
-  const adminUser = await getRealAdminUser();
-  if (!adminUser) {
-    return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
-  }
+  // `requirePortalRole("admin")` enforces the admin role and short-circuits
+  // with a redirect/403 for non-admin sessions, so authenticated-but-non-admin
+  // users cannot reach the export query.
+  const adminUser = await requirePortalRole("admin");
 
   const sp = req.nextUrl.searchParams;
   const conds: SQL[] = [notDeleted];
