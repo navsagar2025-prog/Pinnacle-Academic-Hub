@@ -123,7 +123,12 @@ export default async function RootLayout({
               __html: `(function(){
   try {
     var p = location.pathname;
-    if (p.indexOf('/portal') === 0) return;
+    // Strip the base-path prefix so the check is always against the logical
+    // route, regardless of whether the app is mounted at / or /pinnacle-website.
+    var bp = '${base}';
+    var rel = (bp && p.indexOf(bp) === 0) ? p.slice(bp.length) || '/' : p;
+    // Exclude admin/student/parent/teacher portal — only public traffic.
+    if (rel.indexOf('/portal') === 0) return;
     var payload = JSON.stringify({ path: p, referrer: document.referrer || null });
     if (navigator.sendBeacon) {
       navigator.sendBeacon('${base}/api/v1/telemetry/pageview', new Blob([payload], { type: 'application/json' }));

@@ -118,12 +118,23 @@ async function fetchGa4Data(propertyId: string, serviceAccountJson: string) {
 // Internal fallback — page_views table
 // ---------------------------------------------------------------------------
 
+// Classify a normalised referrer hostname into a GA4-style channel group.
+function classifyReferrer(host: string | null): string {
+  if (!host) return "Direct";
+  const h = host.toLowerCase();
+  if (/google\.|bing\.|yahoo\.|duckduckgo\.|baidu\.|yandex\.|ecosia\./.test(h)) return "Organic Search";
+  if (/facebook\.|instagram\.|twitter\.|t\.co|linkedin\.|pinterest\.|reddit\.|youtube\.|tiktok\.|snapchat\./.test(h)) return "Social";
+  return "Referral";
+}
+
 async function fetchInternalData() {
-  const [topPagesRows, dailyRows, deviceRows, totalRows] = await Promise.all([
+  const THIRTY_DAYS_AGO = sql`to_char(now() - interval '30 days', 'YYYY-MM-DD')`;
+
+  const [topPagesRows, dailyRows, deviceRows, totalRows, referrerRows] = await Promise.all([
     db.execute(sql`
       SELECT path, sum(count)::int AS views
       FROM page_views
-      WHERE date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')
+      WHERE date >= ${THIRTY_DAYS_AGO}
       GROUP BY path
       ORDER BY views DESC
       LIMIT 10
@@ -131,20 +142,28 @@ async function fetchInternalData() {
     db.execute(sql`
       SELECT date, sum(count)::int AS views
       FROM page_views
-      WHERE date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')
+      WHERE date >= ${THIRTY_DAYS_AGO}
       GROUP BY date
       ORDER BY date
     `),
     db.execute(sql`
       SELECT device_type, sum(count)::int AS views
       FROM page_views
-      WHERE date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')
+      WHERE date >= ${THIRTY_DAYS_AGO}
       GROUP BY device_type
       ORDER BY views DESC
     `),
     db.select({ total: sql<number>`coalesce(sum(count), 0)::int` })
       .from(pageViews)
       .where(sql`date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')`),
+    // Referrer-based source breakdown
+    db.execute(sql`
+      SELECT referrer, sum(count)::int AS views
+      FROM page_views
+      WHERE date >= ${THIRTY_DAYS_AGO}
+      GROUP BY referrer
+      ORDER BY views DESC
+    `),
   ]);
 
   const topPages: TopPage[] = (topPagesRows.rows as { path: string; views: number }[]).map((r) => ({
@@ -166,7 +185,17 @@ async function fetchInternalData() {
   // correct 30-day total including pages that fell off the top-10 list.
   const totalViews = totalRows[0]?.total ?? 0;
 
-  return { topPages, daily, devices, totalViews };
+  // Aggregate referrer rows into channel buckets for the source breakdown chart.
+  const channelMap = new Map<string, number>();
+  for (const r of referrerRows.rows as { referrer: string | null; views: number }[]) {
+    const channel = classifyReferrer(r.referrer);
+    channelMap.set(channel, (channelMap.get(channel) ?? 0) + r.views);
+  }
+  const sources: SourceRow[] = [...channelMap.entries()].map(([name, value], i) => ({
+    name, value, color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
+
+  return { topPages, daily, devices, totalViews, sources };
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +240,8 @@ export default async function TrafficPage() {
   const topPages = ga4Data?.topPages ?? internalData.topPages;
   const dailyData = ga4Data?.daily ?? internalData.daily;
   const devices = ga4Data?.devices ?? internalData.devices;
-  const sources = ga4Data?.sources ?? [];
+  // Fall back to internal referrer-channel breakdown when GA4 is not configured.
+  const sources = ga4Data?.sources ?? internalData.sources;
 
   return (
     <div className="space-y-6">

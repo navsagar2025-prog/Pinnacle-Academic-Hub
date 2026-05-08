@@ -58,17 +58,27 @@ export async function POST(req: NextRequest) {
     // Truncate to 500 chars to prevent abuse
     path = path.slice(0, 500);
 
-    const referrer = typeof body.referrer === "string" ? body.referrer.slice(0, 500) : null;
+    // Normalise referrer to just the hostname (avoids full-URL cardinality
+    // explosion while still enabling traffic-source breakdown).
+    let referrerDomain: string | null = null;
+    if (typeof body.referrer === "string" && body.referrer.length > 0) {
+      try {
+        referrerDomain = new URL(body.referrer).hostname.replace(/^www\./, "");
+      } catch {
+        referrerDomain = null;
+      }
+    }
     const deviceType = getDeviceType(ua);
     const date = todayIso();
 
-    // Upsert: one row per (path, date, device_type) so device-breakdown
-    // queries in the fallback dashboard are correct. referrer is not included
-    // in the key because its very high cardinality would create a row explosion.
+    // Upsert: one row per (path, date, device_type, referrer) so both the
+    // device-breakdown and traffic-source charts in the fallback dashboard are
+    // correct. referrer is stored as the normalised hostname (or NULL for
+    // direct/unknown) to prevent cardinality explosion from full referrer URLs.
     await db.execute(sql`
-      INSERT INTO page_views (id, path, device_type, count, date, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${path}, ${deviceType}, 1, ${date}, now(), now())
-      ON CONFLICT (path, date, device_type)
+      INSERT INTO page_views (id, path, device_type, referrer, count, date, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${path}, ${deviceType}, ${referrerDomain}, 1, ${date}, now(), now())
+      ON CONFLICT (path, date, device_type, referrer)
       DO UPDATE SET
         count = page_views.count + 1,
         updated_at = now()

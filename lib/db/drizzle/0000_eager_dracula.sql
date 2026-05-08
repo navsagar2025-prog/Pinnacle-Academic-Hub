@@ -408,6 +408,7 @@ CREATE TABLE "page_views" (
         "path" text NOT NULL,
         "country" text,
         "device_type" text DEFAULT 'desktop' NOT NULL,
+        "referrer" text,
         "count" integer DEFAULT 1 NOT NULL,
         "date" text NOT NULL,
         "created_at" timestamp DEFAULT now() NOT NULL,
@@ -772,7 +773,7 @@ CREATE INDEX "ip_lockouts_ip_idx" ON "ip_lockouts" USING btree ("ip");--> statem
 CREATE INDEX "ip_lockouts_locked_until_idx" ON "ip_lockouts" USING btree ("locked_until");--> statement-breakpoint
 CREATE UNIQUE INDEX "mock_test_answers_attempt_question_uq" ON "mock_test_answers" USING btree ("attempt_id","question_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mock_test_notifications_test_kind_uniq" ON "mock_test_notifications" USING btree ("test_id","kind");--> statement-breakpoint
-CREATE UNIQUE INDEX "page_views_path_date_device_uq" ON "page_views" USING btree ("path","date","device_type");--> statement-breakpoint
+CREATE UNIQUE INDEX "page_views_path_date_device_ref_uq" ON "page_views" USING btree ("path","date","device_type","referrer");--> statement-breakpoint
 CREATE INDEX "page_views_date_idx" ON "page_views" USING btree ("date");--> statement-breakpoint
 CREATE INDEX "practice_set_assignments_set_idx" ON "practice_set_assignments" USING btree ("set_id");--> statement-breakpoint
 CREATE INDEX "practice_set_assignments_batch_idx" ON "practice_set_assignments" USING btree ("batch_id");--> statement-breakpoint

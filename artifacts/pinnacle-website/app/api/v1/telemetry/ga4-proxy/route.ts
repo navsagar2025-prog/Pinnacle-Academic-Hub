@@ -27,13 +27,17 @@ const PII_STRIP = [
   "email", "phone", "name", "address",
 ];
 
-function stripPii(obj: Record<string, unknown>): Record<string, unknown> {
-  const clean: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (PII_STRIP.some((p) => k.toLowerCase().includes(p))) continue;
-    clean[k] = v;
+function stripPii(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripPii);
+  if (value !== null && typeof value === "object") {
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (PII_STRIP.some((p) => k.toLowerCase().includes(p))) continue;
+      clean[k] = stripPii(v);
+    }
+    return clean;
   }
-  return clean;
+  return value;
 }
 
 async function getGa4MpCredentials(): Promise<{ measurementId: string; apiSecret: string } | null> {
