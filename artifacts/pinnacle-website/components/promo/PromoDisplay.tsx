@@ -69,7 +69,68 @@ export function PromoBannerDisplay({
   );
 }
 
-/** Full-screen modal popup. */
+/**
+ * Popup card — the visual content of the modal.
+ * Used by both `PromoPopupDisplay` (full-screen overlay) and the admin
+ * preview modal (inline, no fixed positioning) so parity is guaranteed.
+ */
+export function PromoPopupCard({
+  promo,
+  onClose,
+}: {
+  promo: PromoDisplayData;
+  onClose?: () => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div
+        className="px-6 py-5 text-white"
+        style={{ backgroundColor: promo.bgColour }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Megaphone size={18} className="opacity-80 shrink-0 mt-0.5" />
+            <h2 className="font-bold text-lg leading-tight">{promo.title}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/60 hover:text-white shrink-0 mt-0.5"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-6 py-5 space-y-4">
+        <div
+          className="text-slate-600 text-sm leading-relaxed prose prose-sm max-w-none [&_a]:text-[var(--color-teal)] [&_a]:underline [&_strong]:font-semibold [&_em]:italic"
+          dangerouslySetInnerHTML={{ __html: promo.body }}
+        />
+        {promo.ctaLabel && promo.ctaUrl && (
+          <a
+            href={promo.ctaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="block w-full py-3 rounded-xl text-center text-sm font-bold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: promo.ctaColour }}
+          >
+            {promo.ctaLabel}
+          </a>
+        )}
+        <button
+          onClick={onClose}
+          className="block w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          Maybe later
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Full-screen modal popup — wraps PromoPopupCard in a fixed overlay. */
 export function PromoPopupDisplay({
   promo,
   onClose,
@@ -82,53 +143,8 @@ export function PromoPopupDisplay({
       className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="px-6 py-5 text-white"
-          style={{ backgroundColor: promo.bgColour }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Megaphone size={18} className="opacity-80 shrink-0 mt-0.5" />
-              <h2 className="font-bold text-lg leading-tight">{promo.title}</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white/60 hover:text-white shrink-0 mt-0.5"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          <div
-            className="text-slate-600 text-sm leading-relaxed prose prose-sm max-w-none [&_a]:text-[var(--color-teal)] [&_a]:underline [&_strong]:font-semibold [&_em]:italic"
-            dangerouslySetInnerHTML={{ __html: promo.body }}
-          />
-          {promo.ctaLabel && promo.ctaUrl && (
-            <a
-              href={promo.ctaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={onClose}
-              className="block w-full py-3 rounded-xl text-center text-sm font-bold text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: promo.ctaColour }}
-            >
-              {promo.ctaLabel}
-            </a>
-          )}
-          <button
-            onClick={onClose}
-            className="block w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            Maybe later
-          </button>
-        </div>
+      <div onClick={(e) => e.stopPropagation()}>
+        <PromoPopupCard promo={promo} onClose={onClose} />
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import { apiUrl } from "@/lib/utils";
 import { RichBodyEditor } from "@/components/promo/RichBodyEditor";
 import {
   PromoBannerDisplay,
-  PromoPopupDisplay,
+  PromoPopupCard,
   type PromoDisplayData,
 } from "@/components/promo/PromoDisplay";
 
@@ -114,32 +114,10 @@ function PromoPreviewModal({
               <PromoBannerDisplay promo={promo} />
             </div>
           ) : (
-            /* Render popup inline (not fixed-position) for the preview pane */
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 max-w-sm mx-auto overflow-hidden">
-              <div className="px-6 py-5 text-white" style={{ backgroundColor: promo.bgColour }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Megaphone size={18} className="opacity-80 shrink-0 mt-0.5" />
-                    <h2 className="font-bold text-lg leading-tight">{promo.title}</h2>
-                  </div>
-                  <X size={18} className="text-white/60 shrink-0 mt-0.5" />
-                </div>
-              </div>
-              <div className="px-6 py-5 space-y-4">
-                <div
-                  className="text-slate-600 text-sm leading-relaxed prose prose-sm max-w-none [&_a]:text-[var(--color-teal)] [&_a]:underline [&_strong]:font-semibold [&_em]:italic"
-                  dangerouslySetInnerHTML={{ __html: promo.body }}
-                />
-                {promo.ctaLabel && promo.ctaUrl && (
-                  <div
-                    className="block w-full py-3 rounded-xl text-center text-sm font-bold text-white"
-                    style={{ backgroundColor: promo.ctaColour }}
-                  >
-                    {promo.ctaLabel}
-                  </div>
-                )}
-                <p className="text-center text-sm text-slate-400">Maybe later</p>
-              </div>
+            /* PromoPopupCard is the exact same card used inside PromoPopupDisplay
+               at runtime — rendered inline here (no fixed overlay) for the preview pane. */
+            <div className="max-w-md mx-auto">
+              <PromoPopupCard promo={promo} />
             </div>
           )}
         </div>

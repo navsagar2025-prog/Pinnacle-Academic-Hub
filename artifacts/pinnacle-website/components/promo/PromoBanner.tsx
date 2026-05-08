@@ -34,8 +34,11 @@ export function PromoBanner({ basePath }: { basePath: string }) {
         const json = await res.json();
         const items: PromoDisplayData[] = json.data ?? [];
 
+        // On the public site, all active promos render as a top banner regardless
+        // of displayType (the popup variant is student-portal only).  Pick the
+        // first non-dismissed active promo.
         const banner = items.find(
-          (p) => p.displayType === "banner" && p.id && !localStorage.getItem(LS_KEY(p.id!)),
+          (p) => p.id && !localStorage.getItem(LS_KEY(p.id!)),
         );
 
         if (!cancelled && banner) {
