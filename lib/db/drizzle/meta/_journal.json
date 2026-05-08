@@ -15,6 +15,13 @@
       "when": 1746693600000,
       "tag": "0001_blog_ai_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1746780000000,
+      "tag": "0002_promotions",
+      "breakpoints": true
     }
   ]
 }

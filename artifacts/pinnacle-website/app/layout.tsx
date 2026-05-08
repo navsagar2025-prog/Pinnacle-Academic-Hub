@@ -4,6 +4,7 @@ import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { SITE_URL } from "@/lib/seo/page-registry";
+import { PromoBanner } from "@/components/promo/PromoBanner";
 
 if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
   throw new Error(
@@ -107,6 +108,7 @@ export default async function RootLayout({
     >
       <html lang="en" className={`${playfair.variable} ${jakarta.variable}`}>
         <body className="font-[family-name:var(--font-jakarta)]">
+          <PromoBanner basePath={base} />
           {children}
           <script
             nonce={nonce}

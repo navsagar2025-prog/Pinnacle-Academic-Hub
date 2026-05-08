@@ -28,6 +28,7 @@ const NAV_ITEMS = [
   { label: "Doubt Q&A", href: "/portal/admin/doubts", icon: "MessageCircleQuestion" },
   { label: "Blog CMS", href: "/portal/admin/blog", icon: "FileText" },
   { label: "Gallery", href: "/portal/admin/gallery", icon: "Images" },
+  { label: "Promotions", href: "/portal/admin/promotions", icon: "Megaphone" },
   { label: "Analytics", href: "#", icon: "FileBarChart", divider: true },
   { label: "Enrollment Funnel", href: "/portal/admin/analytics/enrollment", icon: "TrendingUp" },
   { label: "Fee Collection", href: "/portal/admin/analytics/fees", icon: "CreditCard" },

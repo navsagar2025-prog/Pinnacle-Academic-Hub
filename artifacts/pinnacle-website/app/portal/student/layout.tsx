@@ -2,6 +2,7 @@ import { requirePortalRole } from "@/lib/server/portal-auth";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { readImpersonationContext } from "@/lib/server/impersonation";
 import { ImpersonationBanner } from "@/components/portal/ImpersonationBanner";
+import { PromoPopup } from "@/components/promo/PromoPopup";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/portal/student", icon: "LayoutDashboard" },
@@ -30,6 +31,8 @@ export default async function StudentPortalLayout({
   const user = await requirePortalRole("student");
   const impersonation = await readImpersonationContext();
 
+  const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website").replace(/\/$/, "");
+
   return (
     <PortalShell
       navItems={NAV_ITEMS}
@@ -37,6 +40,7 @@ export default async function StudentPortalLayout({
       userName={user.name}
       userRole="student"
     >
+      <PromoPopup basePath={base} />
       {impersonation ? (
         <ImpersonationBanner
           adminName={impersonation.adminName ?? "Admin"}

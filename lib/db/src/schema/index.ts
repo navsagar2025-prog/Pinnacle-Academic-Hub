@@ -30,6 +30,8 @@ export const noticeCategoryEnum = pgEnum("notice_category", ["Academic", "Test",
 export const batchStatusEnum = pgEnum("batch_status", ["active", "upcoming", "full", "completed"]);
 export const enquiryStatusEnum = pgEnum("enquiry_status", ["new", "contacted", "interested", "converted", "declined"]);
 export const blogStatusEnum = pgEnum("blog_status", ["draft", "published"]);
+export const promoDisplayTypeEnum = pgEnum("promo_display_type", ["banner", "popup"]);
+export const promoAudienceEnum = pgEnum("promo_audience", ["public", "student", "both"]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -289,6 +291,27 @@ export const blogPosts = pgTable("blog_posts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const promotions = pgTable("promotions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  displayType: promoDisplayTypeEnum("display_type").notNull().default("banner"),
+  audience: promoAudienceEnum("audience").notNull().default("public"),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  ctaLabel: text("cta_label"),
+  ctaUrl: text("cta_url"),
+  bgColour: text("bg_colour").notNull().default("#1a2e5a"),
+  ctaColour: text("cta_colour").notNull().default("#2a9d8f"),
+  createdById: uuid("created_by_id").references(() => users.id),
+  archivedAt: timestamp("archived_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Promotion = typeof promotions.$inferSelect;
+export type NewPromotion = typeof promotions.$inferInsert;
 
 export const results = pgTable("results", {
   id: uuid("id").primaryKey().defaultRandom(),

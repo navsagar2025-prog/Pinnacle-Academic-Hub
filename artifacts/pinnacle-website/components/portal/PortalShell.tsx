@@ -43,6 +43,7 @@ import {
   Mail,
   Cpu,
   UserCog,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -84,6 +85,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Mail,
   Cpu,
   UserCog,
+  Megaphone,
 };
 
 export interface NavItem {
