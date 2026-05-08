@@ -8,7 +8,27 @@ export async function GET(request: Request) {
   const description =
     searchParams.get("description") ??
     "Greater Noida's Premier JEE · NEET · Board Coaching Institute";
-  const imageUrl = searchParams.get("image") ?? null;
+  // Sanitise inputs — apply length limits to prevent oversized render work.
+  const safeTitle = title.slice(0, 200);
+  const safeDesc = description.slice(0, 500);
+
+  // ?image= param: restrict to same-origin relative paths only.
+  // Accepting arbitrary remote URLs would allow server-side fetch of internal
+  // or private network resources (SSRF).  Same-origin paths are safe since
+  // the OG endpoint itself is on the same host.
+  const imageParam = searchParams.get("image") ?? null;
+  let featuredImageUrl: string | null = null;
+  if (imageParam) {
+    // Accept only path-relative URLs (start with /) — same origin guaranteed.
+    if (imageParam.startsWith("/") && !imageParam.startsWith("//")) {
+      try {
+        featuredImageUrl = new URL(imageParam, request.url).href;
+      } catch {
+        // Malformed path — ignore.
+      }
+    }
+    // Absolute URLs from external origins are rejected (SSRF prevention).
+  }
 
   // Attempt to fetch the Pinnacle logo from the same origin so it renders
   // in the card.  Falls back gracefully if the asset is unreachable.
@@ -28,19 +48,6 @@ export async function GET(request: Request) {
     }
   } catch {
     // Logo fetch failed — continue without it.
-  }
-
-  // Featured image (optional ?image= param) — validate it's a remote URL.
-  let featuredImageUrl: string | null = null;
-  if (imageUrl) {
-    try {
-      const u = new URL(imageUrl);
-      if (u.protocol === "https:" || u.protocol === "http:") {
-        featuredImageUrl = imageUrl;
-      }
-    } catch {
-      // Invalid URL — ignore.
-    }
   }
 
   return new ImageResponse(

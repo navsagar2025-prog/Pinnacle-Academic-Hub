@@ -222,9 +222,11 @@ export default async function RootLayout({
     ? { headInjection: null, bodyInjection: null }
     : await getScriptSettings();
 
-  // Parse the head snippet into React elements *before* rendering so that
-  // the result can be safely placed as children of <head>.
+  // Parse both snippets into React elements so that inline <script> tags in
+  // both head and body injection receive the per-request CSP nonce and pass
+  // the Content-Security-Policy without needing 'unsafe-inline'.
   const headNodes = headInjection ? renderHeadSnippet(headInjection, nonce) : [];
+  const bodyNodes = bodyInjection ? renderHeadSnippet(bodyInjection, nonce) : [];
 
   return (
     <ClerkProvider
@@ -285,14 +287,13 @@ export default async function RootLayout({
               }}
             />
           )}
-          {/* body_injection: arbitrary HTML snippet (may include <script>,
-              <noscript>, chat widgets, etc.) injected before the pageview
-              beacon.  dangerouslySetInnerHTML on a <div> preserves all child
-              tags verbatim in the SSR output so the browser executes any
-              inline scripts at initial parse time. */}
-          {bodyInjection && (
-            <div dangerouslySetInnerHTML={{ __html: bodyInjection }} />
-          )}
+          {/* body_injection: arbitrary HTML snippet parsed into React nodes so
+              that inline <script> tags receive the per-request CSP nonce
+              (required by the nonce-based Content-Security-Policy enforced by
+              middleware).  External scripts (<script src="…">) and other
+              elements (<noscript>, <link>, <meta>, <style>) are also
+              supported — see renderHeadSnippet() above. */}
+          {bodyNodes.length > 0 && <>{bodyNodes}</>}
           {/* Server-side page-view beacon */}
           <script
             nonce={nonce}

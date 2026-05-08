@@ -53,14 +53,51 @@ function getClientIp(req: NextRequest): string | null {
 }
 
 function buildCsp(nonce: string): string {
+  // Common third-party analytics / tag-manager CDN hosts.
+  // These are needed so that admin-configured Script Injection snippets
+  // (Google Tag Manager, GA4, Meta Pixel, Clarity, HotJar, etc.) can load
+  // their external scripts without being blocked by CSP.
+  const thirdPartyScripts = [
+    "https://www.googletagmanager.com",
+    "https://*.google-analytics.com",
+    "https://*.google.com",
+    "https://*.facebook.net",
+    "https://*.facebook.com",
+    "https://*.clarity.ms",
+    "https://*.hotjar.com",
+    "https://*.intercom.io",
+    "https://*.intercomcdn.com",
+    "https://*.crisp.chat",
+  ].join(" ");
+
+  const thirdPartyConnect = [
+    "https://www.google-analytics.com",
+    "https://analytics.google.com",
+    "https://region1.google-analytics.com",
+    "https://*.clarity.ms",
+    "https://*.hotjar.com",
+    "https://*.intercom.io",
+    "https://www.facebook.com",
+    "https://connect.facebook.net",
+  ].join(" ");
+
+  const thirdPartyFrames = [
+    // GTM noscript <iframe> fallback
+    "https://www.googletagmanager.com",
+    // Common embeds
+    "https://www.youtube.com",
+    "https://www.youtube-nocookie.com",
+    "https://player.vimeo.com",
+  ].join(" ");
+
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://*.clerk.accounts.dev https://clerk.paconline.in`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://*.clerk.accounts.dev https://clerk.paconline.in ${thirdPartyScripts}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in https://*.googleapis.com https://storage.googleapis.com",
-    "frame-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in",
+    `connect-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in https://*.googleapis.com https://storage.googleapis.com ${thirdPartyConnect}`,
+    `frame-src 'self' https://*.clerk.accounts.dev https://clerk.paconline.in ${thirdPartyFrames}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
