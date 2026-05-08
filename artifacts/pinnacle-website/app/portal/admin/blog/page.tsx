@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import { blogPosts } from "@workspace/db/schema";
 import { sql, desc } from "drizzle-orm";
 import { FileText } from "lucide-react";
-import { AddBlogPostButton, EditBlogPostButton, DeleteBlogPostButton, PublishToggleButton } from "./BlogModal";
+import { AddBlogPostButton, EditBlogPostButton, DeleteBlogPostButton, PublishToggleButton, EnhanceAllDraftsButton } from "./BlogModal";
 
 export const metadata = { title: "Blog CMS — Admin Panel" };
 
@@ -18,7 +18,10 @@ export default async function AdminBlogPage() {
           <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)]">Blog CMS</h1>
           <p className="text-slate-500 text-sm mt-1">{total} posts · {published} published</p>
         </div>
-        <AddBlogPostButton />
+        <div className="flex items-center gap-3">
+          <EnhanceAllDraftsButton />
+          <AddBlogPostButton />
+        </div>
       </div>
 
       {rows.length === 0 ? (

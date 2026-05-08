@@ -4,7 +4,9 @@ export type AiTool =
   | "study_summariser"
   | "batch_insight"
   | "fee_reminder"
-  | "question_generator";
+  | "question_generator"
+  | "blog_enhancer"
+  | "blog_seo_generator";
 
 export interface NoticeWriterCtx {
   topic: string;
@@ -168,5 +170,8 @@ Quality gates (the reviewer will reject if violated):
 Output ONLY the JSON array, nothing else.`,
       };
     }
+
+    default:
+      throw new Error(`Unknown AI tool: ${tool as string}`);
   }
 }

@@ -6,6 +6,8 @@ import { db } from "@workspace/db";
 import { blogPosts } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "/pinnacle-website").replace(/\/$/, "");
+
 export const metadata = {
   title: "Study Tips & Blog — Pinnacle Academic Classes",
   description: "Expert study strategies, JEE & NEET preparation tips, and academic guidance from the faculty at Pinnacle Academic Classes, Greater Noida.",
@@ -17,7 +19,10 @@ export const metadata = {
     type: "website",
     images: [{ url: "/opengraph.jpg", width: 1200, height: 630, alt: "Pinnacle Academic Classes" }],
   },
-  alternates: { canonical: "/blog" },
+  alternates: {
+    canonical: "/blog",
+    types: { "application/rss+xml": `${BASE_PATH}/blog.rss` },
+  },
 };
 
 const STATIC_ARTICLES = [

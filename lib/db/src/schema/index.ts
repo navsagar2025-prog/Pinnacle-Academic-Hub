@@ -281,6 +281,11 @@ export const blogPosts = pgTable("blog_posts", {
   status: blogStatusEnum("status").notNull().default("draft"),
   readMinutes: integer("read_minutes").default(5),
   publishedAt: timestamp("published_at"),
+  // AI-generated metadata — populated by the blog AI suite actions.
+  seoTitle: text("seo_title"),
+  metaDescription: text("meta_description"),
+  focusKeyword: text("focus_keyword"),
+  aiEnhancedAt: timestamp("ai_enhanced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

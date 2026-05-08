@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const body = await request.json();
-    const { title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status } = body;
+    const { title, excerpt, content, category, tags, authorName, featuredImageUrl, readMinutes, status, seoTitle, metaDescription, focusKeyword } = body;
 
     const wasPublished = status === "published";
     const [existing] = await db.select({ status: blogPosts.status, publishedAt: blogPosts.publishedAt }).from(blogPosts).where(eq(blogPosts.id, id));
@@ -28,6 +28,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       ...(featuredImageUrl !== undefined && { featuredImageUrl }),
       ...(readMinutes !== undefined && { readMinutes: Number(readMinutes) }),
       ...(status !== undefined && { status }),
+      ...(seoTitle !== undefined && { seoTitle }),
+      ...(metaDescription !== undefined && { metaDescription }),
+      ...(focusKeyword !== undefined && { focusKeyword }),
       ...(wasPublished && !existing?.publishedAt && { publishedAt: new Date() }),
       updatedAt: new Date(),
     }).where(eq(blogPosts.id, id)).returning();
