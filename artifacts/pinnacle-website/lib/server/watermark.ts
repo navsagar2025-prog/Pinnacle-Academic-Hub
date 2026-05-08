@@ -393,6 +393,10 @@ export async function stampWithConfig(
   ctx: WatermarkContext,
   cfg: WatermarkConfig,
 ): Promise<{ bytes: Uint8Array; configHash: string }> {
+  if (!cfg.enabled) {
+    const passthrough = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes);
+    return { bytes: passthrough, configHash: configHash(cfg) };
+  }
   const text = expandTemplate(cfg.textTemplate, ctx);
   let pdf;
   try {
