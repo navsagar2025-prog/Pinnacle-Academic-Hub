@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+modules = ["nodejs-24"]
 
 [deployment]
 router = "application"
@@ -18,47 +18,3 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 80
-
-[[ports]]
-localPort = 8082
-externalPort = 4200
-
-[[ports]]
-localPort = 19049
-externalPort = 3002
-
-[[ports]]
-localPort = 19050
-externalPort = 5000
-
-[[ports]]
-localPort = 23973
-externalPort = 3000
-
-[[ports]]
-localPort = 24694
-externalPort = 3001
-
-[[ports]]
-localPort = 24697
-externalPort = 3003
-
-[userenv]
-
-[userenv.shared]
-VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Z2FtZS1idW5ueS05OC5jbGVyay5hY2NvdW50cy5kZXYk"
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_Z2FtZS1idW5ueS05OC5jbGVyay5hY2NvdW50cy5kZXYk"
-
-[nix]
-channel = "stable-25_05"
-
-[objectStorage]
-defaultBucketID = "replit-objstore-5e87bd9c-80b3-4f32-83d8-3ae49d5d8835"
