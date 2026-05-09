@@ -1,14 +1,21 @@
 import { Feather } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import React, { type ComponentProps } from "react";
-import { Alert, Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import React, { type ComponentProps, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useRole } from "@/context/RoleContext";
 import { useColors } from "@/hooks/useColors";
 import { useAISettings } from "@/lib/aiSettings";
 import { lightHaptic, successHaptic } from "@/lib/haptics";
+import {
+  authenticate,
+  getBiometricPreference,
+  getSupportedBiometricType,
+  isBiometricAvailable,
+  setBiometricPreference,
+} from "@/lib/biometric";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -95,6 +102,46 @@ export default function AdminMore() {
   const router = useRouter();
   const { settings: aiSettings, setDoubtResolverEnabled } = useAISettings();
   const demo = () => Alert.alert("Demo Mode", "This action is disabled in demo.", [{ text: "OK" }]);
+
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Biometric");
+  const [biometricToggling, setBiometricToggling] = useState(false);
+
+  useEffect(() => {
+    async function loadBiometricState() {
+      const available = await isBiometricAvailable();
+      setBiometricAvailable(available);
+      if (available) {
+        const [enabled, label] = await Promise.all([
+          getBiometricPreference(),
+          getSupportedBiometricType(),
+        ]);
+        setBiometricEnabled(enabled);
+        setBiometricLabel(label);
+      }
+    }
+    loadBiometricState();
+  }, []);
+
+  async function handleBiometricToggle(value: boolean) {
+    if (biometricToggling) return;
+    setBiometricToggling(true);
+    try {
+      if (value) {
+        const ok = await authenticate(`Confirm your ${biometricLabel} to enable biometric login`);
+        if (ok) {
+          await setBiometricPreference(true);
+          setBiometricEnabled(true);
+        }
+      } else {
+        await setBiometricPreference(false);
+        setBiometricEnabled(false);
+      }
+    } finally {
+      setBiometricToggling(false);
+    }
+  }
 
   const toggleAIResolver = async (next: boolean) => {
     if (next) successHaptic();
@@ -252,6 +299,47 @@ export default function AdminMore() {
 
       <View style={{ marginTop: 16 }}>
         <SectionHeader title="Settings" />
+        {biometricAvailable && (
+          <View
+            style={[
+              styles.navCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.navIcon,
+                { backgroundColor: "#E05C5C15", borderRadius: colors.radius - 4 },
+              ]}
+            >
+              <Feather name="shield" size={22} color="#E05C5C" />
+            </View>
+            <View style={styles.navText}>
+              <Text style={[styles.navLabel, { color: colors.foreground }]}>
+                {biometricLabel} Login
+              </Text>
+              <Text style={[styles.navSub, { color: colors.mutedForeground }]}>
+                {biometricEnabled
+                  ? "Enabled — app will prompt on next open"
+                  : "Unlock the app with your biometrics"}
+              </Text>
+            </View>
+            {biometricToggling ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Switch
+                value={biometricEnabled}
+                onValueChange={handleBiometricToggle}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            )}
+          </View>
+        )}
         <TouchableOpacity
           onPress={sendTestNotification}
           activeOpacity={0.7}
