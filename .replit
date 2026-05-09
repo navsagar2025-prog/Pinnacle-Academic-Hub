@@ -59,3 +59,6 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_Z2FtZS1idW5ueS05OC5jbGVyay5hY2NvdW5
 
 [nix]
 channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-5e87bd9c-80b3-4f32-83d8-3ae49d5d8835"
