@@ -7,15 +7,19 @@ const router = Router();
 router.post("/contact", async (req, res) => {
   try {
     const { name, phone, email, subject, message } = req.body;
-    if (!name || !phone) {
-      res.status(400).json({ error: "name and phone are required" });
+    if (!name) {
+      res.status(400).json({ error: "name is required" });
+      return;
+    }
+    if (!phone && !email) {
+      res.status(400).json({ error: "at least one of phone or email is required" });
       return;
     }
     const [row] = await db
       .insert(enquiries)
       .values({
         name,
-        phone,
+        phone: phone ?? "",
         email,
         message: subject ? `[${subject}] ${message}` : message,
         source: "contact-form",
