@@ -4,7 +4,11 @@ import { ShieldCheck, LogIn, ShieldAlert } from "lucide-react";
 
 type Role = "student" | "parent" | "teacher" | "admin";
 
-const ADMIN_EMAIL = "navendu.sagar@gmail.com";
+const ADMIN_EMAILS = [
+  "navendu.sagar@gmail.com",
+  "nav.sagar2025@gmail.com",
+  "nav.sagar2013@gmail.com",
+];
 
 const ROLE_META: Record<Role, { label: string; color: string; icon: string; description: string }> = {
   student: {
@@ -57,7 +61,7 @@ function AdminAccessDenied() {
 function AdminPortalContent({ children }: { children?: React.ReactNode }) {
   const { user } = useUser();
   const primaryEmail = user?.primaryEmailAddress?.emailAddress ?? "";
-  if (primaryEmail !== ADMIN_EMAIL) return <AdminAccessDenied />;
+  if (!ADMIN_EMAILS.includes(primaryEmail)) return <AdminAccessDenied />;
   return (
     <>
       {children ?? (
