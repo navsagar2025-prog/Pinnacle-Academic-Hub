@@ -6,6 +6,7 @@ import blogRouter from "./blog";
 import galleryRouter from "./gallery";
 import noticesRouter from "./notices";
 import leaderboardRouter from "./leaderboard";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/v1", blogRouter);
 router.use("/v1", galleryRouter);
 router.use("/v1", noticesRouter);
 router.use("/v1", leaderboardRouter);
+router.use("/v1", adminRouter);
 
 export default router;
