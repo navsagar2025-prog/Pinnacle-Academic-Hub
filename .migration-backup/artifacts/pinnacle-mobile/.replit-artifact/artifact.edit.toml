@@ -1,0 +1,26 @@
+kind = "mobile"
+previewPath = "/pinnacle-mobile/"
+title = "Pinnacle Academic Classes — Mobile App"
+version = "1.0.0"
+id = "artifacts/pinnacle-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+name = "expo"
+paths = [ "/pinnacle-mobile/" ]
+localPort = 19049
+
+[services.development]
+run = "pnpm --filter @workspace/pinnacle-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pinnacle-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/pinnacle-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "19049"
+BASE_PATH = "/pinnacle-mobile/"
