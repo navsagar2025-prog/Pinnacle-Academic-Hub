@@ -62,6 +62,14 @@ export default function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
           <img src="/logo.png" alt="Pinnacle Academic Classes" className="h-11 w-auto object-contain" />
+          <div>
+            <div className="text-[var(--color-navy)] font-bold text-base font-[family-name:var(--font-playfair)] leading-tight">
+              Pinnacle
+            </div>
+            <div className="text-[var(--color-teal)] text-xs font-semibold leading-tight">
+              Academic Classes
+            </div>
+          </div>
         </Link>
 
         <div className="hidden lg:flex items-center gap-1">
