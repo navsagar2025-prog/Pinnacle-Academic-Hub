@@ -1,0 +1,239 @@
+import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useState } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import ScreenContainer from "@/components/ScreenContainer";
+import { useColors } from "@/hooks/useColors";
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const CACHE_KEY = "pinnacle_parent_timetable";
+type Schedule = Record<string, { time: string; subject: string; teacher: string }[]>;
+const schedule: Schedule = {
+  Mon: [
+    { time: "5:00 PM", subject: "Physics", teacher: "Dr. Ramesh Kumar" },
+    { time: "7:00 PM", subject: "Study Hour", teacher: "Self-study" },
+  ],
+  Tue: [
+    { time: "5:00 PM", subject: "Chemistry", teacher: "Ms. Priya Sharma" },
+    { time: "7:00 PM", subject: "Mathematics", teacher: "Mr. Ajay Tiwari" },
+  ],
+  Wed: [
+    { time: "10:00 AM", subject: "Biology", teacher: "Ms. Nidhi Verma" },
+    { time: "5:00 PM", subject: "Physics", teacher: "Dr. Ramesh Kumar" },
+  ],
+  Thu: [
+    { time: "5:00 PM", subject: "Mathematics", teacher: "Mr. Ajay Tiwari" },
+    { time: "7:00 PM", subject: "Chemistry", teacher: "Ms. Priya Sharma" },
+  ],
+  Fri: [
+    { time: "5:00 PM", subject: "Physics — Doubt Session", teacher: "Dr. Ramesh Kumar" },
+  ],
+  Sat: [
+    { time: "9:00 AM", subject: "Mock Test", teacher: "All Faculty" },
+    { time: "12:00 PM", subject: "Test Discussion", teacher: "All Faculty" },
+  ],
+};
+
+const subjectColor: Record<string, string> = {
+  Physics: "#0A1F5C",
+  Chemistry: "#0D7377",
+  Mathematics: "#8B1A1A",
+  Biology: "#C9A84C",
+};
+
+export default function ParentTimetable() {
+  const colors = useColors();
+  const [day, setDay] = useState("Mon");
+  const [timetable, setTimetable] = useState<Schedule>(schedule);
+  const [fromCache, setFromCache] = useState(false);
+
+  const loadCache = useCallback(async () => {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) { setTimetable(JSON.parse(cached)); setFromCache(true); }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadCache().then(() => {
+      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(schedule)).catch(() => {});
+      setTimetable(schedule);
+      setFromCache(false);
+    });
+  }, [loadCache]);
+
+  const slots = timetable[day] ?? [];
+
+  return (
+    <ScreenContainer>
+      {fromCache && (
+        <View style={[styles.offlineBanner, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "50", borderRadius: colors.radius - 4 }]}>
+          <Feather name="wifi-off" size={12} color={colors.warning} />
+          <Text style={[styles.offlineText, { color: colors.warning }]}>Showing cached timetable</Text>
+        </View>
+      )}
+      <View
+        style={[
+          styles.childInfo,
+          {
+            backgroundColor: colors.secondary + "12",
+            borderColor: colors.secondary,
+            borderRadius: colors.radius,
+            marginTop: 16,
+            marginBottom: 16,
+          },
+        ]}
+      >
+        <Text style={[styles.childLabel, { color: colors.mutedForeground }]}>
+          Viewing timetable for
+        </Text>
+        <Text style={[styles.childName, { color: colors.foreground }]}>
+          Arjun Mehta · JEE 2026 Batch
+        </Text>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 20, marginHorizontal: -16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+      >
+        {DAYS.map((d) => (
+          <TouchableOpacity
+            key={d}
+            onPress={() => setDay(d)}
+            style={[
+              styles.dayBtn,
+              {
+                backgroundColor: day === d ? colors.secondary : colors.muted,
+                borderRadius: colors.radius - 4,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dayLabel,
+                { color: day === d ? colors.secondaryForeground : colors.mutedForeground },
+              ]}
+            >
+              {d}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {slots.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No classes scheduled</Text>
+        </View>
+      ) : (
+        slots.map((slot, i) => {
+          const color =
+            Object.entries(subjectColor).find(([key]) => slot.subject.startsWith(key))?.[1] ??
+            colors.secondary;
+          return (
+            <View key={i} style={styles.slotRow}>
+              <View style={styles.timeCol}>
+                <Text style={[styles.time, { color: colors.mutedForeground }]}>{slot.time}</Text>
+                {i < slots.length - 1 && (
+                  <View style={[styles.line, { backgroundColor: colors.border }]} />
+                )}
+              </View>
+              <View
+                style={[
+                  styles.slotCard,
+                  {
+                    backgroundColor: color + "12",
+                    borderLeftColor: color,
+                    borderRadius: colors.radius - 4,
+                  },
+                ]}
+              >
+                <Text style={[styles.slotSubject, { color: colors.foreground }]}>{slot.subject}</Text>
+                <Text style={[styles.slotTeacher, { color: colors.mutedForeground }]}>{slot.teacher}</Text>
+              </View>
+            </View>
+          );
+        })
+      )}
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  childInfo: {
+    borderWidth: 1,
+    padding: 12,
+    gap: 2,
+  },
+  childLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  childName: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dayBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  dayLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  empty: {
+    marginTop: 60,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  slotRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  timeCol: {
+    width: 72,
+    alignItems: "center",
+  },
+  time: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  line: {
+    width: 1,
+    flex: 1,
+    marginTop: 6,
+  },
+  slotCard: {
+    flex: 1,
+    borderLeftWidth: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  slotSubject: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  slotTeacher: {
+    fontSize: 12,
+  },
+});
