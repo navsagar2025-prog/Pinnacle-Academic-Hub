@@ -1,0 +1,5 @@
+questionText,questionType,optionA,optionB,optionC,optionD,correctOption,correctOptions,numericalAnswer,numericalTolerance,topic,explanation,marks,negativeMarks,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,explanationImageUrl,section
+"A ball is dropped from 20 m. Find its impact speed (g = 10 m/s²).",mcq,"10 m/s","14.1 m/s","20 m/s","30 m/s",C,,,,Kinematics,"v = sqrt(2gh) = sqrt(2*10*20) = 20 m/s",4,1,,,,,,,Physics
+"Which of the following are noble gases? (multiple correct)",multi,Helium,Nitrogen,Argon,Oxygen,,A|C,,,Periodic Table,"Helium and Argon are in Group 18 (noble gases).",4,1,,,,,,,Chemistry
+"The value of pi to two decimal places is:",numerical,,,,,,,3.14,0.005,Constants,"pi ≈ 3.14159…",4,0,,,,,,,Maths
+"State Newton's first law of motion.",mcq,"Inertia","Action–Reaction","F = ma","None of these",A,,,,Laws of Motion,"An object stays at rest or in uniform motion unless acted upon by a force.",4,1,,,,,,,Physics
