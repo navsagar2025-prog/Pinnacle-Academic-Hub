@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { ShieldCheck } from "lucide-react";
+import { Show } from "@clerk/react";
+import { ShieldCheck, LogIn } from "lucide-react";
 
 type Role = "student" | "parent" | "teacher" | "admin";
 
@@ -10,40 +11,64 @@ const ROLE_META: Record<Role, { label: string; color: string; description: strin
   admin: { label: "Admin", color: "text-amber-700 bg-amber-50", description: "Full platform management — students, fees, content, analytics, and system settings." },
 };
 
-export default function PortalAuthGuard({ role }: { role: Role }) {
+export default function PortalAuthGuard({ role, children }: { role: Role; children?: React.ReactNode }) {
   const meta = ROLE_META[role];
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-[var(--color-slate-light)] px-4">
-      <div className="max-w-md w-full text-center">
-        <div className={`w-16 h-16 rounded-2xl ${meta.color} flex items-center justify-center mx-auto mb-5`}>
-          <ShieldCheck size={32} />
-        </div>
-        <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-2">
-          {meta.label} Portal
-        </h1>
-        <p className="text-slate-500 text-sm mb-6">{meta.description}</p>
+    <>
+      <Show when="signed-in">
+        {children ?? (
+          <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-[var(--color-slate-light)] px-4">
+            <div className="max-w-md w-full text-center">
+              <div className={`w-16 h-16 rounded-2xl ${meta.color} flex items-center justify-center mx-auto mb-5`}>
+                <ShieldCheck size={32} />
+              </div>
+              <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-2">
+                {meta.label} Portal
+              </h1>
+              <p className="text-slate-500 text-sm mb-6">{meta.description}</p>
+              <div className="card border border-slate-200 text-left">
+                <p className="text-[var(--color-navy)] font-semibold text-sm mb-1">Coming Soon</p>
+                <p className="text-slate-500 text-sm">
+                  You're signed in! The full {meta.label.toLowerCase()} dashboard is being built and will be available shortly.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </Show>
+      <Show when="signed-out">
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-[var(--color-slate-light)] px-4">
+          <div className="max-w-md w-full text-center">
+            <div className={`w-16 h-16 rounded-2xl ${meta.color} flex items-center justify-center mx-auto mb-5`}>
+              <ShieldCheck size={32} />
+            </div>
+            <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[var(--color-navy)] mb-2">
+              {meta.label} Portal
+            </h1>
+            <p className="text-slate-500 text-sm mb-6">{meta.description}</p>
 
-        <div className="card text-left mb-6 border border-slate-200">
-          <p className="text-[var(--color-navy)] font-semibold text-sm mb-1">Authentication Required</p>
-          <p className="text-slate-500 text-sm">
-            Secure portal login is being set up. Students, parents, and staff will be able to sign in directly once authentication is live.
-          </p>
-        </div>
+            <div className="card text-left mb-6 border border-slate-200">
+              <p className="text-[var(--color-navy)] font-semibold text-sm mb-1">Sign in required</p>
+              <p className="text-slate-500 text-sm">
+                Please sign in with your Pinnacle account to access the {meta.label.toLowerCase()} portal.
+              </p>
+            </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/admissions" className="btn-primary px-6 py-2.5">
-            Apply / Enquire
-          </Link>
-          <Link href="/contact" className="btn-outline px-6 py-2.5">
-            Contact Us
-          </Link>
-        </div>
+            <Link href={`${basePath}/sign-in`} className="btn-primary px-6 py-2.5 inline-flex items-center gap-2">
+              <LogIn size={16} />
+              Sign In to Continue
+            </Link>
 
-        <p className="mt-6 text-xs text-slate-400">
-          Already enrolled and need access? Call{" "}
-          <a href="tel:+919971862138" className="text-[var(--color-teal)] hover:underline">+91 99718 62138</a>
-        </p>
-      </div>
-    </div>
+            <p className="mt-6 text-xs text-slate-400">
+              New to Pinnacle?{" "}
+              <a href="tel:+919971862138" className="text-[var(--color-teal)] hover:underline">Call +91 99718 62138</a>
+              {" "}to enquire about admissions.
+            </p>
+          </div>
+        </div>
+      </Show>
+    </>
   );
 }

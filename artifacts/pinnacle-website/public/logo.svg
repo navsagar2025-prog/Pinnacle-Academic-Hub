@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="56" viewBox="0 0 200 56">
+  <rect width="200" height="56" rx="10" fill="#0A1F5C"/>
+  <circle cx="28" cy="28" r="16" fill="rgba(201,168,76,0.2)"/>
+  <polygon points="28,14 32,24 43,24 34,31 37,42 28,35 19,42 22,31 13,24 24,24" fill="#C9A84C"/>
+  <text x="52" y="22" font-family="Georgia,serif" font-size="13" font-weight="700" letter-spacing="3" fill="#FFFFFF">PINNACLE</text>
+  <text x="52" y="38" font-family="Arial,sans-serif" font-size="9" letter-spacing="1" fill="rgba(201,168,76,0.85)">ACADEMIC CLASSES</text>
+</svg>
