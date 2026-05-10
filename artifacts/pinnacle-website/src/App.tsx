@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
@@ -109,14 +109,118 @@ function NotFound() {
   );
 }
 
+type Portal = "student" | "parent" | "teacher" | "admin";
+
+const PORTALS: { key: Portal; label: string; icon: string; description: string; color: string; accent: string }[] = [
+  {
+    key: "student",
+    label: "Student",
+    icon: "📚",
+    description: "Mock tests, study materials, attendance & dashboard",
+    color: "bg-blue-50 border-blue-200 hover:border-blue-500",
+    accent: "text-blue-700",
+  },
+  {
+    key: "parent",
+    label: "Parent",
+    icon: "👨‍👩‍👧",
+    description: "Child's progress, attendance & fee records",
+    color: "bg-green-50 border-green-200 hover:border-green-500",
+    accent: "text-green-700",
+  },
+  {
+    key: "teacher",
+    label: "Teacher",
+    icon: "🎓",
+    description: "Batches, assignments, mock tests & performance",
+    color: "bg-purple-50 border-purple-200 hover:border-purple-500",
+    accent: "text-purple-700",
+  },
+  {
+    key: "admin",
+    label: "Administrator",
+    icon: "⚙️",
+    description: "Full platform management & analytics",
+    color: "bg-amber-50 border-amber-200 hover:border-amber-500",
+    accent: "text-amber-700",
+  },
+];
+
 function SignInPage() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialPortal = (searchParams.get("portal") as Portal) || null;
+  const [selectedPortal, setSelectedPortal] = useState<Portal | null>(initialPortal);
+
+  if (!selectedPortal) {
+    return (
+      <div className="min-h-screen bg-[var(--color-slate-light)] flex items-center justify-center px-4 py-16">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <img
+              src={`${basePath}/logo.svg`}
+              alt="Pinnacle Academic Classes"
+              className="h-12 mx-auto mb-5"
+            />
+            <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-[var(--color-navy)] mb-2">
+              Sign In
+            </h1>
+            <p className="text-slate-500 text-sm">Select your portal to continue</p>
+          </div>
+
+          <div className="space-y-3">
+            {PORTALS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setSelectedPortal(p.key)}
+                className={`w-full text-left border-2 rounded-xl p-4 transition-all cursor-pointer ${p.color} group`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl">{p.icon}</span>
+                  <div className="flex-1">
+                    <p className={`font-bold text-[var(--color-navy)] text-base`}>{p.label} Portal</p>
+                    <p className="text-sm text-slate-500 mt-0.5">{p.description}</p>
+                  </div>
+                  <svg className={`w-5 h-5 ${p.accent} opacity-0 group-hover:opacity-100 transition-opacity`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-slate-400 mt-6">
+            New to Pinnacle?{" "}
+            <a href="/admissions" className="text-[var(--color-teal)] font-semibold hover:underline">
+              Enquire about admissions
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const portal = PORTALS.find((p) => p.key === selectedPortal)!;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-slate-light)] px-4 py-16">
+    <div className="min-h-screen bg-[var(--color-slate-light)] flex flex-col items-center justify-center px-4 py-16">
+      <button
+        onClick={() => setSelectedPortal(null)}
+        className="flex items-center gap-2 text-slate-500 hover:text-[var(--color-navy)] text-sm mb-6 self-start max-w-lg w-full transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to portal selection
+      </button>
+      <div className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full border ${portal.color} ${portal.accent} mb-5`}>
+        <span>{portal.icon}</span>
+        <span>{portal.label} Portal</span>
+      </div>
       <SignIn
         routing="path"
         path={`${basePath}/sign-in`}
         signUpUrl={`${basePath}/sign-up`}
-        fallbackRedirectUrl={`${basePath}/portal/student`}
+        fallbackRedirectUrl={`${basePath}/portal/${selectedPortal}`}
       />
     </div>
   );
