@@ -19,6 +19,10 @@ import GalleryPage from "@/pages/GalleryPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import SignInPage from "@/pages/SignInPage";
 import SignUpPage from "@/pages/SignUpPage";
+import StudentPortalPage from "@/pages/portal/StudentPortalPage";
+import ParentPortalPage from "@/pages/portal/ParentPortalPage";
+import TeacherPortalPage from "@/pages/portal/TeacherPortalPage";
+import AdminPortalPage from "@/pages/portal/AdminPortalPage";
 
 function NotFound() {
   return (
@@ -36,6 +40,7 @@ function NotFound() {
 function Router() {
   return (
     <Switch>
+      {/* Public pages */}
       <Route path="/" component={HomePage} />
       <Route path="/about" component={AboutPage} />
       <Route path="/courses" component={CoursesPage} />
@@ -54,8 +59,21 @@ function Router() {
       <Route path="/blog/:slug" component={BlogDetailPage} />
       <Route path="/gallery" component={GalleryPage} />
       <Route path="/leaderboard" component={LeaderboardPage} />
+
+      {/* Auth */}
       <Route path="/sign-in" component={SignInPage} />
       <Route path="/sign-up" component={SignUpPage} />
+
+      {/* Portals — top-level and all nested sub-routes captured via wildcard */}
+      <Route path="/portal/student" component={StudentPortalPage} />
+      <Route path="/portal/student/:rest*" component={StudentPortalPage} />
+      <Route path="/portal/parent" component={ParentPortalPage} />
+      <Route path="/portal/parent/:rest*" component={ParentPortalPage} />
+      <Route path="/portal/teacher" component={TeacherPortalPage} />
+      <Route path="/portal/teacher/:rest*" component={TeacherPortalPage} />
+      <Route path="/portal/admin" component={AdminPortalPage} />
+      <Route path="/portal/admin/:rest*" component={AdminPortalPage} />
+
       <Route component={NotFound} />
     </Switch>
   );

@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Database dumps — may contain PII/sensitive data, never commit
+attached_assets/*.sql
+attached_assets/*.dump
+*.sql.gz
