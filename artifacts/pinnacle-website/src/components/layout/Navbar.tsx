@@ -12,6 +12,9 @@ const NAV_LINKS = [
   { label: "Results", href: "/results" },
   { label: "Admissions", href: "/admissions" },
   { label: "Notices", href: "/notices" },
+  { label: "Blog", href: "/blog" },
+  { label: "Gallery", href: "/gallery" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
@@ -20,6 +23,9 @@ const MORE_LINKS = [
   { label: "Results & Toppers", href: "/results" },
   { label: "Achievements", href: "/achievements" },
   { label: "Notices", href: "/notices" },
+  { label: "Blog", href: "/blog" },
+  { label: "Gallery", href: "/gallery" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "About Us", href: "/about" },
   { label: "FAQ", href: "/faq" },
 ];
@@ -52,8 +58,8 @@ export default function Navbar() {
             <Link href="/admissions" className="bg-[var(--color-gold)] text-[var(--color-navy)] px-3 py-0.5 rounded text-xs font-bold hover:bg-[var(--color-gold-light)] transition-colors">
               Enrol Now
             </Link>
-            <Link href="/admissions" className="hidden sm:inline text-white/90 hover:text-[var(--color-gold)] transition-colors font-semibold">
-              Book Demo Class
+            <Link href="/sign-in" className="hidden sm:inline text-white/90 hover:text-[var(--color-gold)] transition-colors font-semibold">
+              Sign In
             </Link>
           </div>
         </div>
@@ -140,6 +146,9 @@ export default function Navbar() {
         </div>
 
         <div className="hidden lg:flex items-center gap-3">
+          <Link href="/sign-in" className="text-sm font-medium text-slate-600 hover:text-[var(--color-navy)] transition-colors px-3 py-2">
+            Sign In
+          </Link>
           <Link href="/admissions" className="btn-primary text-sm py-2 px-4">
             <BookOpen size={15} />
             Book Demo Class
@@ -176,8 +185,11 @@ export default function Navbar() {
             <Link href="/faq" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-[var(--color-navy)] hover:bg-slate-50">
               FAQ
             </Link>
-            <Link href="/fee-structure" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-[var(--color-navy)] hover:bg-slate-50">
-              Fee Structure
+            <Link href="/achievements" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-[var(--color-navy)] hover:bg-slate-50">
+              Achievements
+            </Link>
+            <Link href="/sign-in" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-[var(--color-navy)] hover:bg-slate-50">
+              Sign In
             </Link>
             <Link href="/admissions" onClick={() => setMobileOpen(false)} className="btn-primary w-full justify-center py-2.5">
               <BookOpen size={15} />

@@ -13,6 +13,12 @@ import AchievementsPage from "@/pages/AchievementsPage";
 import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
 import TermsPage from "@/pages/TermsPage";
 import RefundPolicyPage from "@/pages/RefundPolicyPage";
+import BlogPage from "@/pages/BlogPage";
+import BlogDetailPage from "@/pages/BlogDetailPage";
+import GalleryPage from "@/pages/GalleryPage";
+import LeaderboardPage from "@/pages/LeaderboardPage";
+import SignInPage from "@/pages/SignInPage";
+import SignUpPage from "@/pages/SignUpPage";
 
 function NotFound() {
   return (
@@ -44,6 +50,12 @@ function Router() {
       <Route path="/privacy-policy" component={PrivacyPolicyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/refund-policy" component={RefundPolicyPage} />
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/:slug" component={BlogDetailPage} />
+      <Route path="/gallery" component={GalleryPage} />
+      <Route path="/leaderboard" component={LeaderboardPage} />
+      <Route path="/sign-in" component={SignInPage} />
+      <Route path="/sign-up" component={SignUpPage} />
       <Route component={NotFound} />
     </Switch>
   );
