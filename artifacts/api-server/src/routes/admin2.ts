@@ -630,15 +630,16 @@ router.delete("/admin/practice-sets/:id/questions/:qid", async (req, res) => {
 
 router.get("/admin/users", async (req, res) => {
   try {
-    const { role, search, page = "1" } = req.query as { role?: string; search?: string; page?: string };
+    const { role, search, status, page = "1" } = req.query as { role?: string; search?: string; status?: string; page?: string };
     const offset = (parseInt(page) - 1) * 50;
-    const conditions = [];
+    const conditions: ReturnType<typeof eq>[] = [];
     if (role) conditions.push(eq(users.role, role as "student" | "parent" | "teacher" | "admin"));
-    if (search) conditions.push(or(ilike(users.name, `%${search}%`), ilike(users.email, `%${search}%`)));
+    if (status) conditions.push(eq(users.approvalStatus, status));
+    if (search) conditions.push(or(ilike(users.name, `%${search}%`), ilike(users.email, `%${search}%`)) as ReturnType<typeof eq>);
 
     const rows = await db.select({
       id: users.id, name: users.name, email: users.email, phone: users.phone,
-      role: users.role, clerkUserId: users.clerkUserId, createdAt: users.createdAt,
+      role: users.role, clerkUserId: users.clerkUserId, approvalStatus: users.approvalStatus, createdAt: users.createdAt,
     }).from(users)
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(users.createdAt))
@@ -647,6 +648,40 @@ router.get("/admin/users", async (req, res) => {
     const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(users).where(conditions.length ? and(...conditions) : undefined);
     res.json({ ok: true, data: { rows, total } });
   } catch (e) { res.status(500).json({ error: "Failed to fetch users" }); }
+});
+
+router.post("/admin/users", async (req, res) => {
+  const { name, email, phone, role } = req.body;
+  if (!name?.trim() || !email?.trim()) { res.status(400).json({ error: "name and email required" }); return; }
+  if (!["student", "parent", "teacher", "admin"].includes(role ?? "student")) { res.status(400).json({ error: "Invalid role" }); return; }
+  try {
+    const existing = await db.select({ id: users.id }).from(users).where(ilike(users.email, email.trim())).limit(1);
+    if (existing.length) { res.status(409).json({ error: "A user with this email already exists" }); return; }
+    const [row] = await db.insert(users).values({
+      name: name.trim(), email: email.trim().toLowerCase(),
+      phone: phone?.trim() || null,
+      role: role ?? "student",
+      approvalStatus: "approved",
+      clerkUserId: `admin_created_${Date.now()}`,
+    }).returning();
+    res.json({ ok: true, data: row });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to create user" }); }
+});
+
+router.patch("/admin/users/:id/approve", async (req, res) => {
+  try {
+    const [row] = await db.update(users).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
+    if (!row) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to approve user" }); }
+});
+
+router.patch("/admin/users/:id/reject", async (req, res) => {
+  try {
+    const [row] = await db.update(users).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
+    if (!row) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to reject user" }); }
 });
 
 router.patch("/admin/users/:id/role", async (req, res) => {

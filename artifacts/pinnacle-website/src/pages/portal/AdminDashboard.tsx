@@ -1207,6 +1207,7 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [visited, setVisited] = useState<Set<Section>>(() => new Set<Section>(["overview"]));
   const [qbPendingCount, setQbPendingCount] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
@@ -1222,7 +1223,10 @@ export default function AdminDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const json = await res.json();
-        if (json.ok) setQbPendingCount(json.data.pendingQBReviewCount ?? 0);
+        if (json.ok) {
+          setQbPendingCount(json.data.pendingQBReviewCount ?? 0);
+          setPendingApprovalCount(json.data.pendingApprovalCount ?? 0);
+        }
       } catch { /* best-effort */ }
     })();
   }, [getToken]);
@@ -1309,6 +1313,9 @@ export default function AdminDashboard() {
                   <span className="flex-1 text-left">{label}</span>
                   {key === "question-bank" && qbPendingCount > 0 && (
                     <span className="text-[10px] bg-orange-500 text-white rounded-full px-1.5 py-0.5 leading-none font-semibold">{qbPendingCount}</span>
+                  )}
+                  {key === "users" && pendingApprovalCount > 0 && (
+                    <span className="text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5 leading-none font-semibold">{pendingApprovalCount}</span>
                   )}
                 </button>
               );
