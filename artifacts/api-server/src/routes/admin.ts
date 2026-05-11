@@ -4,9 +4,10 @@ import { db } from "@workspace/db";
 import {
   notices, enquiries, blogPosts, galleryItems,
   users, students, teachers, courses, batches, feeRecords, results,
-  mockTests,
+  mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
+  pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
 } from "@workspace/db/schema";
-import { desc, eq, sql, asc } from "drizzle-orm";
+import { desc, eq, sql, asc, and, or } from "drizzle-orm";
 
 const router = Router();
 router.use(requireAuth());
@@ -21,17 +22,22 @@ router.get("/admin/stats", async (_req, res) => {
       [{ blogCount }],
       [{ galleryCount }],
       [{ newEnquiryCount }],
+      [{ studentCount }],
+      [{ teacherCount }],
+      [{ batchCount }],
+      [{ openDoubtsCount }],
     ] = await Promise.all([
       db.select({ noticeCount: sql<number>`count(*)::int` }).from(notices),
       db.select({ enquiryCount: sql<number>`count(*)::int` }).from(enquiries),
       db.select({ blogCount: sql<number>`count(*)::int` }).from(blogPosts),
       db.select({ galleryCount: sql<number>`count(*)::int` }).from(galleryItems),
-      db
-        .select({ newEnquiryCount: sql<number>`count(*)::int` })
-        .from(enquiries)
-        .where(eq(enquiries.admissionStatus, "new")),
+      db.select({ newEnquiryCount: sql<number>`count(*)::int` }).from(enquiries).where(eq(enquiries.admissionStatus, "new")),
+      db.select({ studentCount: sql<number>`count(*)::int` }).from(students),
+      db.select({ teacherCount: sql<number>`count(*)::int` }).from(teachers),
+      db.select({ batchCount: sql<number>`count(*)::int` }).from(batches),
+      db.select({ openDoubtsCount: sql<number>`count(*)::int` }).from(doubts).where(eq(doubts.isResolved, false)),
     ]);
-    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount } });
+    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount, studentCount, teacherCount, batchCount, openDoubtsCount } });
   } catch (e) {
     console.error("GET /admin/stats error:", e);
     res.status(500).json({ error: "Failed to fetch stats" });
@@ -487,6 +493,241 @@ router.patch("/admin/mock-tests/:id", async (req, res) => {
     const [row] = await db.update(mockTests).set({ isPublished, isPublic, updatedAt: new Date() }).where(eq(mockTests.id, req.params.id)).returning();
     res.json({ ok: true, data: row });
   } catch (e) { res.status(500).json({ error: "Failed to update mock test" }); }
+});
+
+// ── Users ──────────────────────────────────────────────────────────────────
+
+router.get("/admin/users", async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1")));
+    const limit = 50;
+    const offset = (page - 1) * limit;
+    const search = String(req.query.search ?? "").trim();
+    const role = String(req.query.role ?? "").trim();
+    const conds = [];
+    if (search) conds.push(or(
+      sql`${users.name} ilike ${"%" + search + "%"}`,
+      sql`${users.email} ilike ${"%" + search + "%"}`,
+    ));
+    if (role) conds.push(eq(users.role, role as "student" | "parent" | "teacher" | "admin"));
+    const where = conds.length ? and(...conds) : undefined;
+    const [rows, [{ total }]] = await Promise.all([
+      db.select().from(users).where(where).orderBy(desc(users.createdAt)).limit(limit).offset(offset),
+      db.select({ total: sql<number>`count(*)::int` }).from(users).where(where),
+    ]);
+    res.json({ ok: true, data: { rows, total } });
+  } catch (e) {
+    console.error("GET /admin/users error:", e);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+router.patch("/admin/users/:id/role", async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!["student", "parent", "teacher", "admin"].includes(role)) {
+      res.status(400).json({ error: "Invalid role" }); return;
+    }
+    const [row] = await db.update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, req.params.id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
+// ── Site Settings ──────────────────────────────────────────────────────────
+
+router.get("/admin/site-settings", async (_req, res) => {
+  try {
+    const rows = await db.select().from(siteSettings).orderBy(asc(siteSettings.key));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch site settings" });
+  }
+});
+
+router.patch("/admin/site-settings/bulk", async (req, res) => {
+  try {
+    const { updates } = req.body as { updates: { key: string; value: string; label?: string }[] };
+    if (!Array.isArray(updates)) { res.status(400).json({ error: "updates must be an array" }); return; }
+    await Promise.all(
+      updates.map(u =>
+        db.insert(siteSettings)
+          .values({ key: u.key, value: u.value, label: u.label ?? null })
+          .onConflictDoUpdate({ target: siteSettings.key, set: { value: u.value, updatedAt: new Date() } })
+      )
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// ── SEO Overrides ──────────────────────────────────────────────────────────
+
+router.get("/admin/seo", async (_req, res) => {
+  try {
+    const rows = await db.select().from(seoOverrides).orderBy(asc(seoOverrides.route));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch SEO overrides" });
+  }
+});
+
+router.post("/admin/seo", async (req, res) => {
+  try {
+    const { route, title, description, focusKeyword, noIndex } = req.body;
+    if (!route) { res.status(400).json({ error: "route is required" }); return; }
+    const [row] = await db.insert(seoOverrides)
+      .values({ route, title: title ?? null, description: description ?? null, focusKeyword: focusKeyword ?? null, noIndex: noIndex ?? false })
+      .returning();
+    res.status(201).json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to create SEO override" });
+  }
+});
+
+router.patch("/admin/seo/:id", async (req, res) => {
+  try {
+    const { title, description, focusKeyword, noIndex } = req.body;
+    const [row] = await db.update(seoOverrides)
+      .set({ title: title ?? null, description: description ?? null, focusKeyword: focusKeyword ?? null, noIndex: noIndex ?? false, updatedAt: new Date() })
+      .where(eq(seoOverrides.id, req.params.id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to update SEO override" });
+  }
+});
+
+router.delete("/admin/seo/:id", async (req, res) => {
+  try {
+    await db.delete(seoOverrides).where(eq(seoOverrides.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to delete SEO override" });
+  }
+});
+
+// ── Watermark Settings ─────────────────────────────────────────────────────
+
+router.get("/admin/watermarks", async (_req, res) => {
+  try {
+    const rows = await db.select().from(watermarkSettings).orderBy(asc(watermarkSettings.docType));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch watermark settings" });
+  }
+});
+
+router.patch("/admin/watermarks/:docType", async (req, res) => {
+  try {
+    const docType = req.params.docType;
+    const { enabled, textTemplate, position, opacity, rotation, fontSize, color, useGlobal } = req.body;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setFields: Record<string, any> = { updatedAt: new Date() };
+    if (enabled !== undefined) setFields.enabled = enabled;
+    if (textTemplate !== undefined) setFields.textTemplate = textTemplate;
+    if (position !== undefined) setFields.position = position;
+    if (opacity !== undefined) setFields.opacity = Number(opacity);
+    if (rotation !== undefined) setFields.rotation = Number(rotation);
+    if (fontSize !== undefined) setFields.fontSize = Number(fontSize);
+    if (color !== undefined) setFields.color = color;
+    if (useGlobal !== undefined) setFields.useGlobal = useGlobal;
+    const existing = await db.select({ id: watermarkSettings.id }).from(watermarkSettings).where(eq(watermarkSettings.docType, docType)).limit(1);
+    let row;
+    if (existing[0]) {
+      [row] = await db.update(watermarkSettings).set(setFields).where(eq(watermarkSettings.docType, docType)).returning();
+    } else {
+      [row] = await db.insert(watermarkSettings).values({ docType, ...setFields }).returning();
+    }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    console.error("PATCH /admin/watermarks error:", e);
+    res.status(500).json({ error: "Failed to update watermark settings" });
+  }
+});
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+
+router.get("/admin/analytics/pageviews", async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
+    const rows = await db
+      .select({ date: pageViews.date, total: sql<number>`sum(${pageViews.count})::int` })
+      .from(pageViews)
+      .where(sql`${pageViews.date} >= to_char(now() - interval '${sql.raw(String(days))} days', 'YYYY-MM-DD')`)
+      .groupBy(pageViews.date)
+      .orderBy(asc(pageViews.date));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch pageviews" });
+  }
+});
+
+router.get("/admin/analytics/top-pages", async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
+    const rows = await db
+      .select({ path: pageViews.path, total: sql<number>`sum(${pageViews.count})::int` })
+      .from(pageViews)
+      .where(sql`${pageViews.date} >= to_char(now() - interval '${sql.raw(String(days))} days', 'YYYY-MM-DD')`)
+      .groupBy(pageViews.path)
+      .orderBy(sql`sum(${pageViews.count}) desc`)
+      .limit(20);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch top pages" });
+  }
+});
+
+// ── Security Events ────────────────────────────────────────────────────────
+
+router.get("/admin/security/events", async (_req, res) => {
+  try {
+    const rows = await db.select().from(securityEvents).orderBy(desc(securityEvents.createdAt)).limit(200);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch security events" });
+  }
+});
+
+router.get("/admin/security/lockouts", async (_req, res) => {
+  try {
+    const rows = await db.select().from(ipLockouts).orderBy(desc(ipLockouts.createdAt)).limit(100);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch IP lockouts" });
+  }
+});
+
+router.patch("/admin/security/lockouts/:id/unlock", async (req, res) => {
+  try {
+    const [row] = await db.update(ipLockouts)
+      .set({ unlockedAt: new Date(), lockedUntil: null, updatedAt: new Date() })
+      .where(eq(ipLockouts.id, req.params.id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to unlock IP" });
+  }
+});
+
+// ── Audit Log ──────────────────────────────────────────────────────────────
+
+router.get("/admin/audit-log", async (_req, res) => {
+  try {
+    const rows = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch audit log" });
+  }
 });
 
 export default router;

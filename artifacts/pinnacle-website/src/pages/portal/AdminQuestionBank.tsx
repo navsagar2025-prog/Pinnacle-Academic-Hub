@@ -113,27 +113,27 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
     try {
       if (modal?.mode === "create") await api("POST", "/admin/question-bank", payload, getToken);
       else await api("PATCH", `/admin/question-bank/${modal?.item?.id}`, payload, getToken);
-      toast(modal?.mode === "create" ? "Question created" : "Question updated", "success");
+      toast("success", modal?.mode === "create" ? "Question created" : "Question updated");
       setModal(null); fetch_();
-    } catch { toast("Failed to save question", "error"); }
+    } catch { toast("error", "Failed to save question"); }
     setSaving(false);
   };
 
   const review = async (id: string, status: "approved" | "rejected") => {
     try {
       await api("PATCH", `/admin/question-bank/${id}/review`, { reviewStatus: status }, getToken);
-      toast(status === "approved" ? "Question approved" : "Question rejected", status === "approved" ? "success" : "info");
+      toast(status === "approved" ? "success" : "info", status === "approved" ? "Question approved" : "Question rejected");
       fetch_();
-    } catch { toast("Failed to update review", "error"); }
+    } catch { toast("error", "Failed to update review"); }
   };
 
   const softDelete = async () => {
     if (!deleteModal) return;
     try {
       await api("DELETE", `/admin/question-bank/${deleteModal.id}`, { reason: deleteModal.reason }, getToken);
-      toast("Question deleted", "success");
+      toast("success", "Question deleted");
       setDeleteModal(null); fetch_();
-    } catch { toast("Failed to delete question", "error"); }
+    } catch { toast("error", "Failed to delete question"); }
   };
 
   const goPage = (p: number) => { setPage(p); fetch_(p); };
@@ -371,9 +371,9 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
     try {
       if (modal?.mode === "create") await api("POST", "/admin/practice-sets", form, getToken);
       else await api("PATCH", `/admin/practice-sets/${modal?.item?.id}`, form, getToken);
-      toast(modal?.mode === "create" ? "Practice set created" : "Practice set updated", "success");
+      toast("success", modal?.mode === "create" ? "Practice set created" : "Practice set updated");
       setModal(null); load();
-    } catch { toast("Failed to save practice set", "error"); }
+    } catch { toast("error", "Failed to save practice set"); }
     setSaving(false);
   };
 

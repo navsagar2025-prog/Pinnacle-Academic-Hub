@@ -125,12 +125,17 @@ function OverviewSection({ getToken }: { getToken: () => Promise<string | null> 
   const { data, loading, reload } = useFetch<{
     noticeCount: number; enquiryCount: number; blogCount: number;
     galleryCount: number; newEnquiryCount: number;
+    studentCount: number; teacherCount: number; batchCount: number; openDoubtsCount: number;
   }>("/admin/stats", getToken);
 
   const cards = [
-    { label: "Notices", value: data?.noticeCount, icon: "📋", color: "bg-blue-50 text-blue-600" },
+    { label: "Students", value: data?.studentCount, icon: "🎓", color: "bg-blue-50 text-blue-600" },
+    { label: "Teachers", value: data?.teacherCount, icon: "👨‍🏫", color: "bg-teal-50 text-teal-700" },
+    { label: "Batches", value: data?.batchCount, icon: "🏫", color: "bg-indigo-50 text-indigo-600" },
+    { label: "Open Doubts", value: data?.openDoubtsCount, icon: "❓", color: "bg-orange-50 text-orange-600" },
+    { label: "Notices", value: data?.noticeCount, icon: "📋", color: "bg-sky-50 text-sky-600" },
     { label: "Enquiries", value: data?.enquiryCount, icon: "📩", color: "bg-purple-50 text-purple-600", badge: data?.newEnquiryCount },
-    { label: "Blog Posts", value: data?.blogCount, icon: "📝", color: "bg-teal-50 text-teal-600" },
+    { label: "Blog Posts", value: data?.blogCount, icon: "📝", color: "bg-green-50 text-green-600" },
     { label: "Gallery Items", value: data?.galleryCount, icon: "🖼️", color: "bg-amber-50 text-amber-600" },
   ];
 
@@ -143,13 +148,13 @@ function OverviewSection({ getToken }: { getToken: () => Promise<string | null> 
         </button>
       </div>
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
             <div key={i} className="card border border-slate-200 h-28 animate-pulse bg-slate-100" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {cards.map((c) => (
             <div key={c.label} className="card border border-slate-200 flex flex-col gap-2">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${c.color}`}>
