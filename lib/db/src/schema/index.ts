@@ -405,7 +405,9 @@ export const attendance = pgTable("attendance", {
   note: text("note"),
   markedBy: uuid("marked_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  studentDateSubjectUniq: uniqueIndex("attendance_student_date_subject_uniq").on(t.studentId, t.date, t.subject),
+}));
 
 export const studentTestResults = pgTable("student_test_results", {
   id: uuid("id").primaryKey().defaultRandom(),

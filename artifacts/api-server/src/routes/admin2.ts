@@ -214,7 +214,7 @@ router.get("/admin/attendance/low-alerts", async (_req, res) => {
 
 router.get("/admin/attendance", async (req, res) => {
   try {
-    const { batchId, date } = req.query as { batchId?: string; date?: string };
+    const { batchId, date, subject } = req.query as { batchId?: string; date?: string; subject?: string };
     if (!batchId || !date) { res.status(400).json({ error: "batchId and date required" }); return; }
     const day = new Date(date);
     const nextDay = new Date(day);
@@ -227,14 +227,14 @@ router.get("/admin/attendance", async (req, res) => {
       .where(and(eq(students.batchId, batchId), eq(students.isActive, true)))
       .orderBy(asc(students.rollNumber));
 
-    const records = await db
-      .select()
-      .from(attendance)
-      .where(and(
-        sql`student_id IN (SELECT id FROM students WHERE batch_id = ${batchId})`,
-        gte(attendance.date, day),
-        lte(attendance.date, nextDay),
-      ));
+    const conditions = [
+      sql`student_id IN (SELECT id FROM students WHERE batch_id = ${batchId})`,
+      gte(attendance.date, day),
+      lte(attendance.date, nextDay),
+    ];
+    if (subject) conditions.push(eq(attendance.subject, subject));
+
+    const records = await db.select().from(attendance).where(and(...conditions));
 
     const recordMap = new Map(records.map(r => [r.studentId, r]));
     const data = batchStudents.map(s => ({
@@ -261,7 +261,11 @@ router.post("/admin/attendance/bulk", async (req, res) => {
       status: r.status as "present" | "absent" | "late",
       markedBy: markedBy ?? null,
     }));
-    await db.insert(attendance).values(values).onConflictDoNothing();
+    await db.insert(attendance).values(values)
+      .onConflictDoUpdate({
+        target: [attendance.studentId, attendance.date, attendance.subject],
+        set: { status: sql`excluded.status`, markedBy: sql`excluded.marked_by` },
+      });
     res.json({ ok: true, count: values.length });
   } catch (e) { console.error(e); res.status(500).json({ error: "Failed to save attendance" }); }
 });

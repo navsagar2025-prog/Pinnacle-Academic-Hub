@@ -47,7 +47,8 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${BASE}/api/v1/admin/attendance?batchId=${batchId}&date=${date}`, { headers: { Authorization: `Bearer ${token}` } });
+      const subjectParam = subject ? `&subject=${encodeURIComponent(subject)}` : "";
+      const res = await fetch(`${BASE}/api/v1/admin/attendance?batchId=${batchId}&date=${date}${subjectParam}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       const data: AttendanceRow[] = json.data ?? [];
       setRows(data);
