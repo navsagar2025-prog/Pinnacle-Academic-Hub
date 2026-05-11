@@ -14,7 +14,9 @@ async function api(method: string, path: string, body: object | null, getToken: 
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  return res.json();
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`);
+  return json;
 }
 
 async function fetchApi<T>(path: string, getToken: () => Promise<string | null>): Promise<T> {
