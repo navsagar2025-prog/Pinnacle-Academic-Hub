@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Plus, X, Search, Check, Trash2, Pencil, ChevronLeft, ChevronRight,
   RotateCcw, AlertTriangle, Recycle, BookMarked, MinusCircle, Eye, EyeOff, Users,
@@ -138,8 +138,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
   }, [page, filters, search, tab, getToken, toast]);
 
   // Initial load
-  const [initialized, setInitialized] = useState(false);
-  if (!initialized) { setInitialized(true); load(1, "all"); }
+  useEffect(() => { load(1, "all"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchTab = (t: QBTab) => { setTab(t); setPage(1); load(1, t); };
   const applyFilters = () => { setPage(1); load(1, tab); };
@@ -630,8 +629,7 @@ function AssignmentModal({
     finally { setLoading(false); }
   }, [practiceSet.id, getToken, toast]);
 
-  const [initialized, setInitialized] = useState(false);
-  if (!initialized) { setInitialized(true); load(); }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredStudents = studentSearch.trim().length > 0
     ? allStudents.filter(s =>
@@ -820,8 +818,7 @@ function QuestionPickerModal({
     finally { setLoadingSet(false); }
   }, [setId, getToken, toast]);
 
-  const [loaded, setLoaded] = useState(false);
-  if (!loaded) { setLoaded(true); loadSetQuestions(); }
+  useEffect(() => { loadSetQuestions(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const searchBank = async () => {
     setSearching(true);
@@ -998,8 +995,16 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
     finally { setLoading(false); }
   }, [getToken, toast]);
 
-  const [initialized, setInitialized] = useState(false);
-  if (!initialized) { setInitialized(true); load(); }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deleteSet = async (s: PracticeSet) => {
+    if (!confirm(`Delete "${s.name}"? This will also remove all questions and assignments from this set.`)) return;
+    try {
+      await api("DELETE", `/admin/practice-sets/${s.id}`, null, getToken);
+      toast("success", "Practice set deleted");
+      load();
+    } catch { toast("error", "Failed to delete practice set"); }
+  };
 
   const openCreate = () => { setForm({ name: "", description: "", subject: "" }); setModal({ mode: "create" }); };
   const openEdit = (s: PracticeSet) => {
@@ -1061,6 +1066,9 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
               </button>
               <button onClick={() => openEdit(s)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)]">
                 <Pencil size={14} />
+              </button>
+              <button onClick={() => deleteSet(s)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors" title="Delete set">
+                <Trash2 size={14} />
               </button>
             </div>
           </div>

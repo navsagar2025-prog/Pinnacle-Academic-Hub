@@ -1010,6 +1010,13 @@ router.patch("/admin/practice-sets/:id", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to update practice set" }); }
 });
 
+router.delete("/admin/practice-sets/:id", async (req, res) => {
+  try {
+    await db.delete(practiceSets).where(eq(practiceSets.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: "Failed to delete practice set" }); }
+});
+
 router.get("/admin/practice-sets/:id/questions", async (req, res) => {
   try {
     const rows = await db.select({
