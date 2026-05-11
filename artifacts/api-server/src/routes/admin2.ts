@@ -421,22 +421,27 @@ router.patch("/admin/doubts/:id", async (req, res) => {
 
 router.post("/admin/doubts/:id/answer", async (req, res) => {
   try {
-    const { answerText, isOfficial } = req.body;
+    const { answerText } = req.body;
     if (!answerText?.trim()) { res.status(400).json({ error: "answerText required" }); return; }
     const { userId: clerkUserId } = getAuth(req);
     if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const [doubt] = await db.select({ id: doubts.id }).from(doubts).where(eq(doubts.id, req.params.id)).limit(1);
+    if (!doubt) { res.status(404).json({ error: "Doubt not found" }); return; }
     const [adminUser] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
     if (!adminUser) { res.status(500).json({ error: "Admin user record not found" }); return; }
-    const [answer] = await db.insert(doubtAnswers).values({
-      doubtId: req.params.id,
-      authorId: adminUser.id,
-      authorRole: "admin",
-      answerText: answerText.trim(),
-      isOfficial: isOfficial ?? false,
-    }).returning();
-    await db.update(doubts)
-      .set({ answerCount: sql`${doubts.answerCount} + 1`, updatedAt: new Date() })
-      .where(eq(doubts.id, req.params.id));
+    const answer = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(doubtAnswers).values({
+        doubtId: req.params.id,
+        authorId: adminUser.id,
+        authorRole: "admin",
+        answerText: answerText.trim(),
+        isOfficial: true,
+      }).returning();
+      await tx.update(doubts)
+        .set({ answerCount: sql`${doubts.answerCount} + 1`, updatedAt: new Date() })
+        .where(eq(doubts.id, req.params.id));
+      return row;
+    });
     res.json({ ok: true, data: answer });
   } catch (e) { console.error(e); res.status(500).json({ error: "Failed to post answer" }); }
 });
