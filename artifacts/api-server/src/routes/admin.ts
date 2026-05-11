@@ -783,14 +783,18 @@ router.get("/admin/question-bank/review-queue", async (_req, res) => {
   try {
     const rows = await db.select({
       id: questionBank.id, subject: questionBank.subject, topic: questionBank.topic,
+      classGrade: questionBank.classGrade, year: questionBank.year,
       difficulty: questionBank.difficulty, questionType: questionBank.questionType,
-      questionText: questionBank.questionText, source: questionBank.source,
-      reviewStatus: questionBank.reviewStatus, marks: questionBank.marks,
-      createdAt: questionBank.createdAt,
+      questionText: questionBank.questionText, options: questionBank.options,
+      correctAnswer: questionBank.correctAnswer, solution: questionBank.solution,
+      examName: questionBank.examName, marks: questionBank.marks,
+      isPublished: questionBank.isPublished, examTarget: questionBank.examTarget,
+      source: questionBank.source, reviewStatus: questionBank.reviewStatus,
+      language: questionBank.language, createdAt: questionBank.createdAt,
     }).from(questionBank)
-      .where(and(eq(questionBank.reviewStatus, "pending"), isNull(questionBank.deletedAt)))
+      .where(and(eq(questionBank.reviewStatus, "pending"), eq(questionBank.source, "AI"), isNull(questionBank.deletedAt)))
       .orderBy(asc(questionBank.createdAt));
-    res.json({ ok: true, data: rows });
+    res.json({ ok: true, data: { rows, total: rows.length, page: 1, limit: rows.length } });
   } catch (e) {
     console.error("GET /admin/question-bank/review-queue error:", e);
     res.status(500).json({ error: "Failed to fetch review queue" });

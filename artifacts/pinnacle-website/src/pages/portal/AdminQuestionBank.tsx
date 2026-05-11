@@ -78,7 +78,7 @@ const reviewColor: Record<string, string> = {
 
 type QBTab = "all" | "pending" | "deletion-requests" | "recycle-bin";
 
-export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string | null> }) {
+export function AdminQuestionBank({ getToken, onReviewComplete }: { getToken: () => Promise<string | null>; onReviewComplete?: () => void }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<QBTab>("all");
   const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", topic: "", examTarget: "", reviewStatus: "" });
@@ -115,6 +115,9 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       } else if (activeTab === "recycle-bin") {
         const rows = await fetchApi<RecycleBinItem[]>("/admin/question-bank/recycle-bin", getToken);
         setRecycleBin(rows);
+      } else if (activeTab === "pending") {
+        const d = await fetchApi<QBData>("/admin/question-bank/review-queue", getToken);
+        setData(d);
       } else {
         const params = new URLSearchParams({ page: String(p), limit: "30" });
         if (filters.subject) params.set("subject", filters.subject);
@@ -124,12 +127,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
         if (filters.source) params.set("source", filters.source);
         if (filters.examTarget) params.set("examTarget", filters.examTarget);
         if (search.trim()) params.set("search", search.trim());
-        if (activeTab === "pending") {
-          params.set("reviewStatus", "pending");
-          params.set("source", "AI");
-        } else if (filters.reviewStatus) {
-          params.set("reviewStatus", filters.reviewStatus);
-        }
+        if (filters.reviewStatus) params.set("reviewStatus", filters.reviewStatus);
         const d = await fetchApi<QBData>(`/admin/question-bank?${params}`, getToken);
         setData(d);
       }
@@ -194,6 +192,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       await api("PATCH", `/admin/question-bank/${id}/review`, { reviewStatus: status }, getToken);
       toast(status === "approved" ? "success" : "info", status === "approved" ? "Approved" : "Rejected");
       load(page, tab);
+      onReviewComplete?.();
     } catch { toast("error", "Failed to update review"); }
   };
 

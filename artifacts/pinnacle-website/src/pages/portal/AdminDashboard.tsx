@@ -1244,7 +1244,18 @@ export default function AdminDashboard() {
     "live-classes": <AdminLiveClasses getToken={tokenFn} />,
     recordings: <AdminRecordingsSection getToken={tokenFn} />,
     "mock-tests": <MockTestsSection getToken={tokenFn} />,
-    "question-bank": <AdminQuestionBank getToken={tokenFn} />,
+    "question-bank": <AdminQuestionBank getToken={tokenFn} onReviewComplete={() => {
+      (async () => {
+        try {
+          const token = await tokenFn();
+          const res = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/v1/admin/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const json = await res.json();
+          if (json.ok) setQbPendingCount(json.data.pendingQBReviewCount ?? 0);
+        } catch { /* best-effort */ }
+      })();
+    }} />,
     "practice-sets": <AdminPracticeSets getToken={tokenFn} />,
     fees: <FeesSection getToken={tokenFn} />,
     results: <ResultsSection getToken={tokenFn} />,
