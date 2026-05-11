@@ -4,27 +4,63 @@ import {
   LayoutDashboard, Bell, Users, BookOpen, Image, LogOut,
   Plus, Pencil, Trash2, Eye, EyeOff, X, Check, ChevronDown, RefreshCw,
   Menu, GraduationCap, School, Layers, CreditCard, Trophy, ClipboardList,
+  CalendarDays, ClipboardCheck, FileText, UserCheck, Video, Play,
+  MessageCircleQuestion, Megaphone, Database, BookMarked, Settings,
+  SearchCode, Droplet, BarChart2, ShieldAlert, UserCog,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
+import { AdminQuestionBank, AdminPracticeSets } from "./AdminQuestionBank";
+import { AdminSchedules } from "./AdminSchedules";
+import { AdminAssignments } from "./AdminAssignments";
+import { AdminStudyMaterials } from "./AdminStudyMaterials";
+import { AdminAttendance } from "./AdminAttendance";
+import { AdminLiveClasses } from "./AdminLiveClasses";
+import { AdminDoubts } from "./AdminDoubts";
+import { AdminPromotions } from "./AdminPromotions";
+import { AdminUsers } from "./AdminUsers";
+import { AdminSiteSettings, AdminSEO, AdminWatermarks } from "./AdminSiteSettings";
+import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
+import { AdminRecordingsSection } from "./AdminRecordings";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type Section = "overview" | "notices" | "enquiries" | "blog" | "gallery"
-  | "students" | "teachers" | "courses" | "batches" | "fees" | "results" | "mock-tests";
+  | "students" | "teachers" | "courses" | "batches" | "fees" | "results" | "mock-tests"
+  | "attendance" | "doubts" | "users"
+  | "timetable" | "assignments" | "study-materials" | "live-classes" | "recordings"
+  | "question-bank" | "practice-sets"
+  | "promotions"
+  | "site-settings" | "seo" | "watermarks" | "analytics" | "security";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType; group?: string }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
   { key: "students", label: "Students", Icon: GraduationCap, group: "People" },
   { key: "teachers", label: "Teachers", Icon: School, group: "People" },
+  { key: "attendance", label: "Attendance", Icon: UserCheck, group: "People" },
+  { key: "doubts", label: "Doubts / Q&A", Icon: MessageCircleQuestion, group: "People" },
+  { key: "users", label: "All Users", Icon: UserCog, group: "People" },
   { key: "courses", label: "Courses", Icon: BookOpen, group: "Academics" },
   { key: "batches", label: "Batches", Icon: Layers, group: "Academics" },
+  { key: "timetable", label: "Timetable", Icon: CalendarDays, group: "Academics" },
+  { key: "assignments", label: "Assignments", Icon: ClipboardCheck, group: "Academics" },
+  { key: "study-materials", label: "Study Materials", Icon: FileText, group: "Academics" },
+  { key: "live-classes", label: "Live Classes", Icon: Video, group: "Academics" },
+  { key: "recordings", label: "Recordings", Icon: Play, group: "Academics" },
   { key: "mock-tests", label: "Mock Tests", Icon: ClipboardList, group: "Academics" },
+  { key: "question-bank", label: "Question Bank", Icon: Database, group: "Academics" },
+  { key: "practice-sets", label: "Practice Sets", Icon: BookMarked, group: "Academics" },
   { key: "fees", label: "Fee Records", Icon: CreditCard, group: "Finance" },
   { key: "results", label: "Toppers / Results", Icon: Trophy, group: "Content" },
   { key: "notices", label: "Notices", Icon: Bell, group: "Content" },
   { key: "blog", label: "Blog", Icon: BookOpen, group: "Content" },
   { key: "gallery", label: "Gallery", Icon: Image, group: "Content" },
+  { key: "promotions", label: "Promotions", Icon: Megaphone, group: "Content" },
   { key: "enquiries", label: "Enquiries", Icon: Users, group: "Admissions" },
+  { key: "site-settings", label: "Site Settings", Icon: Settings, group: "Settings" },
+  { key: "seo", label: "SEO", Icon: SearchCode, group: "Settings" },
+  { key: "watermarks", label: "Watermarks", Icon: Droplet, group: "Settings" },
+  { key: "analytics", label: "Analytics", Icon: BarChart2, group: "Settings" },
+  { key: "security", label: "Security", Icon: ShieldAlert, group: "Settings" },
 ];
 
 const NOTICE_CATS = ["Academic", "Test", "Fee", "Event", "Admissions", "General"];
@@ -1169,15 +1205,31 @@ export default function AdminDashboard() {
     overview: <OverviewSection getToken={tokenFn} />,
     students: <StudentsSection getToken={tokenFn} />,
     teachers: <TeachersSection getToken={tokenFn} />,
+    attendance: <AdminAttendance getToken={tokenFn} />,
+    doubts: <AdminDoubts getToken={tokenFn} />,
+    users: <AdminUsers getToken={tokenFn} />,
     courses: <CoursesSection getToken={tokenFn} />,
     batches: <BatchesSection getToken={tokenFn} />,
+    timetable: <AdminSchedules getToken={tokenFn} />,
+    assignments: <AdminAssignments getToken={tokenFn} />,
+    "study-materials": <AdminStudyMaterials getToken={tokenFn} />,
+    "live-classes": <AdminLiveClasses getToken={tokenFn} />,
+    recordings: <AdminRecordingsSection getToken={tokenFn} />,
     "mock-tests": <MockTestsSection getToken={tokenFn} />,
+    "question-bank": <AdminQuestionBank getToken={tokenFn} />,
+    "practice-sets": <AdminPracticeSets getToken={tokenFn} />,
     fees: <FeesSection getToken={tokenFn} />,
     results: <ResultsSection getToken={tokenFn} />,
     notices: <NoticesSection getToken={tokenFn} />,
     blog: <BlogSection getToken={tokenFn} />,
     gallery: <GallerySection getToken={tokenFn} />,
+    promotions: <AdminPromotions getToken={tokenFn} />,
     enquiries: <EnquiriesSection getToken={tokenFn} />,
+    "site-settings": <AdminSiteSettings getToken={tokenFn} />,
+    seo: <AdminSEO getToken={tokenFn} />,
+    watermarks: <AdminWatermarks getToken={tokenFn} />,
+    analytics: <AdminAnalytics getToken={tokenFn} />,
+    security: <AdminSecurity getToken={tokenFn} />,
   };
 
   return (
