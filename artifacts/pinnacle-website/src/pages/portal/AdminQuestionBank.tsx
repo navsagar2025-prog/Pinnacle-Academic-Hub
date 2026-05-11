@@ -126,6 +126,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
         if (search.trim()) params.set("search", search.trim());
         if (activeTab === "pending") {
           params.set("reviewStatus", "pending");
+          params.set("source", "AI");
         } else if (filters.reviewStatus) {
           params.set("reviewStatus", filters.reviewStatus);
         }
@@ -438,17 +439,19 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* Create / Edit Slide-over */}
       {modal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-              <h3 className="font-bold text-[var(--color-navy)]">
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+          <div className="bg-white h-full w-full max-w-2xl overflow-y-auto shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10 shrink-0">
+              <h3 className="font-bold text-[var(--color-navy)] text-lg">
                 {modal.mode === "create" ? "New Question" : "Edit Question"}
               </h3>
-              <button onClick={() => setModal(null)}><X size={18} className="text-slate-400" /></button>
+              <button onClick={() => setModal(null)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg">
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-6 space-y-4 flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Subject *</label>
