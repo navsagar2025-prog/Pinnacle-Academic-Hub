@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Save, AlertTriangle } from "lucide-react";
+import { useToast } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -25,6 +26,7 @@ const STATUSES = ["present", "absent", "late"] as const;
 const STATUS_COLORS = { present: "bg-green-100 text-green-700", absent: "bg-red-100 text-red-700", late: "bg-yellow-100 text-yellow-700" };
 
 export function AdminAttendance({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const [batchId, setBatchId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -33,7 +35,6 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const loadAttendance = async () => {
     if (!batchId || !date) return;
@@ -47,23 +48,25 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
       const initial: Record<string, string> = {};
       data.forEach(r => { initial[r.id] = r.status; });
       setStatuses(initial);
-    } finally { setLoading(false); }
+    } catch { toast("error", "Failed to load attendance"); }
+    finally { setLoading(false); }
   };
 
   const saveAttendance = async () => {
-    if (!subject) { alert("Enter subject before saving"); return; }
+    if (!subject) { toast("error", "Enter a subject before saving"); return; }
     setSaving(true);
     try {
       const token = await getToken();
       const records = rows.map(r => ({ studentId: r.id, date, status: statuses[r.id] ?? "present" }));
-      await fetch(`${BASE}/api/v1/admin/attendance/bulk`, {
+      const res = await fetch(`${BASE}/api/v1/admin/attendance/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ records, subject }),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } finally { setSaving(false); }
+      if (res.ok) toast("success", "Attendance saved");
+      else toast("error", "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
 
   const presentCount = Object.values(statuses).filter(s => s === "present").length;
@@ -108,7 +111,7 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
               {lateCount > 0 && <span className="text-sm text-yellow-600 font-medium">{lateCount} Late</span>}
             </div>
             <button onClick={saveAttendance} disabled={saving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
-              <Save size={14} /> {saving ? "Saving…" : saved ? "Saved ✓" : "Save Attendance"}
+              <Save size={14} /> {saving ? "Saving…" : "Save Attendance"}
             </button>
           </div>
 

@@ -1,25 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, RefreshCw, AlertCircle } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = path) => {
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${BASE}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${BASE}/api/v1${p}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json(); setData(json.data);
     } finally { setLoading(false); }
   }, [path]);
@@ -34,6 +26,7 @@ const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "
 const EMPTY = { batchId: "", title: "", subject: "", description: "", dueDate: "", maxMarks: "", fileUrl: "" };
 
 export function AdminAssignments({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const [filterBatch, setFilterBatch] = useState("");
   const [assignments, setAssignments] = useState<Assignment[] | null>(null);
@@ -41,6 +34,8 @@ export function AdminAssignments({ getToken }: { getToken: () => Promise<string 
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: Assignment } | null>(null);
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+
+  useModalEscape(() => setModal(null), !!modal);
 
   const load = useCallback(async (batch = filterBatch) => {
     setLoading(true);
@@ -59,17 +54,25 @@ export function AdminAssignments({ getToken }: { getToken: () => Promise<string 
     setForm({ batchId: a.batchId ?? "", title: a.title, subject: a.subject, description: a.description ?? "", dueDate: a.dueDate.split("T")[0], maxMarks: String(a.maxMarks ?? ""), fileUrl: a.fileUrl ?? "" });
     setModal({ mode: "edit", item: a });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, batchId: form.batchId || null, description: form.description || null, maxMarks: form.maxMarks ? parseInt(form.maxMarks) : null, fileUrl: form.fileUrl || null };
-    if (modal?.mode === "create") await api("POST", "/admin/assignments", p, getToken);
-    else await api("PATCH", `/admin/assignments/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); load();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/assignments", p, getToken)
+        : await apiMutation("PATCH", `/admin/assignments/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Assignment created" : "Assignment updated"); setModal(null); load(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const del = async (id: string) => {
     if (!confirm("Delete this assignment?")) return;
-    await api("DELETE", `/admin/assignments/${id}`, null, getToken);
-    load();
+    const res = await apiMutation("DELETE", `/admin/assignments/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Assignment deleted"); load(); }
+    else toast("error", "Delete failed");
   };
 
   const isOverdue = (d: string) => new Date(d) < new Date();
@@ -88,7 +91,7 @@ export function AdminAssignments({ getToken }: { getToken: () => Promise<string 
         </div>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={4} />}
       <div className="space-y-3">
         {(assignments ?? []).map(a => (
           <div key={a.id} className="card border border-slate-200 flex gap-3 items-start">

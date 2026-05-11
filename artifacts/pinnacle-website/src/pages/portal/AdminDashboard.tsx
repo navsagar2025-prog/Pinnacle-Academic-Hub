@@ -21,6 +21,7 @@ import { AdminUsers } from "./AdminUsers";
 import { AdminSiteSettings, AdminSEO, AdminWatermarks } from "./AdminSiteSettings";
 import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
 import { AdminRecordingsSection } from "./AdminRecordings";
+import { ToastProvider, SkeletonList } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -236,7 +237,7 @@ function NoticesSection({ getToken }: { getToken: () => Promise<string | null> }
         </button>
       </div>
 
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map((n) => (
             <div key={n.id} className="card border border-slate-200 flex gap-4 items-start">
@@ -356,7 +357,7 @@ function EnquiriesSection({ getToken }: { getToken: () => Promise<string | null>
         </button>
       </div>
 
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map((e) => (
             <div key={e.id} className={`card border rounded-xl p-4 ${e.admissionStatus === "new" ? "border-blue-300" : "border-slate-200"}`}>
@@ -490,7 +491,7 @@ function BlogSection({ getToken }: { getToken: () => Promise<string | null> }) {
         </button>
       </div>
 
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map((p) => (
             <div key={p.id} className="card border border-slate-200 flex gap-4 items-start">
@@ -638,7 +639,7 @@ function GallerySection({ getToken }: { getToken: () => Promise<string | null> }
         </button>
       </div>
 
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {(data ?? []).map((item) => (
             <div key={item.id} className={`card border rounded-xl overflow-hidden p-0 ${item.isVisible ? "border-slate-200" : "border-slate-100 opacity-60"}`}>
@@ -726,7 +727,7 @@ function StudentsSection({ getToken }: { getToken: () => Promise<string | null> 
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Students</h2>
         <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <>
           <p className="text-sm text-slate-500 mb-4">{data?.length ?? 0} enrolled students</p>
           <div className="space-y-2">
@@ -785,7 +786,7 @@ function TeachersSection({ getToken }: { getToken: () => Promise<string | null> 
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Teachers</h2>
         <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-2">
           {(data ?? []).map(t => (
             <div key={t.id} className="card border border-slate-200 flex items-center gap-4">
@@ -854,7 +855,7 @@ function CoursesSection({ getToken }: { getToken: () => Promise<string | null> }
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Courses</h2>
         <button onClick={openCreate} className="btn-primary text-sm px-4 py-2 flex items-center gap-2"><Plus size={14} /> Add Course</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map(c => (
             <div key={c.id} className="card border border-slate-200 flex items-start gap-4">
@@ -930,7 +931,7 @@ function BatchesSection({ getToken }: { getToken: () => Promise<string | null> }
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Batches</h2>
         <button onClick={openCreate} className="btn-primary text-sm px-4 py-2 flex items-center gap-2"><Plus size={14} /> Add Batch</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map(b => (
             <div key={b.id} className="card border border-slate-200 flex items-start gap-4">
@@ -1007,7 +1008,7 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
         </div>
         <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-2">
           {(data ?? []).map(f => (
             <div key={f.id} className="card border border-slate-200 flex items-start gap-3">
@@ -1083,7 +1084,7 @@ function ResultsSection({ getToken }: { getToken: () => Promise<string | null> }
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Toppers & Results</h2>
         <button onClick={openCreate} className="btn-primary text-sm px-4 py-2 flex items-center gap-2"><Plus size={14} /> Add Result</button>
       </div>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map(r => (
             <div key={r.id} className="card border border-slate-200 flex items-start gap-3">
@@ -1164,7 +1165,7 @@ function MockTestsSection({ getToken }: { getToken: () => Promise<string | null>
         <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
       </div>
       <p className="text-sm text-slate-500 mb-4">Use this section to publish/unpublish tests. To create questions, use the full mock test builder.</p>
-      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+      {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-3">
           {(data ?? []).map(t => (
             <div key={t.id} className="card border border-slate-200 flex items-start gap-3">
@@ -1198,6 +1199,13 @@ export default function AdminDashboard() {
   const { signOut } = useClerk();
   const [section, setSection] = useState<Section>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [visited, setVisited] = useState<Set<Section>>(() => new Set<Section>(["overview"]));
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, []);
 
   const tokenFn = useCallback(() => getToken(), [getToken]);
 
@@ -1233,6 +1241,7 @@ export default function AdminDashboard() {
   };
 
   return (
+    <ToastProvider>
     <div className="min-h-[calc(100vh-4rem)] flex bg-[var(--color-slate-light)]">
       {/* Sidebar */}
       <aside className={`
@@ -1263,7 +1272,7 @@ export default function AdminDashboard() {
                 lastGroup = group;
               }
               items.push(
-                <button key={key} onClick={() => { setSection(key); setSidebarOpen(false); }}
+                <button key={key} onClick={() => { setSection(key); setVisited(v => new Set([...v, key])); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${section === key ? "bg-white/15 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>
                   <Icon size={15} />{label}
                 </button>
@@ -1297,9 +1306,16 @@ export default function AdminDashboard() {
           <p className="text-white font-semibold text-sm">{NAV.find(n => n.key === section)?.label}</p>
         </div>
         <div className="p-6 max-w-5xl">
-          {sectionComponents[section]}
+          {(Object.keys(sectionComponents) as Section[]).map(key =>
+            visited.has(key) ? (
+              <div key={key} className={key === section ? "block" : "hidden"}>
+                {sectionComponents[key]}
+              </div>
+            ) : null
+          )}
         </div>
       </div>
     </div>
+    </ToastProvider>
   );
 }

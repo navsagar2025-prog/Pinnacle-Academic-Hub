@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, Video } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -36,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = { scheduled: "bg-blue-100 text-blu
 const EMPTY = { batchId: "", teacherId: "", topic: "", subject: "", zoomMeetingId: "", zoomJoinUrl: "", zoomPasscode: "", scheduledAt: "", durationMinutes: 60 };
 
 export function AdminLiveClasses({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: classes, loading, reload } = useFetch<LiveClass[]>("/admin/live-classes", getToken);
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const { data: teachers } = useFetch<Teacher[]>("/admin/teachers", getToken);
@@ -43,26 +36,38 @@ export function AdminLiveClasses({ getToken }: { getToken: () => Promise<string 
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
 
+  useModalEscape(() => setModal(null), !!modal);
+
   const openCreate = () => { setForm({ ...EMPTY }); setModal({ mode: "create" }); };
   const openEdit = (c: LiveClass) => {
     setForm({ batchId: c.batchId ?? "", teacherId: c.teacherId ?? "", topic: c.topic, subject: c.subject ?? "", zoomMeetingId: c.zoomMeetingId ?? "", zoomJoinUrl: c.zoomJoinUrl ?? "", zoomPasscode: c.zoomPasscode ?? "", scheduledAt: c.scheduledAt.slice(0, 16), durationMinutes: c.durationMinutes ?? 60 });
     setModal({ mode: "edit", item: c });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, batchId: form.batchId || null, teacherId: form.teacherId || null, subject: form.subject || null, zoomMeetingId: form.zoomMeetingId || null, zoomJoinUrl: form.zoomJoinUrl || null, zoomPasscode: form.zoomPasscode || null };
-    if (modal?.mode === "create") await api("POST", "/admin/live-classes", p, getToken);
-    else await api("PATCH", `/admin/live-classes/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); reload();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/live-classes", p, getToken)
+        : await apiMutation("PATCH", `/admin/live-classes/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Class scheduled" : "Class updated"); setModal(null); reload(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const updateStatus = async (id: string, status: string) => {
-    await api("PATCH", `/admin/live-classes/${id}`, { status }, getToken);
-    reload();
+    const res = await apiMutation("PATCH", `/admin/live-classes/${id}`, { status }, getToken);
+    if (res.ok) { toast("success", `Status → ${status}`); reload(); }
+    else toast("error", "Update failed");
   };
+
   const del = async (id: string) => {
     if (!confirm("Delete this class?")) return;
-    await api("DELETE", `/admin/live-classes/${id}`, null, getToken);
-    reload();
+    const res = await apiMutation("DELETE", `/admin/live-classes/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Class deleted"); reload(); }
+    else toast("error", "Delete failed");
   };
 
   return (
@@ -72,7 +77,7 @@ export function AdminLiveClasses({ getToken }: { getToken: () => Promise<string 
         <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm"><Plus size={14} /> Schedule Class</button>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={4} />}
       <div className="space-y-3">
         {(classes ?? []).map(c => (
           <div key={c.id} className="card border border-slate-200">

@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -41,6 +33,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function AdminStudyMaterials({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const [filterBatch, setFilterBatch] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -49,6 +42,8 @@ export function AdminStudyMaterials({ getToken }: { getToken: () => Promise<stri
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: Material } | null>(null);
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+
+  useModalEscape(() => setModal(null), !!modal);
 
   const loadMaterials = useCallback(async (batch = filterBatch) => {
     setLoading(true);
@@ -67,21 +62,31 @@ export function AdminStudyMaterials({ getToken }: { getToken: () => Promise<stri
     setForm({ batchId: m.batchId ?? "", title: m.title, subject: m.subject, type: m.type, fileUrl: m.fileUrl ?? "", fileSize: m.fileSize ?? "" });
     setModal({ mode: "edit", item: m });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, batchId: form.batchId || null, fileUrl: form.fileUrl || null, fileSize: form.fileSize || null };
-    if (modal?.mode === "create") await api("POST", "/admin/study-materials", p, getToken);
-    else await api("PATCH", `/admin/study-materials/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); loadMaterials();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/study-materials", p, getToken)
+        : await apiMutation("PATCH", `/admin/study-materials/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Material added" : "Material updated"); setModal(null); loadMaterials(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const toggleVis = async (m: Material) => {
-    await api("PATCH", `/admin/study-materials/${m.id}`, { isVisible: !m.isVisible }, getToken);
-    loadMaterials();
+    const res = await apiMutation("PATCH", `/admin/study-materials/${m.id}`, { isVisible: !m.isVisible }, getToken);
+    if (res.ok) { toast("success", m.isVisible ? "Hidden" : "Visible"); loadMaterials(); }
+    else toast("error", "Update failed");
   };
+
   const del = async (id: string) => {
     if (!confirm("Delete this material?")) return;
-    await api("DELETE", `/admin/study-materials/${id}`, null, getToken);
-    loadMaterials();
+    const res = await apiMutation("DELETE", `/admin/study-materials/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Material deleted"); loadMaterials(); }
+    else toast("error", "Delete failed");
   };
 
   const visible = (materials ?? []).filter(m => !filterType || m.type === filterType);
@@ -104,7 +109,7 @@ export function AdminStudyMaterials({ getToken }: { getToken: () => Promise<stri
         </div>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={5} />}
       <div className="space-y-2">
         {visible.map(m => (
           <div key={m.id} className={`card border flex gap-3 items-center ${m.isVisible ? "border-slate-200" : "border-slate-100 opacity-60"}`}>

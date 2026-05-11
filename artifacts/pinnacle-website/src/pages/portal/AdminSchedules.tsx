@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -20,8 +12,7 @@ function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
     try {
       const token = await getToken();
       const res = await fetch(`${BASE}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
-      setData(json.data);
+      const json = await res.json(); setData(json.data);
     } finally { setLoading(false); }
   }, [path]);
   useEffect(() => { load(); }, [load]);
@@ -33,16 +24,15 @@ type Schedule = {
   startTime: string; endTime: string; room: string | null; isRecurring: boolean;
   batchId: string | null; batchName: string | null; teacherId: string | null; teacherName: string | null;
 };
-
 type Batch = { id: string; name: string };
 type Teacher = { id: string; userName: string | null };
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
-
 const EMPTY = { batchId: "", teacherId: "", subject: "", topic: "", dayOfWeek: 1, startTime: "09:00", endTime: "10:00", room: "", isRecurring: true };
 
 export function AdminSchedules({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: schedules, loading, reload } = useFetch<Schedule[]>("/admin/schedules", getToken);
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const { data: teachers } = useFetch<Teacher[]>("/admin/teachers", getToken);
@@ -50,22 +40,32 @@ export function AdminSchedules({ getToken }: { getToken: () => Promise<string | 
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
 
+  useModalEscape(() => setModal(null), !!modal);
+
   const openCreate = () => { setForm({ ...EMPTY }); setModal({ mode: "create" }); };
   const openEdit = (s: Schedule) => {
     setForm({ batchId: s.batchId ?? "", teacherId: s.teacherId ?? "", subject: s.subject, topic: s.topic ?? "", dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime, room: s.room ?? "", isRecurring: s.isRecurring });
     setModal({ mode: "edit", item: s });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, batchId: form.batchId || null, teacherId: form.teacherId || null, topic: form.topic || null, room: form.room || null };
-    if (modal?.mode === "create") await api("POST", "/admin/schedules", p, getToken);
-    else await api("PATCH", `/admin/schedules/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); reload();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/schedules", p, getToken)
+        : await apiMutation("PATCH", `/admin/schedules/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Slot added" : "Slot updated"); setModal(null); reload(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const del = async (id: string) => {
     if (!confirm("Delete this slot?")) return;
-    await api("DELETE", `/admin/schedules/${id}`, null, getToken);
-    reload();
+    const res = await apiMutation("DELETE", `/admin/schedules/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Slot deleted"); reload(); }
+    else toast("error", "Delete failed");
   };
 
   const grouped = DAYS.map((day, i) => ({
@@ -82,8 +82,7 @@ export function AdminSchedules({ getToken }: { getToken: () => Promise<string | 
         </div>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
-
+      {loading && <SkeletonList rows={5} />}
       {grouped.length === 0 && !loading && <p className="text-slate-400 text-sm">No schedule slots yet. Add one to build the timetable.</p>}
 
       <div className="space-y-4">

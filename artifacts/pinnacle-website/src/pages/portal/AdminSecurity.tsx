@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Shield, BarChart2, ClipboardList, RefreshCw, Unlock } from "lucide-react";
+import { useToast, SkeletonList, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -36,7 +28,6 @@ type TopPage = { path: string; total: number };
 const OUTCOME_COLORS: Record<string, string> = { success: "bg-green-100 text-green-700", fail: "bg-red-100 text-red-700", blocked: "bg-orange-100 text-orange-700" };
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
-
 export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | null> }) {
   const { data: pageviews, loading: pvLoading } = useFetch<PageViewData[]>("/admin/analytics/pageviews?days=30", getToken);
   const { data: topPages, loading: tpLoading } = useFetch<TopPage[]>("/admin/analytics/top-pages?days=30", getToken);
@@ -52,7 +43,7 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
 
       <div className="card border border-slate-200 mb-6">
         <h3 className="font-semibold text-sm text-[var(--color-navy)] mb-4">Page Views Over Time</h3>
-        {pvLoading && <p className="text-slate-400 text-sm">Loading…</p>}
+        {pvLoading && <SkeletonList rows={1} />}
         {!pvLoading && (pageviews ?? []).length === 0 && <p className="text-slate-400 text-sm">No page view data yet.</p>}
         {!pvLoading && (pageviews ?? []).length > 0 && (
           <div className="flex items-end gap-0.5 h-32">
@@ -75,7 +66,7 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
 
       <div className="card border border-slate-200">
         <h3 className="font-semibold text-sm text-[var(--color-navy)] mb-4">Top Pages</h3>
-        {tpLoading && <p className="text-slate-400 text-sm">Loading…</p>}
+        {tpLoading && <SkeletonList rows={4} />}
         <div className="space-y-2">
           {(topPages ?? []).slice(0, 10).map((p, i) => {
             const maxTP = topPages?.[0]?.total ?? 1;
@@ -102,8 +93,8 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
 }
 
 // ─── Security ─────────────────────────────────────────────────────────────────
-
 export function AdminSecurity({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const [tab, setTab] = useState<"events" | "lockouts" | "audit">("events");
   const { data: events, loading: evLoading, reload: reloadEvents } = useFetch<SecurityEvent[]>("/admin/security/events", getToken);
   const { data: lockouts, loading: loLoading, reload: reloadLockouts } = useFetch<IpLockout[]>("/admin/security/lockouts", getToken);
@@ -112,8 +103,10 @@ export function AdminSecurity({ getToken }: { getToken: () => Promise<string | n
 
   const unlock = async (id: string) => {
     setUnlocking(id);
-    await api("PATCH", `/admin/security/lockouts/${id}/unlock`, {}, getToken);
-    setUnlocking(null); reloadLockouts();
+    const res = await apiMutation("PATCH", `/admin/security/lockouts/${id}/unlock`, {}, getToken);
+    if (res.ok) { toast("success", "IP unlocked"); reloadLockouts(); }
+    else toast("error", "Unlock failed");
+    setUnlocking(null);
   };
 
   const tabs = [
@@ -145,7 +138,7 @@ export function AdminSecurity({ getToken }: { getToken: () => Promise<string | n
 
       {tab === "events" && (
         <div className="space-y-2">
-          {evLoading && <p className="text-slate-400 text-sm">Loading…</p>}
+          {evLoading && <SkeletonList rows={5} />}
           {(events ?? []).map(e => (
             <div key={e.id} className="card border border-slate-200 flex gap-3 items-center text-sm">
               <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${OUTCOME_COLORS[e.outcome] ?? "bg-slate-100 text-slate-600"}`}>{e.outcome}</span>
@@ -162,7 +155,7 @@ export function AdminSecurity({ getToken }: { getToken: () => Promise<string | n
 
       {tab === "lockouts" && (
         <div className="space-y-2">
-          {loLoading && <p className="text-slate-400 text-sm">Loading…</p>}
+          {loLoading && <SkeletonList rows={3} />}
           {(lockouts ?? []).map(l => (
             <div key={l.id} className="card border border-slate-200 flex gap-3 items-center">
               <div className="flex-1 min-w-0">
@@ -184,7 +177,7 @@ export function AdminSecurity({ getToken }: { getToken: () => Promise<string | n
 
       {tab === "audit" && (
         <div className="space-y-2">
-          {alLoading && <p className="text-slate-400 text-sm">Loading…</p>}
+          {alLoading && <SkeletonList rows={5} />}
           {(auditLogs ?? []).map(a => (
             <div key={a.id} className="card border border-slate-200 text-sm">
               <div className="flex items-center gap-2 mb-0.5">

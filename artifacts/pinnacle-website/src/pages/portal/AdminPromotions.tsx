@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Archive } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 type Promotion = { id: string; title: string; body: string; displayType: string; audience: string; startsAt: string; endsAt: string; ctaLabel: string | null; ctaUrl: string | null; bgColour: string; ctaColour: string; archivedAt: string | null; createdAt: string };
 
@@ -32,28 +24,39 @@ function usePromotions(getToken: () => Promise<string | null>) {
 const EMPTY = { title: "", body: "", displayType: "banner", audience: "public", startsAt: "", endsAt: "", ctaLabel: "", ctaUrl: "", bgColour: "#1a2e5a", ctaColour: "#2a9d8f" };
 
 export function AdminPromotions({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: promos, loading, reload } = usePromotions(getToken);
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: Promotion } | null>(null);
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
 
+  useModalEscape(() => setModal(null), !!modal);
+
   const openCreate = () => { setForm({ ...EMPTY }); setModal({ mode: "create" }); };
   const openEdit = (p: Promotion) => {
     setForm({ title: p.title, body: p.body, displayType: p.displayType, audience: p.audience, startsAt: p.startsAt.slice(0, 16), endsAt: p.endsAt.slice(0, 16), ctaLabel: p.ctaLabel ?? "", ctaUrl: p.ctaUrl ?? "", bgColour: p.bgColour, ctaColour: p.ctaColour });
     setModal({ mode: "edit", item: p });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, ctaLabel: form.ctaLabel || null, ctaUrl: form.ctaUrl || null };
-    if (modal?.mode === "create") await api("POST", "/admin/promotions", p, getToken);
-    else await api("PATCH", `/admin/promotions/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); reload();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/promotions", p, getToken)
+        : await apiMutation("PATCH", `/admin/promotions/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Promotion created" : "Promotion updated"); setModal(null); reload(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const archive = async (id: string) => {
     if (!confirm("Archive this promotion?")) return;
-    await api("DELETE", `/admin/promotions/${id}`, null, getToken);
-    reload();
+    const res = await apiMutation("DELETE", `/admin/promotions/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Promotion archived"); reload(); }
+    else toast("error", "Archive failed");
   };
 
   const filtered = (promos ?? []).filter(p => tab === "active" ? !p.archivedAt : !!p.archivedAt);
@@ -74,7 +77,7 @@ export function AdminPromotions({ getToken }: { getToken: () => Promise<string |
         ))}
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={3} />}
       <div className="space-y-3">
         {filtered.map(p => (
           <div key={p.id} className="card border border-slate-200 overflow-hidden">

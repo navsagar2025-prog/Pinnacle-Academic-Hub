@@ -1,16 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Search, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { useToast, SkeletonList, useDebounce, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 type User = { id: string; name: string; email: string; phone: string | null; role: string; clerkUserId: string | null; createdAt: string };
 type UsersData = { rows: User[]; total: number };
@@ -22,6 +14,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function AdminUsers({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const [users, setUsers] = useState<UsersData | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -29,7 +22,9 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
   const [page, setPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const load = useCallback(async (p = page, s = search, r = roleFilter) => {
+  const debouncedSearch = useDebounce(search, 350);
+
+  const load = useCallback(async (p = page, s = debouncedSearch, r = roleFilter) => {
     setLoading(true);
     try {
       const token = await getToken();
@@ -38,17 +33,25 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
       if (r) params.set("role", r);
       const res = await fetch(`${BASE}/api/v1/admin/users?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json(); setUsers(json.data);
-    } finally { setLoading(false); }
-  }, [page, search, roleFilter, getToken]);
+    } catch { toast("error", "Failed to load users"); }
+    finally { setLoading(false); }
+  }, [page, debouncedSearch, roleFilter, getToken]);
+
+  useEffect(() => {
+    if (debouncedSearch.length === 0 || debouncedSearch.length >= 2) {
+      setPage(1);
+      load(1, debouncedSearch, roleFilter);
+    }
+  }, [debouncedSearch]);
 
   const changeRole = async (id: string, role: string) => {
     setUpdatingId(id);
-    await api("PATCH", `/admin/users/${id}/role`, { role }, getToken);
+    const res = await apiMutation("PATCH", `/admin/users/${id}/role`, { role }, getToken);
+    if (res.ok) toast("success", `Role updated to ${role}`);
+    else toast("error", "Role update failed");
     setUpdatingId(null);
     load();
   };
-
-  const doSearch = () => { setPage(1); load(1, search, roleFilter); };
 
   const totalPages = Math.ceil((users?.total ?? 0) / 50);
 
@@ -59,17 +62,21 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
       <div className="flex gap-2 mb-4 flex-wrap">
         <div className="flex-1 min-w-[180px] relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm" placeholder="Search name or email…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && doSearch()} />
+          <input
+            className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+            placeholder="Search name or email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); load(1, search, e.target.value); }}>
+        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); load(1, debouncedSearch, e.target.value); }}>
           <option value="">All Roles</option>
           {ROLES.map(r => <option key={r}>{r}</option>)}
         </select>
-        <button onClick={doSearch} className="bg-[var(--color-navy)] text-white rounded-lg px-4 py-2 text-sm">Search</button>
         <button onClick={() => load()} className="p-2 text-slate-400 hover:text-slate-700"><RefreshCw size={15} /></button>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={6} />}
 
       {!loading && users && (
         <>
@@ -111,7 +118,7 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
 
       {!loading && !users && (
         <div className="text-center py-12">
-          <p className="text-slate-400 text-sm mb-3">Search to load users</p>
+          <p className="text-slate-400 text-sm mb-3">Search to load users or click below</p>
           <button onClick={() => load()} className="btn-primary px-4 py-2 text-sm">Load All Users</button>
         </div>
       )}

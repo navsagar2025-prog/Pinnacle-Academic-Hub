@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, CheckCircle, MessageCircle, RefreshCw } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 type Doubt = { id: string; subject: string; topic: string | null; questionText: string; isResolved: boolean; answerCount: number; batchId: string | null; batchName: string | null; studentId: string; studentName: string | null; createdAt: string };
 type DoubtDetail = Doubt & { answers: { id: string; answerText: string; authorRole: string; isOfficial: boolean; createdAt: string }[] };
@@ -31,6 +23,7 @@ function useDoubts(resolved: boolean, getToken: () => Promise<string | null>) {
 }
 
 export function AdminDoubts({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const [tab, setTab] = useState<"open" | "resolved">("open");
   const { data: doubts, loading, reload } = useDoubts(tab === "resolved", getToken);
   const [selected, setSelected] = useState<DoubtDetail | null>(null);
@@ -38,20 +31,34 @@ export function AdminDoubts({ getToken }: { getToken: () => Promise<string | nul
   const [answerText, setAnswerText] = useState("");
   const [answering, setAnswering] = useState(false);
 
+  useModalEscape(() => setSelected(null), !!selected);
+
   const openDetail = async (d: Doubt) => {
     setDetailLoading(true);
-    const token = await getToken();
-    const res = await fetch(`${BASE}/api/v1/admin/doubts/${d.id}`, { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setSelected(json.data);
-    setDetailLoading(false);
-    setAnswerText("");
+    try {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/doubts/${d.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      setSelected(json.data);
+      setAnswerText("");
+    } finally { setDetailLoading(false); }
   };
 
   const markResolved = async (id: string) => {
-    await api("PATCH", `/admin/doubts/${id}`, { isResolved: true, status: "resolved" }, getToken);
-    setSelected(null);
-    reload();
+    const res = await apiMutation("PATCH", `/admin/doubts/${id}`, { isResolved: true, status: "resolved" }, getToken);
+    if (res.ok) { toast("success", "Marked as resolved"); setSelected(null); reload(); }
+    else toast("error", "Update failed");
+  };
+
+  const postAnswer = async () => {
+    if (!answerText.trim() || !selected) return;
+    setAnswering(true);
+    try {
+      const res = await apiMutation("POST", `/admin/doubts/${selected.id}/answer`, { answerText, isOfficial: true }, getToken);
+      if (res.ok) { toast("success", "Answer posted"); openDetail(selected); }
+      else toast("error", "Failed to post answer");
+    } catch { toast("error", "Network error"); }
+    finally { setAnswering(false); }
   };
 
   return (
@@ -70,7 +77,7 @@ export function AdminDoubts({ getToken }: { getToken: () => Promise<string | nul
         ))}
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={5} />}
       <div className="space-y-2">
         {(doubts ?? []).map(d => (
           <button key={d.id} onClick={() => openDetail(d)} className="w-full text-left card border border-slate-200 hover:border-[var(--color-teal)]/40 transition-colors">
@@ -94,6 +101,7 @@ export function AdminDoubts({ getToken }: { getToken: () => Promise<string | nul
         {(doubts ?? []).length === 0 && !loading && (
           <p className="text-slate-400 text-sm text-center py-8">No {tab} doubts.</p>
         )}
+        {detailLoading && <div className="text-slate-400 text-sm text-center py-4">Loading doubt…</div>}
       </div>
 
       {selected && (
@@ -134,13 +142,7 @@ export function AdminDoubts({ getToken }: { getToken: () => Promise<string | nul
                       <CheckCircle size={14} /> Mark Resolved
                     </button>
                   )}
-                  <button onClick={async () => {
-                    if (!answerText.trim()) return;
-                    setAnswering(true);
-                    await api("POST", `/admin/doubts/${selected.id}/answer`, { answerText, isOfficial: true }, getToken);
-                    setAnswering(false);
-                    openDetail(selected);
-                  }} disabled={answering || !answerText.trim()} className="ml-auto btn-primary px-4 py-2 text-sm disabled:opacity-50">
+                  <button onClick={postAnswer} disabled={answering || !answerText.trim()} className="ml-auto btn-primary px-4 py-2 text-sm disabled:opacity-50">
                     {answering ? "Posting…" : "Post Answer"}
                   </button>
                 </div>

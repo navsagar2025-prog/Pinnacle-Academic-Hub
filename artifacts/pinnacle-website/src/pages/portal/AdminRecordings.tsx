@@ -1,27 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Eye, EyeOff, Archive } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
-
-type Recording = {
-  id: string; title: string; subject: string; teacherName: string | null;
-  recordingUrl: string; sourceProvider: string; classDate: string | null;
-  durationMinutes: number | null; isVisible: boolean; viewCount: number;
-  batchId: string | null; batchName: string | null; createdAt: string;
-};
-type Batch = { id: string; name: string };
-
-const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
-const EMPTY = { batchId: "", title: "", subject: "", teacherName: "", recordingUrl: "", sourceProvider: "zoom", classDate: "", durationMinutes: 60 };
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -38,7 +19,20 @@ function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   return { data, loading, reload: load };
 }
 
+type Recording = {
+  id: string; title: string; subject: string; teacherName: string | null;
+  recordingUrl: string; sourceProvider: string; classDate: string | null;
+  durationMinutes: number | null; isVisible: boolean; viewCount: number;
+  batchId: string | null; batchName: string | null; createdAt: string;
+};
+type Batch = { id: string; name: string };
+
+const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
+const EMPTY = { batchId: "", title: "", subject: "", teacherName: "", recordingUrl: "", sourceProvider: "zoom", classDate: "", durationMinutes: 60 };
+const SOURCE_COLORS: Record<string, string> = { zoom: "bg-blue-100 text-blue-700", youtube: "bg-red-100 text-red-700", google_meet: "bg-green-100 text-green-700" };
+
 export function AdminRecordingsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
   const [filterBatch, setFilterBatch] = useState("");
   const [recordings, setRecordings] = useState<Recording[] | null>(null);
@@ -46,6 +40,8 @@ export function AdminRecordingsSection({ getToken }: { getToken: () => Promise<s
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: Recording } | null>(null);
   const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+
+  useModalEscape(() => setModal(null), !!modal);
 
   const load = useCallback(async (batch = filterBatch) => {
     setLoading(true);
@@ -61,32 +57,35 @@ export function AdminRecordingsSection({ getToken }: { getToken: () => Promise<s
 
   const openCreate = () => { setForm({ ...EMPTY }); setModal({ mode: "create" }); };
   const openEdit = (r: Recording) => {
-    setForm({
-      batchId: r.batchId ?? "", title: r.title, subject: r.subject,
-      teacherName: r.teacherName ?? "", recordingUrl: r.recordingUrl,
-      sourceProvider: r.sourceProvider, classDate: r.classDate ? r.classDate.split("T")[0] : "",
-      durationMinutes: r.durationMinutes ?? 60,
-    });
+    setForm({ batchId: r.batchId ?? "", title: r.title, subject: r.subject, teacherName: r.teacherName ?? "", recordingUrl: r.recordingUrl, sourceProvider: r.sourceProvider, classDate: r.classDate ? r.classDate.split("T")[0] : "", durationMinutes: r.durationMinutes ?? 60 });
     setModal({ mode: "edit", item: r });
   };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, batchId: form.batchId || null, teacherName: form.teacherName || null, classDate: form.classDate || null };
-    if (modal?.mode === "create") await api("POST", "/admin/recordings", p, getToken);
-    else await api("PATCH", `/admin/recordings/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); load();
-  };
-  const toggleVis = async (r: Recording) => {
-    await api("PATCH", `/admin/recordings/${r.id}`, { isVisible: !r.isVisible }, getToken);
-    load();
-  };
-  const archive = async (id: string) => {
-    if (!confirm("Archive this recording?")) return;
-    await api("DELETE", `/admin/recordings/${id}`, null, getToken);
-    load();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/recordings", p, getToken)
+        : await apiMutation("PATCH", `/admin/recordings/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Recording added" : "Recording updated"); setModal(null); load(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
 
-  const SOURCE_COLORS: Record<string, string> = { zoom: "bg-blue-100 text-blue-700", youtube: "bg-red-100 text-red-700", google_meet: "bg-green-100 text-green-700" };
+  const toggleVis = async (r: Recording) => {
+    const res = await apiMutation("PATCH", `/admin/recordings/${r.id}`, { isVisible: !r.isVisible }, getToken);
+    if (res.ok) { toast("success", r.isVisible ? "Hidden" : "Now visible"); load(); }
+    else toast("error", "Update failed");
+  };
+
+  const archive = async (id: string) => {
+    if (!confirm("Archive this recording?")) return;
+    const res = await apiMutation("DELETE", `/admin/recordings/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Recording archived"); load(); }
+    else toast("error", "Archive failed");
+  };
 
   return (
     <div>
@@ -101,7 +100,7 @@ export function AdminRecordingsSection({ getToken }: { getToken: () => Promise<s
         </div>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={4} />}
       <div className="space-y-2">
         {(recordings ?? []).map(r => (
           <div key={r.id} className={`card border flex gap-3 items-center ${r.isVisible ? "border-slate-200" : "border-slate-100 opacity-60"}`}>

@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Save, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function api(method: string, path: string, body: object | null, getToken: () => Promise<string | null>) {
-  const token = await getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
 
 function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
   const [data, setData] = useState<T | null>(null);
@@ -32,12 +24,11 @@ type SeoOverride = { id: string; route: string; title: string | null; descriptio
 type WatermarkSetting = { id: string; docType: string; enabled: boolean; textTemplate: string; position: string; opacity: number; rotation: number; fontSize: number; color: string; useGlobal: boolean };
 
 // ─── Site Settings ────────────────────────────────────────────────────────────
-
 export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: settings, loading, reload } = useFetch<SiteSetting[]>("/admin/site-settings", getToken);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -49,9 +40,13 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
 
   const saveAll = async () => {
     setSaving(true);
-    const updates = (settings ?? []).map(s => ({ key: s.key, value: values[s.key] ?? "", label: s.label ?? undefined }));
-    await api("PATCH", "/admin/site-settings/bulk", { updates }, getToken);
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000); reload();
+    try {
+      const updates = (settings ?? []).map(s => ({ key: s.key, value: values[s.key] ?? "", label: s.label ?? undefined }));
+      const res = await apiMutation("PATCH", "/admin/site-settings/bulk", { updates }, getToken);
+      if (res.ok) { toast("success", "Settings saved"); reload(); }
+      else toast("error", "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -59,10 +54,10 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Site Settings</h2>
         <button onClick={saveAll} disabled={saving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
-          <Save size={14} /> {saving ? "Saving…" : saved ? "Saved ✓" : "Save All"}
+          <Save size={14} /> {saving ? "Saving…" : "Save All"}
         </button>
       </div>
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={4} />}
       {(settings ?? []).length === 0 && !loading && (
         <div className="card border border-slate-200 text-center py-8">
           <p className="text-slate-400 text-sm">No settings configured yet.</p>
@@ -82,26 +77,36 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
 }
 
 // ─── SEO Overrides ────────────────────────────────────────────────────────────
-
 export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: overrides, loading, reload } = useFetch<SeoOverride[]>("/admin/seo", getToken);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: SeoOverride } | null>(null);
   const [form, setForm] = useState({ route: "", title: "", description: "", focusKeyword: "", noIndex: false });
   const [saving, setSaving] = useState(false);
 
+  useModalEscape(() => setModal(null), !!modal);
+
   const openCreate = () => { setForm({ route: "", title: "", description: "", focusKeyword: "", noIndex: false }); setModal({ mode: "create" }); };
   const openEdit = (o: SeoOverride) => { setForm({ route: o.route, title: o.title ?? "", description: o.description ?? "", focusKeyword: o.focusKeyword ?? "", noIndex: o.noIndex }); setModal({ mode: "edit", item: o }); };
+
   const save = async () => {
     setSaving(true);
     const p = { ...form, title: form.title || null, description: form.description || null, focusKeyword: form.focusKeyword || null };
-    if (modal?.mode === "create") await api("POST", "/admin/seo", p, getToken);
-    else await api("PATCH", `/admin/seo/${modal?.item?.id}`, p, getToken);
-    setSaving(false); setModal(null); reload();
+    try {
+      const res = modal?.mode === "create"
+        ? await apiMutation("POST", "/admin/seo", p, getToken)
+        : await apiMutation("PATCH", `/admin/seo/${modal?.item?.id}`, p, getToken);
+      if (res.ok) { toast("success", modal?.mode === "create" ? "Override added" : "Override updated"); setModal(null); reload(); }
+      else toast("error", (res as { error?: string }).error ?? "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
   };
+
   const del = async (id: string) => {
     if (!confirm("Delete this SEO override?")) return;
-    await api("DELETE", `/admin/seo/${id}`, null, getToken);
-    reload();
+    const res = await apiMutation("DELETE", `/admin/seo/${id}`, null, getToken);
+    if (res.ok) { toast("success", "Override deleted"); reload(); }
+    else toast("error", "Delete failed");
   };
 
   return (
@@ -110,7 +115,7 @@ export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> 
         <h2 className="text-xl font-bold text-[var(--color-navy)]">SEO Overrides</h2>
         <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm"><Plus size={14} /> Add Override</button>
       </div>
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={3} />}
       <div className="space-y-2">
         {(overrides ?? []).map(o => (
           <div key={o.id} className="card border border-slate-200 flex gap-3 items-center">
@@ -173,8 +178,8 @@ export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> 
 }
 
 // ─── Watermark Settings ───────────────────────────────────────────────────────
-
 export function AdminWatermarks({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: watermarks, loading, reload } = useFetch<WatermarkSetting[]>("/admin/watermarks", getToken);
   const [editing, setEditing] = useState<string | null>(null);
   const [forms, setForms] = useState<Record<string, Partial<WatermarkSetting>>>({});
@@ -182,14 +187,18 @@ export function AdminWatermarks({ getToken }: { getToken: () => Promise<string |
 
   const save = async (docType: string) => {
     setSaving(docType);
-    await api("PATCH", `/admin/watermarks/${docType}`, forms[docType] ?? {}, getToken);
-    setSaving(null); setEditing(null); reload();
+    try {
+      const res = await apiMutation("PATCH", `/admin/watermarks/${docType}`, forms[docType] ?? {}, getToken);
+      if (res.ok) { toast("success", "Watermark saved"); setEditing(null); reload(); }
+      else toast("error", "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(null); }
   };
 
   return (
     <div>
       <h2 className="text-xl font-bold text-[var(--color-navy)] mb-6">Watermark Settings</h2>
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={3} />}
       {(watermarks ?? []).length === 0 && !loading && (
         <p className="text-slate-400 text-sm">No watermark settings configured. They will appear here once initialized.</p>
       )}

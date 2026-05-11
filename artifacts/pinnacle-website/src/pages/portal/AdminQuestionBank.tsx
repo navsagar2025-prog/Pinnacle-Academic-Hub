@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, X, Search, Check, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { useToast, SkeletonList, useModalEscape } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -57,6 +58,7 @@ const EMPTY_FORM = {
 };
 
 export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data, loading, error, load } = useFetch<QBData>("/admin/question-bank", getToken);
   const [tab, setTab] = useState<"all" | "pending">("all");
   const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", search: "" });
@@ -65,6 +67,8 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{ id: string; reason: string } | null>(null);
+  useModalEscape(() => setModal(null), !!modal);
+  useModalEscape(() => setDeleteModal(null), !!deleteModal);
 
   const buildPath = (p = page) => {
     const params = new URLSearchParams({ page: String(p), limit: "30" });
@@ -106,20 +110,30 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       examName: form.examName || null, marks: Number(form.marks),
       examTarget: form.examTarget, source: form.source,
     };
-    if (modal?.mode === "create") await api("POST", "/admin/question-bank", payload, getToken);
-    else await api("PATCH", `/admin/question-bank/${modal?.item?.id}`, payload, getToken);
-    setSaving(false); setModal(null); fetch_();
+    try {
+      if (modal?.mode === "create") await api("POST", "/admin/question-bank", payload, getToken);
+      else await api("PATCH", `/admin/question-bank/${modal?.item?.id}`, payload, getToken);
+      toast(modal?.mode === "create" ? "Question created" : "Question updated", "success");
+      setModal(null); fetch_();
+    } catch { toast("Failed to save question", "error"); }
+    setSaving(false);
   };
 
   const review = async (id: string, status: "approved" | "rejected") => {
-    await api("PATCH", `/admin/question-bank/${id}/review`, { reviewStatus: status }, getToken);
-    fetch_();
+    try {
+      await api("PATCH", `/admin/question-bank/${id}/review`, { reviewStatus: status }, getToken);
+      toast(status === "approved" ? "Question approved" : "Question rejected", status === "approved" ? "success" : "info");
+      fetch_();
+    } catch { toast("Failed to update review", "error"); }
   };
 
   const softDelete = async () => {
     if (!deleteModal) return;
-    await api("DELETE", `/admin/question-bank/${deleteModal.id}`, { reason: deleteModal.reason }, getToken);
-    setDeleteModal(null); fetch_();
+    try {
+      await api("DELETE", `/admin/question-bank/${deleteModal.id}`, { reason: deleteModal.reason }, getToken);
+      toast("Question deleted", "success");
+      setDeleteModal(null); fetch_();
+    } catch { toast("Failed to delete question", "error"); }
   };
 
   const goPage = (p: number) => { setPage(p); fetch_(p); };
@@ -169,7 +183,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
         </button>
       </div>
 
-      {loading && <p className="text-slate-400 text-sm py-8 text-center">Loading…</p>}
+      {loading && <SkeletonList rows={5} />}
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
       {!loading && (
@@ -342,19 +356,25 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
 type PracticeSet = { id: string; name: string; description: string | null; subject: string | null; isActive: boolean; questionCount: number; createdAt: string };
 
 export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data: sets, loading, load } = useFetch<PracticeSet[]>("/admin/practice-sets", getToken);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: PracticeSet } | null>(null);
   const [form, setForm] = useState({ name: "", description: "", subject: "" });
   const [saving, setSaving] = useState(false);
+  useModalEscape(() => setModal(null), !!modal);
 
   const openCreate = () => { setForm({ name: "", description: "", subject: "" }); setModal({ mode: "create" }); };
   const openEdit = (s: PracticeSet) => { setForm({ name: s.name, description: s.description ?? "", subject: s.subject ?? "" }); setModal({ mode: "edit", item: s }); };
 
   const save = async () => {
     setSaving(true);
-    if (modal?.mode === "create") await api("POST", "/admin/practice-sets", form, getToken);
-    else await api("PATCH", `/admin/practice-sets/${modal?.item?.id}`, form, getToken);
-    setSaving(false); setModal(null); load();
+    try {
+      if (modal?.mode === "create") await api("POST", "/admin/practice-sets", form, getToken);
+      else await api("PATCH", `/admin/practice-sets/${modal?.item?.id}`, form, getToken);
+      toast(modal?.mode === "create" ? "Practice set created" : "Practice set updated", "success");
+      setModal(null); load();
+    } catch { toast("Failed to save practice set", "error"); }
+    setSaving(false);
   };
 
   return (
@@ -363,7 +383,7 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Practice Sets</h2>
         <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm"><Plus size={14} /> New Set</button>
       </div>
-      {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {loading && <SkeletonList rows={3} />}
       <div className="space-y-3">
         {(sets ?? []).map(s => (
           <div key={s.id} className="card border border-slate-200 flex gap-3 items-center">
