@@ -126,6 +126,7 @@ function OverviewSection({ getToken }: { getToken: () => Promise<string | null> 
     noticeCount: number; enquiryCount: number; blogCount: number;
     galleryCount: number; newEnquiryCount: number;
     studentCount: number; teacherCount: number; batchCount: number; openDoubtsCount: number;
+    pendingApprovalCount: number;
   }>("/admin/stats", getToken);
 
   const cards = [
@@ -135,7 +136,7 @@ function OverviewSection({ getToken }: { getToken: () => Promise<string | null> 
     { label: "Open Doubts", value: data?.openDoubtsCount, icon: "❓", color: "bg-orange-50 text-orange-600" },
     { label: "Notices", value: data?.noticeCount, icon: "📋", color: "bg-sky-50 text-sky-600" },
     { label: "Enquiries", value: data?.enquiryCount, icon: "📩", color: "bg-purple-50 text-purple-600", badge: data?.newEnquiryCount },
-    { label: "Blog Posts", value: data?.blogCount, icon: "📝", color: "bg-green-50 text-green-600" },
+    { label: "Pending Approval", value: data?.pendingApprovalCount, icon: "⏳", color: "bg-amber-50 text-amber-600" },
     { label: "Gallery Items", value: data?.galleryCount, icon: "🖼️", color: "bg-amber-50 text-amber-600" },
   ];
 

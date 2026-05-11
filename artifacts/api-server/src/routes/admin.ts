@@ -36,8 +36,9 @@ router.get("/admin/stats", async (_req, res) => {
       db.select({ teacherCount: sql<number>`count(*)::int` }).from(teachers),
       db.select({ batchCount: sql<number>`count(*)::int` }).from(batches),
       db.select({ openDoubtsCount: sql<number>`count(*)::int` }).from(doubts).where(eq(doubts.isResolved, false)),
+      db.select({ pendingApprovalCount: sql<number>`count(*)::int` }).from(users).where(eq(users.approvalStatus, "pending")),
     ]);
-    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount, studentCount, teacherCount, batchCount, openDoubtsCount } });
+    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount, studentCount, teacherCount, batchCount, openDoubtsCount, pendingApprovalCount } });
   } catch (e) {
     console.error("GET /admin/stats error:", e);
     res.status(500).json({ error: "Failed to fetch stats" });
@@ -504,12 +505,14 @@ router.get("/admin/users", async (req, res) => {
     const offset = (page - 1) * limit;
     const search = String(req.query.search ?? "").trim();
     const role = String(req.query.role ?? "").trim();
+    const status = String(req.query.status ?? "").trim();
     const conds = [];
     if (search) conds.push(or(
       sql`${users.name} ilike ${"%" + search + "%"}`,
       sql`${users.email} ilike ${"%" + search + "%"}`,
     ));
     if (role) conds.push(eq(users.role, role as "student" | "parent" | "teacher" | "admin"));
+    if (status) conds.push(eq(users.approvalStatus, status));
     const where = conds.length ? and(...conds) : undefined;
     const [rows, [{ total }]] = await Promise.all([
       db.select().from(users).where(where).orderBy(desc(users.createdAt)).limit(limit).offset(offset),
@@ -519,6 +522,30 @@ router.get("/admin/users", async (req, res) => {
   } catch (e) {
     console.error("GET /admin/users error:", e);
     res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+router.post("/admin/users", async (req, res) => {
+  try {
+    const { name, email, phone, role } = req.body;
+    if (!name?.trim() || !email?.trim()) { res.status(400).json({ error: "name and email are required" }); return; }
+    if (role && !["student", "parent", "teacher", "admin"].includes(role)) { res.status(400).json({ error: "Invalid role" }); return; }
+    // Sentinel clerkUserId so unique constraint is satisfied. When the user signs in via Clerk
+    // with this email, /portal/me will link the real clerkUserId and keep approvalStatus "approved".
+    const sentinelClerkId = `admin_created_${crypto.randomUUID()}`;
+    const [row] = await db.insert(users).values({
+      clerkUserId: sentinelClerkId,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone?.trim() || null,
+      role: role ?? "student",
+      approvalStatus: "approved",
+    }).returning();
+    res.status(201).json({ ok: true, data: row });
+  } catch (e: unknown) {
+    const code = (e as { code?: string }).code;
+    if (code === "23505") { res.status(409).json({ error: "A user with this email already exists" }); return; }
+    res.status(500).json({ error: "Failed to create user" });
   }
 });
 
@@ -536,6 +563,32 @@ router.patch("/admin/users/:id/role", async (req, res) => {
     res.json({ ok: true, data: row });
   } catch (e) {
     res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
+router.patch("/admin/users/:id/approve", async (req, res) => {
+  try {
+    const [row] = await db.update(users)
+      .set({ approvalStatus: "approved", updatedAt: new Date() })
+      .where(eq(users.id, req.params.id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to approve user" });
+  }
+});
+
+router.patch("/admin/users/:id/reject", async (req, res) => {
+  try {
+    const [row] = await db.update(users)
+      .set({ approvalStatus: "rejected", updatedAt: new Date() })
+      .where(eq(users.id, req.params.id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reject user" });
   }
 });
 

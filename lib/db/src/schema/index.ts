@@ -41,6 +41,10 @@ export const users = pgTable("users", {
   phone: text("phone"),
   role: roleEnum("role").notNull().default("student"),
   fcmToken: text("fcm_token"),
+  // "pending" = self-registered via Clerk, awaiting admin approval
+  // "approved" = either admin-created or approved by admin
+  // "rejected" = rejected by admin
+  approvalStatus: text("approval_status").notNull().default("approved"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

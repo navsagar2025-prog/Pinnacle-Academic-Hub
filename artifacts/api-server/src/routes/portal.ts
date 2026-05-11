@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, getAuth } from "@clerk/express";
+import { requireAuth, getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   users, students, parents, teachers, batches, courses,
@@ -11,13 +11,49 @@ import { eq, and, or, isNull, gte, desc, asc, inArray } from "drizzle-orm";
 const router = Router();
 router.use(requireAuth());
 
-// ── Me ────────────────────────────────────────────────────────────────────────
+// ── Me (with auto-sync on first Clerk login) ───────────────────────────────────
 router.get("/portal/me", async (req, res) => {
   const { userId: clerkUserId } = getAuth(req);
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
   try {
-    const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
-    if (!user) { res.json({ ok: true, data: null }); return; }
+    let [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+
+    if (!user) {
+      // Fetch Clerk profile to get name + email
+      const clerkUser = await clerkClient.users.getUser(clerkUserId);
+      const email = (clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId)
+        ?? clerkUser.emailAddresses[0])?.emailAddress ?? "";
+      const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || email || "User";
+
+      if (email) {
+        // Check if admin pre-created this user by email (sentinel clerkUserId starts with "admin_created_")
+        const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        if (existing) {
+          // Link real Clerk ID → user was pre-approved by admin
+          [user] = await db.update(users).set({ clerkUserId, updatedAt: new Date() }).where(eq(users.id, existing.id)).returning();
+        }
+      }
+
+      if (!user) {
+        // Completely new self-registration → pending until admin approves
+        if (!email) { res.status(400).json({ error: "No email on Clerk account" }); return; }
+        try {
+          [user] = await db.insert(users).values({ clerkUserId, name, email, role: "student", approvalStatus: "pending" }).returning();
+        } catch {
+          // Email unique violation (race) → try to link by email
+          const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+          if (existing) {
+            [user] = await db.update(users).set({ clerkUserId, updatedAt: new Date() }).where(eq(users.id, existing.id)).returning();
+          } else { res.status(500).json({ error: "Failed to sync user" }); return; }
+        }
+      }
+    }
+
+    // For pending/rejected users, return immediately without role record
+    if (user.approvalStatus !== "approved") {
+      res.json({ ok: true, data: { user, roleRecord: null } });
+      return;
+    }
 
     let roleRecord = null;
     if (user.role === "student") {
