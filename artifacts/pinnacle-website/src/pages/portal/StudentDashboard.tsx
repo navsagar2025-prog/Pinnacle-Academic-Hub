@@ -1,0 +1,353 @@
+import { useState, useCallback } from "react";
+import { useAuth, useUser } from "@clerk/react";
+import {
+  LayoutDashboard, Bell, BookOpen, ClipboardList, BarChart2,
+  CalendarCheck, CreditCard, LogOut, Menu, Download, AlertCircle,
+} from "lucide-react";
+import { useClerk } from "@clerk/react";
+import { useFetch } from "./portalUtils";
+
+type Section = "overview" | "notices" | "materials" | "assignments" | "tests" | "attendance" | "fees";
+
+const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
+  { key: "overview", label: "Overview", Icon: LayoutDashboard },
+  { key: "notices", label: "Notices", Icon: Bell },
+  { key: "materials", label: "Study Materials", Icon: BookOpen },
+  { key: "assignments", label: "Assignments", Icon: ClipboardList },
+  { key: "tests", label: "Mock Tests", Icon: BarChart2 },
+  { key: "attendance", label: "Attendance", Icon: CalendarCheck },
+  { key: "fees", label: "Fee Records", Icon: CreditCard },
+];
+
+function NoProfile() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[40vh] text-center px-4">
+      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+        <AlertCircle size={28} />
+      </div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-2">Profile Not Set Up Yet</h2>
+      <p className="text-slate-500 text-sm max-w-sm">
+        Your student profile hasn't been created yet. Please contact the Pinnacle office or call{" "}
+        <a href="tel:+919971862138" className="text-[var(--color-teal)] font-semibold">+91 99718 62138</a>{" "}
+        to complete your enrollment and link your account.
+      </p>
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: string; color: string }) {
+  return (
+    <div className="card border border-slate-200">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl mb-3 ${color}`}>{icon}</div>
+      <p className="text-2xl font-bold text-[var(--color-navy)]">{value}</p>
+      <p className="text-sm text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function Overview({ profile, getToken }: { profile: ProfileData; getToken: () => Promise<string | null> }) {
+  const { data: att } = useFetch<{ stats: { pct: number; present: number; total: number } }>("/portal/student/attendance", getToken);
+  const { data: fees } = useFetch<{ data: FeeRecord[] }>("/portal/student/fee-records", getToken);
+  const dueAmount = (fees?.data ?? []).filter(f => f.status === "due" || f.status === "overdue").reduce((s, f) => s + (f.amount - f.paidAmount), 0);
+
+  return (
+    <div>
+      <div className="card border border-slate-200 mb-6 bg-gradient-to-br from-[var(--color-navy)] to-[#1a3580] text-white">
+        <p className="text-white/60 text-sm mb-1">Welcome back</p>
+        <h2 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">{profile.user.name}</h2>
+        {profile.roleRecord && (
+          <div className="mt-3 flex flex-wrap gap-3 text-sm">
+            <span className="bg-white/10 rounded-full px-3 py-1">🎓 {profile.roleRecord.courseName ?? "Course TBD"}</span>
+            <span className="bg-white/10 rounded-full px-3 py-1">📋 Batch: {profile.roleRecord.batchName ?? "TBD"}</span>
+            {profile.roleRecord.rollNumber && <span className="bg-white/10 rounded-full px-3 py-1">🆔 Roll: {profile.roleRecord.rollNumber}</span>}
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Attendance" value={att?.stats ? `${att.stats.pct}%` : "—"} icon="📅" color="bg-green-50 text-green-600" />
+        <StatCard label="Classes Attended" value={att?.stats?.present ?? "—"} icon="✅" color="bg-blue-50 text-blue-600" />
+        <StatCard label="Fee Due (₹)" value={dueAmount > 0 ? `₹${dueAmount.toLocaleString("en-IN")}` : "Nil"} icon="💰" color={dueAmount > 0 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"} />
+        <StatCard label="Batch" value={profile.roleRecord?.batchTiming ?? "—"} icon="🕐" color="bg-purple-50 text-purple-600" />
+      </div>
+    </div>
+  );
+}
+
+type Notice = { id: string; title: string; body: string; category: string; publishedAt: string };
+type Material = { id: string; title: string; subject: string; type: string; fileUrl: string | null; fileSize: string | null };
+type Assignment = { id: string; title: string; subject: string; description: string | null; dueDate: string; maxMarks: number | null };
+type FeeRecord = { id: string; period: string; amount: number; paidAmount: number; dueDate: string; status: string; paidDate: string | null };
+type MockTest = { id: string; title: string; subject: string; durationMinutes: number; marksPerQuestion: number; scheduledStart: string | null };
+type AttRow = { id: string; date: string; subject: string; status: string };
+type ProfileData = { user: { name: string; email: string }; roleRecord: { rollNumber: string; batchName: string; batchTiming: string; batchDays: string; courseName: string; batchId: string } | null };
+
+const CATEGORY_COLOR: Record<string, string> = {
+  Academic: "bg-blue-100 text-blue-700", Test: "bg-purple-100 text-purple-700",
+  Fee: "bg-red-100 text-red-700", Event: "bg-green-100 text-green-700",
+  Admissions: "bg-orange-100 text-orange-700", General: "bg-slate-100 text-slate-600",
+};
+const FEE_COLOR: Record<string, string> = {
+  paid: "bg-green-100 text-green-700", partial: "bg-yellow-100 text-yellow-700",
+  due: "bg-red-100 text-red-600", overdue: "bg-red-200 text-red-800", waived: "bg-slate-100 text-slate-600",
+};
+const ATT_COLOR: Record<string, string> = { present: "bg-green-500", absent: "bg-red-400", late: "bg-yellow-400" };
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function NoticesSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: Notice[] }>("/portal/student/notices", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Notice Board</h2>
+      <div className="space-y-3">
+        {(data?.data ?? []).map(n => (
+          <div key={n.id} className="card border border-slate-200">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLOR[n.category] ?? "bg-slate-100 text-slate-600"}`}>{n.category}</span>
+              <span className="text-xs text-slate-400">{new Date(n.publishedAt).toLocaleDateString("en-IN")}</span>
+            </div>
+            <p className="font-semibold text-[var(--color-navy)] text-sm">{n.title}</p>
+            <p className="text-slate-500 text-sm mt-1">{n.body}</p>
+          </div>
+        ))}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No notices at this time.</p>}
+      </div>
+    </div>
+  );
+}
+
+function MaterialsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: Material[] }>("/portal/student/materials", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Study Materials</h2>
+      <div className="space-y-3">
+        {(data?.data ?? []).map(m => (
+          <div key={m.id} className="card border border-slate-200 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">📄</div>
+            <div className="flex-1">
+              <p className="font-semibold text-[var(--color-navy)] text-sm">{m.title}</p>
+              <p className="text-xs text-slate-500">{m.subject} · {m.type}{m.fileSize ? ` · ${m.fileSize}` : ""}</p>
+            </div>
+            {m.fileUrl && (
+              <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-[var(--color-teal)] font-medium hover:underline shrink-0">
+                <Download size={14} /> Download
+              </a>
+            )}
+          </div>
+        ))}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No study materials have been uploaded yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function AssignmentsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: Assignment[] }>("/portal/student/assignments", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Assignments</h2>
+      <div className="space-y-3">
+        {(data?.data ?? []).map(a => {
+          const overdue = new Date(a.dueDate) < new Date();
+          return (
+            <div key={a.id} className={`card border ${overdue ? "border-red-200" : "border-slate-200"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-[var(--color-navy)] text-sm">{a.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{a.subject}{a.maxMarks ? ` · ${a.maxMarks} marks` : ""}</p>
+                  {a.description && <p className="text-xs text-slate-400 mt-1">{a.description}</p>}
+                </div>
+                <div className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${overdue ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}`}>
+                  Due: {new Date(a.dueDate).toLocaleDateString("en-IN")}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No assignments posted yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function MockTestsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: MockTest[]; attempts: { testId: string; score: number; maxScore: number; isCompleted: boolean }[] }>("/portal/student/mock-tests", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  const attemptMap = new Map((data?.attempts ?? []).map(a => [a.testId, a]));
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Mock Tests</h2>
+      <div className="space-y-3">
+        {(data?.data ?? []).map(t => {
+          const attempt = attemptMap.get(t.id);
+          return (
+            <div key={t.id} className="card border border-slate-200 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0">📝</div>
+              <div className="flex-1">
+                <p className="font-semibold text-[var(--color-navy)] text-sm">{t.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{t.subject} · {t.durationMinutes} min · {t.marksPerQuestion} marks/q</p>
+                {t.scheduledStart && <p className="text-xs text-slate-400 mt-0.5">Scheduled: {new Date(t.scheduledStart).toLocaleString("en-IN")}</p>}
+              </div>
+              {attempt?.isCompleted ? (
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold text-green-600">{attempt.score}/{attempt.maxScore}</p>
+                  <p className="text-xs text-slate-400">Completed</p>
+                </div>
+              ) : (
+                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0 self-center">Available</span>
+              )}
+            </div>
+          );
+        })}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No mock tests published yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function AttendanceSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: AttRow[]; stats: { pct: number; present: number; total: number } }>("/portal/student/attendance", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  const stats = data?.stats;
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Attendance</h2>
+      {stats && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="card border border-slate-200 text-center">
+            <p className={`text-3xl font-bold ${stats.pct >= 75 ? "text-green-600" : "text-red-500"}`}>{stats.pct}%</p>
+            <p className="text-xs text-slate-500 mt-1">Overall</p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <p className="text-3xl font-bold text-[var(--color-navy)]">{stats.present}</p>
+            <p className="text-xs text-slate-500 mt-1">Present</p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <p className="text-3xl font-bold text-slate-500">{stats.total - stats.present}</p>
+            <p className="text-xs text-slate-500 mt-1">Absent</p>
+          </div>
+        </div>
+      )}
+      {stats && stats.pct < 75 && (
+        <div className="mb-4 flex items-center gap-2 text-sm bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          <AlertCircle size={16} /> Your attendance is below 75%. Please attend classes regularly.
+        </div>
+      )}
+      <div className="space-y-2">
+        {(data?.data ?? []).slice(0, 30).map(r => (
+          <div key={r.id} className="flex items-center gap-3 text-sm">
+            <div className={`w-2.5 h-2.5 rounded-full ${ATT_COLOR[r.status] ?? "bg-slate-300"}`} />
+            <span className="text-slate-600 w-24 shrink-0">{new Date(r.date).toLocaleDateString("en-IN")}</span>
+            <span className="text-slate-700 flex-1">{r.subject}</span>
+            <span className={`text-xs capitalize ${r.status === "present" ? "text-green-600" : r.status === "absent" ? "text-red-500" : "text-yellow-600"}`}>{r.status}</span>
+          </div>
+        ))}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No attendance records yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: FeeRecord[] }>("/portal/student/fee-records", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  const totalDue = (data?.data ?? []).filter(f => f.status === "due" || f.status === "overdue").reduce((s, f) => s + (f.amount - f.paidAmount), 0);
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Fee Records</h2>
+      {totalDue > 0 && (
+        <div className="mb-4 card border border-red-200 bg-red-50">
+          <p className="text-red-700 font-semibold text-sm">Outstanding Balance: ₹{totalDue.toLocaleString("en-IN")}</p>
+          <p className="text-red-500 text-xs mt-0.5">Please clear dues at the Pinnacle office or contact +91 99718 62138</p>
+        </div>
+      )}
+      <div className="space-y-3">
+        {(data?.data ?? []).map(f => (
+          <div key={f.id} className="card border border-slate-200">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-[var(--color-navy)] text-sm">{f.period}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Total: ₹{f.amount.toLocaleString("en-IN")} · Paid: ₹{f.paidAmount.toLocaleString("en-IN")}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">Due: {new Date(f.dueDate).toLocaleDateString("en-IN")}
+                  {f.paidDate ? ` · Paid: ${new Date(f.paidDate).toLocaleDateString("en-IN")}` : ""}
+                </p>
+              </div>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${FEE_COLOR[f.status] ?? "bg-slate-100 text-slate-600"}`}>
+                {f.status}
+              </span>
+            </div>
+          </div>
+        ))}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No fee records found.</p>}
+      </div>
+    </div>
+  );
+}
+
+export default function StudentDashboard() {
+  const { getToken } = useAuth();
+  const { user: clerkUser } = useUser();
+  const { signOut } = useClerk();
+  const [section, setSection] = useState<Section>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const tokenFn = useCallback(() => getToken(), [getToken]);
+  const { data: meData, loading: meLoading } = useFetch<{ data: ProfileData | null }>("/portal/me", tokenFn);
+
+  const profile = meData?.data;
+
+  const renderSection = () => {
+    if (meLoading) return <div className="text-slate-400 text-sm">Loading your profile…</div>;
+    if (!profile) return <NoProfile />;
+    switch (section) {
+      case "overview": return <Overview profile={profile} getToken={tokenFn} />;
+      case "notices": return <NoticesSection getToken={tokenFn} />;
+      case "materials": return <MaterialsSection getToken={tokenFn} />;
+      case "assignments": return <AssignmentsSection getToken={tokenFn} />;
+      case "tests": return <MockTestsSection getToken={tokenFn} />;
+      case "attendance": return <AttendanceSection getToken={tokenFn} />;
+      case "fees": return <FeesSection getToken={tokenFn} />;
+    }
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] flex bg-[var(--color-slate-light)]">
+      <aside className={`fixed inset-y-0 left-0 z-40 w-60 bg-[var(--color-navy)] flex flex-col transition-transform duration-300 top-0 lg:static lg:translate-x-0 lg:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="px-5 py-5 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">S</div>
+            <div>
+              <p className="text-white font-bold text-sm leading-tight">Student Portal</p>
+              <p className="text-white/40 text-xs truncate max-w-[120px]">{clerkUser?.firstName ?? "Student"}</p>
+            </div>
+          </div>
+        </div>
+        <nav className="flex-1 py-4 space-y-0.5 px-2">
+          {NAV.map(({ key, label, Icon }) => (
+            <button key={key} onClick={() => { setSection(key); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${section === key ? "bg-white/15 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>
+              <Icon size={16} />{label}
+            </button>
+          ))}
+        </nav>
+        <div className="px-2 pb-4">
+          <button onClick={() => signOut()} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+            <LogOut size={16} /> Sign Out
+          </button>
+        </div>
+      </aside>
+      {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      <div className="flex-1 min-w-0">
+        <div className="lg:hidden flex items-center gap-3 bg-[var(--color-navy)] px-4 py-3">
+          <button onClick={() => setSidebarOpen(true)} className="text-white"><Menu size={20} /></button>
+          <p className="text-white font-semibold text-sm">{NAV.find(n => n.key === section)?.label}</p>
+        </div>
+        <div className="p-6 max-w-4xl">{renderSection()}</div>
+      </div>
+    </div>
+  );
+}

@@ -7,6 +7,7 @@ import galleryRouter from "./gallery";
 import noticesRouter from "./notices";
 import leaderboardRouter from "./leaderboard";
 import adminRouter from "./admin";
+import portalRouter from "./portal";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use("/v1", galleryRouter);
 router.use("/v1", noticesRouter);
 router.use("/v1", leaderboardRouter);
 router.use("/v1", adminRouter);
+router.use("/v1", portalRouter);
 
 export default router;
