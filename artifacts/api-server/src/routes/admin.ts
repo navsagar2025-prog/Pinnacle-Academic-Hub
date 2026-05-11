@@ -6,8 +6,9 @@ import {
   users, students, teachers, courses, batches, feeRecords, results,
   mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
   pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
+  practiceSets, practiceSetQuestions,
 } from "@workspace/db/schema";
-import { desc, eq, sql, asc, and, or } from "drizzle-orm";
+import { desc, eq, sql, asc, and, or, isNull, isNotNull } from "drizzle-orm";
 
 const router = Router();
 router.use(requireAuth());
@@ -770,6 +771,289 @@ router.patch("/admin/security/lockouts/:id/unlock", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: "Failed to unlock IP" });
   }
+});
+
+// ── Question Bank ──────────────────────────────────────────────────────────
+
+// These literal sub-routes MUST come before any /:id routes to avoid mis-matching
+router.get("/admin/question-bank/deletion-requests", async (_req, res) => {
+  try {
+    const rows = await db.select({
+      id: questionBank.id, subject: questionBank.subject, topic: questionBank.topic,
+      questionText: questionBank.questionText, difficulty: questionBank.difficulty,
+      questionType: questionBank.questionType, marks: questionBank.marks,
+      deletionRequestedAt: questionBank.deletionRequestedAt, deletionReason: questionBank.deletionReason,
+    }).from(questionBank)
+      .where(and(isNotNull(questionBank.deletionRequestedAt), isNull(questionBank.deletedAt)))
+      .orderBy(desc(questionBank.deletionRequestedAt));
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch deletion requests" }); }
+});
+
+router.get("/admin/question-bank/recycle-bin", async (_req, res) => {
+  try {
+    const rows = await db.select({
+      id: questionBank.id, subject: questionBank.subject, topic: questionBank.topic,
+      questionText: questionBank.questionText, difficulty: questionBank.difficulty,
+      questionType: questionBank.questionType, marks: questionBank.marks,
+      deletedAt: questionBank.deletedAt, deletionReason: questionBank.deletionReason,
+    }).from(questionBank)
+      .where(and(
+        isNotNull(questionBank.deletedAt),
+        sql`${questionBank.deletedAt} > now() - interval '7 days'`,
+      ))
+      .orderBy(desc(questionBank.deletedAt));
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch recycle bin" }); }
+});
+
+router.get("/admin/question-bank", async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1")));
+    const limit = Math.min(50, Math.max(10, parseInt(String(req.query.limit ?? "30"))));
+    const offset = (page - 1) * limit;
+    const subject = String(req.query.subject ?? "").trim();
+    const difficulty = String(req.query.difficulty ?? "").trim();
+    const questionType = String(req.query.questionType ?? "").trim();
+    const source = String(req.query.source ?? "").trim();
+    const reviewStatus = String(req.query.reviewStatus ?? "").trim();
+    const search = String(req.query.search ?? "").trim();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conds: any[] = [isNull(questionBank.deletedAt), isNull(questionBank.deletionRequestedAt)];
+    if (subject) conds.push(eq(questionBank.subject, subject));
+    if (difficulty) conds.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard"));
+    if (questionType) conds.push(eq(questionBank.questionType, questionType as "mcq" | "short" | "long" | "numerical"));
+    if (source) conds.push(eq(questionBank.source, source));
+    if (reviewStatus) conds.push(eq(questionBank.reviewStatus, reviewStatus));
+    if (search) conds.push(sql`${questionBank.searchVector} @@ plainto_tsquery('english', ${search})`);
+
+    const where = and(...conds);
+    const cols = {
+      id: questionBank.id, subject: questionBank.subject, topic: questionBank.topic,
+      classGrade: questionBank.classGrade, year: questionBank.year,
+      difficulty: questionBank.difficulty, questionType: questionBank.questionType,
+      questionText: questionBank.questionText, options: questionBank.options,
+      correctAnswer: questionBank.correctAnswer, solution: questionBank.solution,
+      examName: questionBank.examName, marks: questionBank.marks,
+      isPublished: questionBank.isPublished, examTarget: questionBank.examTarget,
+      source: questionBank.source, reviewStatus: questionBank.reviewStatus,
+      language: questionBank.language, createdAt: questionBank.createdAt,
+    };
+    const [rows, [{ total }]] = await Promise.all([
+      db.select(cols).from(questionBank).where(where).orderBy(desc(questionBank.createdAt)).limit(limit).offset(offset),
+      db.select({ total: sql<number>`count(*)::int` }).from(questionBank).where(where),
+    ]);
+    res.json({ ok: true, data: { rows, total, page, limit } });
+  } catch (e) {
+    console.error("GET /admin/question-bank error:", e);
+    res.status(500).json({ error: "Failed to fetch questions" });
+  }
+});
+
+router.post("/admin/question-bank", async (req, res) => {
+  try {
+    const { subject, topic, classGrade, year, difficulty, questionType, questionText, options,
+      correctAnswer, solution, examName, marks, isPublished, examTarget, source, language } = req.body;
+    if (!subject?.trim() || !questionText?.trim() || !correctAnswer?.trim()) {
+      res.status(400).json({ error: "subject, questionText, correctAnswer are required" }); return;
+    }
+    const [row] = await db.insert(questionBank).values({
+      subject: subject.trim(), topic: topic?.trim() || null, classGrade: classGrade?.trim() || null,
+      year: year ? parseInt(year) : null, difficulty: difficulty ?? "medium",
+      questionType: questionType ?? "mcq", questionText: questionText.trim(),
+      options: options ?? null, correctAnswer: correctAnswer.trim(),
+      solution: solution?.trim() || null, examName: examName?.trim() || null,
+      marks: marks ? parseInt(marks) : 4, isPublished: isPublished ?? true,
+      examTarget: examTarget ?? null, source: source ?? "MANUAL",
+      language: language ?? "en", reviewStatus: "approved",
+    }).returning({
+      id: questionBank.id, subject: questionBank.subject, questionText: questionBank.questionText,
+      createdAt: questionBank.createdAt,
+    });
+    res.status(201).json({ ok: true, data: row });
+  } catch (e) {
+    console.error("POST /admin/question-bank error:", e);
+    res.status(500).json({ error: "Failed to create question" });
+  }
+});
+
+router.patch("/admin/question-bank/:id/review", async (req, res) => {
+  try {
+    const { reviewStatus } = req.body;
+    if (!["pending", "approved", "rejected"].includes(reviewStatus)) {
+      res.status(400).json({ error: "reviewStatus must be pending|approved|rejected" }); return;
+    }
+    const [row] = await db.update(questionBank)
+      .set({ reviewStatus, updatedAt: new Date() })
+      .where(eq(questionBank.id, req.params.id))
+      .returning({ id: questionBank.id, reviewStatus: questionBank.reviewStatus });
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to update review status" }); }
+});
+
+router.post("/admin/question-bank/:id/confirm-delete", async (req, res) => {
+  try {
+    const [row] = await db.update(questionBank)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(questionBank.id, req.params.id), isNotNull(questionBank.deletionRequestedAt)))
+      .returning({ id: questionBank.id });
+    if (!row) { res.status(404).json({ error: "Not found or not flagged" }); return; }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: "Failed to confirm deletion" }); }
+});
+
+router.post("/admin/question-bank/:id/restore", async (req, res) => {
+  try {
+    const [row] = await db.update(questionBank)
+      .set({ deletionRequestedAt: null, deletionReason: null, deletedAt: null, updatedAt: new Date() })
+      .where(eq(questionBank.id, req.params.id))
+      .returning({ id: questionBank.id });
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: "Failed to restore question" }); }
+});
+
+router.patch("/admin/question-bank/:id", async (req, res) => {
+  try {
+    const { subject, topic, classGrade, year, difficulty, questionType, questionText, options,
+      correctAnswer, solution, examName, marks, isPublished, examTarget, source, language } = req.body;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setFields: Record<string, any> = { updatedAt: new Date() };
+    if (subject !== undefined) setFields.subject = subject;
+    if (topic !== undefined) setFields.topic = topic || null;
+    if (classGrade !== undefined) setFields.classGrade = classGrade || null;
+    if (year !== undefined) setFields.year = year ? parseInt(year) : null;
+    if (difficulty !== undefined) setFields.difficulty = difficulty;
+    if (questionType !== undefined) setFields.questionType = questionType;
+    if (questionText !== undefined) setFields.questionText = questionText;
+    if (options !== undefined) setFields.options = options;
+    if (correctAnswer !== undefined) setFields.correctAnswer = correctAnswer;
+    if (solution !== undefined) setFields.solution = solution || null;
+    if (examName !== undefined) setFields.examName = examName || null;
+    if (marks !== undefined) setFields.marks = parseInt(marks);
+    if (isPublished !== undefined) setFields.isPublished = isPublished;
+    if (examTarget !== undefined) setFields.examTarget = examTarget;
+    if (source !== undefined) setFields.source = source;
+    if (language !== undefined) setFields.language = language;
+    const [row] = await db.update(questionBank).set(setFields)
+      .where(eq(questionBank.id, req.params.id))
+      .returning({ id: questionBank.id, updatedAt: questionBank.updatedAt });
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    console.error("PATCH /admin/question-bank/:id error:", e);
+    res.status(500).json({ error: "Failed to update question" });
+  }
+});
+
+// Stage 1: flag for deletion (stamps deletionRequestedAt + reason, NOT deletedAt)
+router.delete("/admin/question-bank/:id", async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const [row] = await db.update(questionBank)
+      .set({ deletionRequestedAt: new Date(), deletionReason: reason?.trim() || null, updatedAt: new Date() })
+      .where(and(eq(questionBank.id, req.params.id), isNull(questionBank.deletedAt)))
+      .returning({ id: questionBank.id });
+    if (!row) { res.status(404).json({ error: "Not found or already deleted" }); return; }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: "Failed to flag question for deletion" }); }
+});
+
+// ── Practice Sets ──────────────────────────────────────────────────────────
+
+router.get("/admin/practice-sets", async (_req, res) => {
+  try {
+    const rows = await db.select({
+      id: practiceSets.id, name: practiceSets.name, description: practiceSets.description,
+      subject: practiceSets.subject, isActive: practiceSets.isActive,
+      createdAt: practiceSets.createdAt, updatedAt: practiceSets.updatedAt,
+      questionCount: sql<number>`(select count(*)::int from practice_set_questions psq where psq.set_id = ${practiceSets.id})`,
+    }).from(practiceSets).orderBy(desc(practiceSets.createdAt));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    console.error("GET /admin/practice-sets error:", e);
+    res.status(500).json({ error: "Failed to fetch practice sets" });
+  }
+});
+
+router.post("/admin/practice-sets", async (req, res) => {
+  try {
+    const { name, description, subject } = req.body;
+    if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+    const [row] = await db.insert(practiceSets)
+      .values({ name: name.trim(), description: description?.trim() || null, subject: subject?.trim() || null })
+      .returning();
+    res.status(201).json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to create practice set" }); }
+});
+
+router.patch("/admin/practice-sets/:id", async (req, res) => {
+  try {
+    const { name, description, subject, isActive } = req.body;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setFields: Record<string, any> = { updatedAt: new Date() };
+    if (name !== undefined) setFields.name = name.trim();
+    if (description !== undefined) setFields.description = description || null;
+    if (subject !== undefined) setFields.subject = subject || null;
+    if (isActive !== undefined) setFields.isActive = isActive;
+    const [row] = await db.update(practiceSets).set(setFields)
+      .where(eq(practiceSets.id, req.params.id)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to update practice set" }); }
+});
+
+router.get("/admin/practice-sets/:id/questions", async (req, res) => {
+  try {
+    const rows = await db.select({
+      id: practiceSetQuestions.id,
+      questionId: practiceSetQuestions.questionId,
+      sortOrder: practiceSetQuestions.sortOrder,
+      subject: questionBank.subject, topic: questionBank.topic,
+      questionText: questionBank.questionText, difficulty: questionBank.difficulty,
+      questionType: questionBank.questionType, marks: questionBank.marks,
+    }).from(practiceSetQuestions)
+      .leftJoin(questionBank, eq(practiceSetQuestions.questionId, questionBank.id))
+      .where(eq(practiceSetQuestions.setId, req.params.id))
+      .orderBy(asc(practiceSetQuestions.sortOrder));
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch practice set questions" }); }
+});
+
+router.post("/admin/practice-sets/:id/questions", async (req, res) => {
+  try {
+    const { questionIds } = req.body;
+    if (!Array.isArray(questionIds) || questionIds.length === 0) {
+      res.status(400).json({ error: "questionIds must be a non-empty array" }); return;
+    }
+    const existing = await db.select({ questionId: practiceSetQuestions.questionId })
+      .from(practiceSetQuestions).where(eq(practiceSetQuestions.setId, req.params.id));
+    const existingIds = new Set(existing.map(e => e.questionId));
+    const toInsert = (questionIds as string[]).filter(id => !existingIds.has(id));
+    if (toInsert.length > 0) {
+      const [{ maxOrder }] = await db.select({ maxOrder: sql<number>`coalesce(max(sort_order), 0)` })
+        .from(practiceSetQuestions).where(eq(practiceSetQuestions.setId, req.params.id));
+      let order = (maxOrder ?? 0) + 1;
+      await db.insert(practiceSetQuestions).values(
+        toInsert.map(qId => ({ setId: req.params.id, questionId: qId, sortOrder: order++ }))
+      );
+    }
+    res.json({ ok: true, added: toInsert.length });
+  } catch (e) {
+    console.error("POST /admin/practice-sets/:id/questions error:", e);
+    res.status(500).json({ error: "Failed to add questions to practice set" });
+  }
+});
+
+router.delete("/admin/practice-sets/:setId/questions/:questionId", async (req, res) => {
+  try {
+    await db.delete(practiceSetQuestions).where(
+      and(eq(practiceSetQuestions.setId, req.params.setId), eq(practiceSetQuestions.questionId, req.params.questionId))
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: "Failed to remove question from set" }); }
 });
 
 // ── Audit Log ──────────────────────────────────────────────────────────────

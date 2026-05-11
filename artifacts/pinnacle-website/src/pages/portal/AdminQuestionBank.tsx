@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Plus, X, Search, Check, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useCallback } from "react";
+import {
+  Plus, X, Search, Check, Trash2, Pencil, ChevronLeft, ChevronRight,
+  RotateCcw, AlertTriangle, Recycle, BookMarked, MinusCircle,
+} from "lucide-react";
 import { useToast, SkeletonList, useModalEscape } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -14,9 +17,17 @@ async function api(method: string, path: string, body: object | null, getToken: 
   return res.json();
 }
 
+async function fetchApi<T>(path: string, getToken: () => Promise<string | null>): Promise<T> {
+  const token = await getToken();
+  const res = await fetch(`${BASE}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed");
+  return json.data as T;
+}
+
 type Question = {
   id: string; subject: string; topic: string | null; difficulty: string;
-  questionType: string; questionText: string; correctAnswer: string;
+  questionType: string; questionText: string; correctAnswer: string; options: Record<string, string> | null;
   marks: number; isPublished: boolean; examName: string | null;
   examTarget: string[] | null; source: string; reviewStatus: string;
   year: number | null; classGrade: string | null; createdAt: string;
@@ -24,25 +35,17 @@ type Question = {
 
 type QBData = { rows: Question[]; total: number; page: number; limit: number };
 
-function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+type DeletionRequest = {
+  id: string; subject: string; topic: string | null; questionText: string;
+  difficulty: string; questionType: string; marks: number;
+  deletionRequestedAt: string; deletionReason: string | null;
+};
 
-  const load = async (qPath: string = path) => {
-    setLoading(true); setError(null);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${BASE}/api/v1${qPath}`, { headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed");
-      setData(json.data);
-    } catch (e) { setError(e instanceof Error ? e.message : "Error"); }
-    finally { setLoading(false); }
-  };
-
-  return { data, loading, error, load };
-}
+type RecycleBinItem = {
+  id: string; subject: string; topic: string | null; questionText: string;
+  difficulty: string; questionType: string; marks: number;
+  deletedAt: string; deletionReason: string | null;
+};
 
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
@@ -57,12 +60,29 @@ const EMPTY_FORM = {
   optionA: "", optionB: "", optionC: "", optionD: "",
 };
 
+const diffColor: Record<string, string> = {
+  easy: "bg-green-100 text-green-700",
+  medium: "bg-yellow-100 text-yellow-700",
+  hard: "bg-red-100 text-red-700",
+};
+const reviewColor: Record<string, string> = {
+  approved: "bg-green-100 text-green-700",
+  pending: "bg-orange-100 text-orange-700",
+  rejected: "bg-red-100 text-red-700",
+};
+
+type QBTab = "all" | "pending" | "deletion-requests" | "recycle-bin";
+
 export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
-  const { data, loading, error, load } = useFetch<QBData>("/admin/question-bank", getToken);
-  const [tab, setTab] = useState<"all" | "pending">("all");
-  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", search: "" });
+  const [tab, setTab] = useState<QBTab>("all");
+  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "" });
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [data, setData] = useState<QBData | null>(null);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequest[]>([]);
+  const [recycleBin, setRecycleBin] = useState<RecycleBinItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: Question } | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
@@ -70,29 +90,63 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
   useModalEscape(() => setModal(null), !!modal);
   useModalEscape(() => setDeleteModal(null), !!deleteModal);
 
-  const buildPath = (p = page) => {
+  const buildPath = useCallback((p = page) => {
     const params = new URLSearchParams({ page: String(p), limit: "30" });
     if (filters.subject) params.set("subject", filters.subject);
     if (filters.difficulty) params.set("difficulty", filters.difficulty);
     if (filters.questionType) params.set("questionType", filters.questionType);
     if (filters.source) params.set("source", filters.source);
+    if (search.trim()) params.set("search", search.trim());
     if (tab === "pending") params.set("reviewStatus", "pending");
     return `/admin/question-bank?${params}`;
-  };
+  }, [page, filters, search, tab]);
 
-  const fetch_ = (p = page) => load(buildPath(p));
+  const load = useCallback(async (p = page, activeTab = tab) => {
+    setLoading(true);
+    try {
+      if (activeTab === "deletion-requests") {
+        const rows = await fetchApi<DeletionRequest[]>("/admin/question-bank/deletion-requests", getToken);
+        setDeletionRequests(rows);
+      } else if (activeTab === "recycle-bin") {
+        const rows = await fetchApi<RecycleBinItem[]>("/admin/question-bank/recycle-bin", getToken);
+        setRecycleBin(rows);
+      } else {
+        const params = new URLSearchParams({ page: String(p), limit: "30" });
+        if (filters.subject) params.set("subject", filters.subject);
+        if (filters.difficulty) params.set("difficulty", filters.difficulty);
+        if (filters.questionType) params.set("questionType", filters.questionType);
+        if (filters.source) params.set("source", filters.source);
+        if (search.trim()) params.set("search", search.trim());
+        if (activeTab === "pending") params.set("reviewStatus", "pending");
+        const d = await fetchApi<QBData>(`/admin/question-bank?${params}`, getToken);
+        setData(d);
+      }
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filters, search, tab, getToken, toast]);
+
+  // Initial load
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) { setInitialized(true); load(1, "all"); }
+
+  const switchTab = (t: QBTab) => { setTab(t); setPage(1); load(1, t); };
+  const applyFilters = () => { setPage(1); load(1, tab); };
+  const goPage = (p: number) => { setPage(p); load(p, tab); };
 
   const openCreate = () => { setForm({ ...EMPTY_FORM }); setModal({ mode: "create" }); };
   const openEdit = (q: Question) => {
-    const opts = (q as unknown as Record<string, string | null>);
+    const opts = q.options ?? {} as Record<string, string>;
     setForm({
       subject: q.subject, topic: q.topic ?? "", classGrade: q.classGrade ?? "",
       year: q.year ? String(q.year) : "", difficulty: q.difficulty, questionType: q.questionType,
       questionText: q.questionText, correctAnswer: q.correctAnswer, solution: "",
       examName: q.examName ?? "", marks: q.marks, examTarget: q.examTarget ?? [],
       source: q.source,
-      optionA: String(opts["optionA"] ?? ""), optionB: String(opts["optionB"] ?? ""),
-      optionC: String(opts["optionC"] ?? ""), optionD: String(opts["optionD"] ?? ""),
+      optionA: opts["A"] ?? "", optionB: opts["B"] ?? "",
+      optionC: opts["C"] ?? "", optionD: opts["D"] ?? "",
     });
     setModal({ mode: "edit", item: q });
   };
@@ -111,10 +165,15 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       examTarget: form.examTarget, source: form.source,
     };
     try {
-      if (modal?.mode === "create") await api("POST", "/admin/question-bank", payload, getToken);
-      else await api("PATCH", `/admin/question-bank/${modal?.item?.id}`, payload, getToken);
-      toast("success", modal?.mode === "create" ? "Question created" : "Question updated");
-      setModal(null); fetch_();
+      if (modal?.mode === "create") {
+        await api("POST", "/admin/question-bank", payload, getToken);
+        toast("success", "Question created");
+      } else {
+        await api("PATCH", `/admin/question-bank/${modal?.item?.id}`, payload, getToken);
+        toast("success", "Question updated");
+      }
+      setModal(null);
+      load(page, tab);
     } catch { toast("error", "Failed to save question"); }
     setSaving(false);
   };
@@ -122,118 +181,227 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
   const review = async (id: string, status: "approved" | "rejected") => {
     try {
       await api("PATCH", `/admin/question-bank/${id}/review`, { reviewStatus: status }, getToken);
-      toast(status === "approved" ? "success" : "info", status === "approved" ? "Question approved" : "Question rejected");
-      fetch_();
+      toast(status === "approved" ? "success" : "info", status === "approved" ? "Approved" : "Rejected");
+      load(page, tab);
     } catch { toast("error", "Failed to update review"); }
   };
 
-  const softDelete = async () => {
+  const flagForDeletion = async () => {
     if (!deleteModal) return;
     try {
       await api("DELETE", `/admin/question-bank/${deleteModal.id}`, { reason: deleteModal.reason }, getToken);
-      toast("success", "Question deleted");
-      setDeleteModal(null); fetch_();
-    } catch { toast("error", "Failed to delete question"); }
+      toast("info", "Question flagged for deletion — confirm in Deletion Requests tab");
+      setDeleteModal(null);
+      load(page, tab);
+    } catch { toast("error", "Failed to flag question"); }
   };
 
-  const goPage = (p: number) => { setPage(p); fetch_(p); };
-  const applyFilters = () => { setPage(1); fetch_(1); };
+  const confirmDelete = async (id: string) => {
+    if (!confirm("Permanently soft-delete this question? It will go to the Recycle Bin for 7 days.")) return;
+    try {
+      await api("POST", `/admin/question-bank/${id}/confirm-delete`, {}, getToken);
+      toast("success", "Moved to Recycle Bin");
+      load(1, tab);
+    } catch { toast("error", "Failed to confirm deletion"); }
+  };
+
+  const restore = async (id: string) => {
+    try {
+      await api("POST", `/admin/question-bank/${id}/restore`, {}, getToken);
+      toast("success", "Question restored");
+      load(1, tab);
+    } catch { toast("error", "Failed to restore"); }
+  };
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 30);
 
-  const diffColor: Record<string, string> = { easy: "bg-green-100 text-green-700", medium: "bg-yellow-100 text-yellow-700", hard: "bg-red-100 text-red-700" };
-  const reviewColor: Record<string, string> = { approved: "bg-green-100 text-green-700", pending: "bg-orange-100 text-orange-700", rejected: "bg-red-100 text-red-700" };
+  const TABS: { key: QBTab; label: string }[] = [
+    { key: "all", label: "All Questions" },
+    { key: "pending", label: "Pending Review" },
+    { key: "deletion-requests", label: "Deletion Requests" },
+    { key: "recycle-bin", label: "Recycle Bin" },
+  ];
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-[var(--color-navy)]">Question Bank</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{total} questions</p>
+          {tab === "all" && <p className="text-sm text-slate-500 mt-0.5">{total} questions</p>}
         </div>
-        <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm"><Plus size={14} /> New Question</button>
+        <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm">
+          <Plus size={14} /> New Question
+        </button>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        {(["all", "pending"] as const).map(t => (
-          <button key={t} onClick={() => { setTab(t); setPage(1); setTimeout(() => fetch_(1), 0); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-            {t === "all" ? "All Questions" : "Pending Review"}
+      {/* Tabs */}
+      <div className="flex gap-1.5 mb-4 flex-wrap">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => switchTab(t.key)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === t.key ? "bg-[var(--color-navy)] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+            {t.key === "deletion-requests" && <AlertTriangle size={12} className="inline mr-1" />}
+            {t.key === "recycle-bin" && <Recycle size={12} className="inline mr-1" />}
+            {t.label}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))}>
-          <option value="">All Subjects</option>
-          {SUBJECTS.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))}>
-          <option value="">All Difficulties</option>
-          {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
-        </select>
-        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.questionType} onChange={e => setFilters(f => ({ ...f, questionType: e.target.value }))}>
-          <option value="">All Types</option>
-          {TYPES.map(t => <option key={t}>{t}</option>)}
-        </select>
-        <button onClick={applyFilters} className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-2 text-sm flex items-center gap-1.5 justify-center">
-          <Search size={14} /> Search
-        </button>
-      </div>
+      {/* Filters (only for all/pending tabs) */}
+      {(tab === "all" || tab === "pending") && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))}>
+            <option value="">All Subjects</option>
+            {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))}>
+            <option value="">All Difficulties</option>
+            {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
+          </select>
+          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.questionType} onChange={e => setFilters(f => ({ ...f, questionType: e.target.value }))}>
+            <option value="">All Types</option>
+            {TYPES.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input placeholder="Full-text search…" className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+              value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <button onClick={applyFilters} className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-2 text-sm font-medium">
+            Apply
+          </button>
+        </div>
+      )}
 
       {loading && <SkeletonList rows={5} />}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
 
-      {!loading && (
+      {/* All / Pending Review */}
+      {!loading && (tab === "all" || tab === "pending") && (
+        <>
+          <div className="space-y-2">
+            {rows.map(q => (
+              <div key={q.id} className="card border border-slate-200 p-4">
+                <div className="flex gap-3 items-start">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{q.subject}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${diffColor[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{q.questionType}</span>
+                      {q.reviewStatus !== "approved" && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${reviewColor[q.reviewStatus] ?? ""}`}>{q.reviewStatus}</span>
+                      )}
+                      {q.source !== "MANUAL" && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{q.source}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-800 line-clamp-2">{q.questionText}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {q.topic && `${q.topic} · `}{q.marks} marks{q.year && ` · ${q.year}`}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {q.reviewStatus === "pending" && (
+                      <>
+                        <button onClick={() => review(q.id, "approved")} title="Approve"
+                          className="p-1.5 text-green-500 hover:bg-green-50 rounded"><Check size={14} /></button>
+                        <button onClick={() => review(q.id, "rejected")} title="Reject"
+                          className="p-1.5 text-red-400 hover:bg-red-50 rounded"><X size={14} /></button>
+                      </>
+                    )}
+                    <button onClick={() => openEdit(q)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)]"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleteModal({ id: q.id, reason: "" })} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {rows.length === 0 && <p className="text-slate-400 text-sm text-center py-8">No questions found.</p>}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <button onClick={() => goPage(page - 1)} disabled={page === 1}
+                className="p-1.5 rounded text-slate-500 hover:text-slate-900 disabled:opacity-30"><ChevronLeft size={16} /></button>
+              <span className="text-sm text-slate-600">{page} / {totalPages}</span>
+              <button onClick={() => goPage(page + 1)} disabled={page === totalPages}
+                className="p-1.5 rounded text-slate-500 hover:text-slate-900 disabled:opacity-30"><ChevronRight size={16} /></button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Deletion Requests */}
+      {!loading && tab === "deletion-requests" && (
         <div className="space-y-2">
-          {rows.map(q => (
-            <div key={q.id} className="card border border-slate-200 p-4">
+          {deletionRequests.length === 0 && <p className="text-slate-400 text-sm text-center py-8">No pending deletion requests.</p>}
+          {deletionRequests.map(q => (
+            <div key={q.id} className="card border border-orange-200 bg-orange-50 p-4">
               <div className="flex gap-3 items-start">
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap gap-1.5 mb-2">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{q.subject}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${diffColor[q.difficulty] ?? ""}`}>{q.difficulty}</span>
                     <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{q.questionType}</span>
-                    {q.reviewStatus !== "approved" && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${reviewColor[q.reviewStatus] ?? ""}`}>{q.reviewStatus}</span>
-                    )}
-                    {q.source !== "MANUAL" && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{q.source}</span>}
                   </div>
                   <p className="text-sm text-slate-800 line-clamp-2">{q.questionText}</p>
-                  <p className="text-xs text-slate-400 mt-1">{q.topic && `${q.topic} · `}{q.marks} marks{q.year && ` · ${q.year}`}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  {q.reviewStatus === "pending" && (
-                    <>
-                      <button onClick={() => review(q.id, "approved")} title="Approve" className="p-1.5 text-green-500 hover:bg-green-50 rounded transition-colors"><Check size={14} /></button>
-                      <button onClick={() => review(q.id, "rejected")} title="Reject" className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors"><X size={14} /></button>
-                    </>
+                  {q.deletionReason && (
+                    <p className="text-xs text-orange-700 mt-1">Reason: {q.deletionReason}</p>
                   )}
-                  <button onClick={() => openEdit(q)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)] transition-colors"><Pencil size={14} /></button>
-                  <button onClick={() => setDeleteModal({ id: q.id, reason: "" })} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Flagged {new Date(q.deletionRequestedAt).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => restore(q.id)}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50">
+                    <RotateCcw size={12} /> Restore
+                  </button>
+                  <button onClick={() => confirmDelete(q.id)}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">
+                    <Trash2 size={12} /> Confirm Delete
+                  </button>
                 </div>
               </div>
             </div>
           ))}
-          {rows.length === 0 && <p className="text-slate-400 text-sm text-center py-8">No questions found.</p>}
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <button onClick={() => goPage(page - 1)} disabled={page === 1} className="p-1.5 rounded text-slate-500 hover:text-slate-900 disabled:opacity-30"><ChevronLeft size={16} /></button>
-          <span className="text-sm text-slate-600">{page} / {totalPages}</span>
-          <button onClick={() => goPage(page + 1)} disabled={page === totalPages} className="p-1.5 rounded text-slate-500 hover:text-slate-900 disabled:opacity-30"><ChevronRight size={16} /></button>
+      {/* Recycle Bin */}
+      {!loading && tab === "recycle-bin" && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 mb-3">Questions deleted within the last 7 days. After 7 days they are permanently purged.</p>
+          {recycleBin.length === 0 && <p className="text-slate-400 text-sm text-center py-8">Recycle bin is empty.</p>}
+          {recycleBin.map(q => (
+            <div key={q.id} className="card border border-red-200 bg-red-50 p-4">
+              <div className="flex gap-3 items-start">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{q.subject}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${diffColor[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+                  </div>
+                  <p className="text-sm text-slate-800 line-clamp-2">{q.questionText}</p>
+                  {q.deletionReason && <p className="text-xs text-red-700 mt-1">Reason: {q.deletionReason}</p>}
+                  <p className="text-xs text-slate-400 mt-1">Deleted {new Date(q.deletedAt).toLocaleString("en-IN")}</p>
+                </div>
+                <button onClick={() => restore(q.id)}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 shrink-0">
+                  <RotateCcw size={12} /> Restore
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
+      {/* Create / Edit Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
-              <h3 className="font-bold text-[var(--color-navy)]">{modal.mode === "create" ? "New Question" : "Edit Question"}</h3>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
+              <h3 className="font-bold text-[var(--color-navy)]">
+                {modal.mode === "create" ? "New Question" : "Edit Question"}
+              </h3>
               <button onClick={() => setModal(null)}><X size={18} className="text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-4">
@@ -251,7 +419,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Type *</label>
-                  <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.questionType} onChange={e => setForm(f => ({ ...f, questionType: e.target.value }))}>
+                  <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.questionType} onChange={e => setForm(f => ({ ...f, questionType: e.target.value, correctAnswer: "" }))}>
                     {TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
@@ -267,11 +435,11 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Year (PYQ)</label>
-                  <input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.year} placeholder="e.g. 2023" onChange={e => setForm(f => ({ ...f, year: e.target.value }))} />
+                  <input type="number" placeholder="e.g. 2023" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Exam Name</label>
-                  <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.examName} placeholder="JEE Main 2023" onChange={e => setForm(f => ({ ...f, examName: e.target.value }))} />
+                  <input placeholder="JEE Main 2023" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.examName} onChange={e => setForm(f => ({ ...f, examName: e.target.value }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Source</label>
@@ -301,11 +469,11 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                 <label className="block text-xs font-medium text-slate-600 mb-1">Correct Answer *</label>
                 {form.questionType === "mcq" ? (
                   <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.correctAnswer} onChange={e => setForm(f => ({ ...f, correctAnswer: e.target.value }))}>
-                    <option value="">Select…</option>
+                    <option value="">Select correct option…</option>
                     {["A", "B", "C", "D"].map(o => <option key={o}>{o}</option>)}
                   </select>
                 ) : (
-                  <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.correctAnswer} onChange={e => setForm(f => ({ ...f, correctAnswer: e.target.value }))} />
+                  <input placeholder={form.questionType === "numerical" ? "e.g. 42.5" : "Model answer…"} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.correctAnswer} onChange={e => setForm(f => ({ ...f, correctAnswer: e.target.value }))} />
                 )}
               </div>
 
@@ -319,32 +487,41 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                 <div className="flex flex-wrap gap-2">
                   {EXAM_TARGETS.map(t => (
                     <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input type="checkbox" checked={form.examTarget.includes(t)} onChange={e => setForm(f => ({ ...f, examTarget: e.target.checked ? [...f.examTarget, t] : f.examTarget.filter(x => x !== t) }))} />
+                      <input type="checkbox" checked={form.examTarget.includes(t)}
+                        onChange={e => setForm(f => ({ ...f, examTarget: e.target.checked ? [...f.examTarget, t] : f.examTarget.filter(x => x !== t) }))} />
                       {t.replace(/_/g, " ")}
                     </label>
                   ))}
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-5 pb-5">
+            <div className="flex justify-end gap-3 px-5 pb-5 sticky bottom-0 bg-white border-t border-slate-100 pt-3">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
               <button onClick={save} disabled={saving || !form.subject || !form.questionText || !form.correctAnswer} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
-                {saving ? "Saving…" : "Save"}
+                {saving ? "Saving…" : "Save Question"}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Delete (Flag) Modal */}
       {deleteModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-[var(--color-navy)] mb-3">Delete Question</h3>
-            <p className="text-sm text-slate-600 mb-3">This question will be soft-deleted and moved to the recycle bin. Provide a reason:</p>
-            <textarea rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none mb-4" placeholder="Reason for deletion…" value={deleteModal.reason} onChange={e => setDeleteModal(d => d ? { ...d, reason: e.target.value } : null)} />
+            <h3 className="font-bold text-[var(--color-navy)] mb-1">Flag for Deletion</h3>
+            <p className="text-sm text-slate-600 mb-3">
+              This question will be moved to Deletion Requests. An admin must confirm before it's soft-deleted.
+            </p>
+            <textarea rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none mb-4"
+              placeholder="Reason for deletion (optional)…"
+              value={deleteModal.reason}
+              onChange={e => setDeleteModal(d => d ? { ...d, reason: e.target.value } : null)} />
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeleteModal(null)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
-              <button onClick={softDelete} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+              <button onClick={flagForDeletion} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+                Flag for Deletion
+              </button>
             </div>
           </div>
         </div>
@@ -353,26 +530,244 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
   );
 }
 
-type PracticeSet = { id: string; name: string; description: string | null; subject: string | null; isActive: boolean; questionCount: number; createdAt: string };
+// ── Practice Sets ────────────────────────────────────────────────────────────
+
+type PracticeSet = {
+  id: string; name: string; description: string | null; subject: string | null;
+  isActive: boolean; questionCount: number; createdAt: string;
+};
+
+type SetQuestion = {
+  id: string; questionId: string; sortOrder: number;
+  subject: string | null; topic: string | null; questionText: string | null;
+  difficulty: string | null; questionType: string | null; marks: number | null;
+};
+
+type BankQuestion = {
+  id: string; subject: string; topic: string | null; questionText: string;
+  difficulty: string; questionType: string; marks: number;
+};
+
+function QuestionPickerModal({
+  setId, setName, getToken, onClose,
+}: { setId: string; setName: string; getToken: () => Promise<string | null>; onClose: () => void }) {
+  const { toast } = useToast();
+  const [setQuestions, setSetQuestions] = useState<SetQuestion[]>([]);
+  const [bankResults, setBankResults] = useState<BankQuestion[]>([]);
+  const [loadingSet, setLoadingSet] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [searchSubject, setSearchSubject] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+
+  const loadSetQuestions = useCallback(async () => {
+    setLoadingSet(true);
+    try {
+      const rows = await fetchApi<SetQuestion[]>(`/admin/practice-sets/${setId}/questions`, getToken);
+      setSetQuestions(rows);
+    } catch { toast("error", "Failed to load set questions"); }
+    finally { setLoadingSet(false); }
+  }, [setId, getToken, toast]);
+
+  const [loaded, setLoaded] = useState(false);
+  if (!loaded) { setLoaded(true); loadSetQuestions(); }
+
+  const searchBank = async () => {
+    setSearching(true);
+    try {
+      const params = new URLSearchParams({ limit: "20", page: "1" });
+      if (searchSubject) params.set("subject", searchSubject);
+      if (searchText.trim()) params.set("search", searchText.trim());
+      const d = await fetchApi<{ rows: BankQuestion[] }>(`/admin/question-bank?${params}`, getToken);
+      setBankResults(d.rows);
+    } catch { toast("error", "Failed to search bank"); }
+    finally { setSearching(false); }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const addSelected = async () => {
+    if (selected.size === 0) return;
+    setAdding(true);
+    try {
+      await api("POST", `/admin/practice-sets/${setId}/questions`, { questionIds: [...selected] }, getToken);
+      toast("success", `Added ${selected.size} question(s)`);
+      setSelected(new Set());
+      loadSetQuestions();
+    } catch { toast("error", "Failed to add questions"); }
+    finally { setAdding(false); }
+  };
+
+  const removeQuestion = async (questionId: string) => {
+    try {
+      await api("DELETE", `/admin/practice-sets/${setId}/questions/${questionId}`, null, getToken);
+      toast("success", "Removed from set");
+      loadSetQuestions();
+    } catch { toast("error", "Failed to remove"); }
+  };
+
+  useModalEscape(onClose, true);
+
+  const inSetIds = new Set(setQuestions.map(q => q.questionId));
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+          <div>
+            <h3 className="font-bold text-[var(--color-navy)]">{setName}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Manage questions in this practice set</p>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: Questions in set */}
+          <div className="w-2/5 border-r border-slate-100 flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+              <p className="text-sm font-semibold text-[var(--color-navy)]">
+                In this set ({setQuestions.length})
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {loadingSet && <SkeletonList rows={3} />}
+              {!loadingSet && setQuestions.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-6">No questions yet. Search and add from the bank →</p>
+              )}
+              {setQuestions.map(q => (
+                <div key={q.id} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex gap-1 mb-1 flex-wrap">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{q.subject}</span>
+                        {q.difficulty && <span className={`text-xs px-1.5 py-0.5 rounded ${diffColor[q.difficulty] ?? ""}`}>{q.difficulty}</span>}
+                      </div>
+                      <p className="text-xs text-slate-700 line-clamp-2">{q.questionText}</p>
+                    </div>
+                    <button onClick={() => removeQuestion(q.questionId)}
+                      className="p-1 text-slate-300 hover:text-red-500 shrink-0 transition-colors" title="Remove from set">
+                      <MinusCircle size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Bank search */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+              <p className="text-sm font-semibold text-[var(--color-navy)] mb-2">Search Question Bank</p>
+              <div className="flex gap-2">
+                <select className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" value={searchSubject} onChange={e => setSearchSubject(e.target.value)}>
+                  <option value="">All Subjects</option>
+                  {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                </select>
+                <input placeholder="Search text…" className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+                  value={searchText} onChange={e => setSearchText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && searchBank()} />
+                <button onClick={searchBank} className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-1.5 text-xs font-medium">
+                  {searching ? "…" : "Search"}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {bankResults.length === 0 && !searching && (
+                <p className="text-xs text-slate-400 text-center py-6">Search the bank above to find questions to add.</p>
+              )}
+              {bankResults.map(q => {
+                const alreadyIn = inSetIds.has(q.id);
+                const isSelected = selected.has(q.id);
+                return (
+                  <div key={q.id}
+                    onClick={() => !alreadyIn && toggleSelect(q.id)}
+                    className={`border rounded-lg p-2.5 cursor-pointer transition-colors ${alreadyIn ? "border-green-200 bg-green-50 cursor-default opacity-60" : isSelected ? "border-[var(--color-teal)] bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex gap-1 mb-1 flex-wrap">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{q.subject}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${diffColor[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+                          <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{q.questionType}</span>
+                        </div>
+                        <p className="text-xs text-slate-700 line-clamp-2">{q.questionText}</p>
+                      </div>
+                      {alreadyIn ? (
+                        <Check size={14} className="text-green-500 shrink-0 mt-1" />
+                      ) : (
+                        <div className={`w-4 h-4 rounded border shrink-0 mt-1 flex items-center justify-center ${isSelected ? "bg-[var(--color-teal)] border-[var(--color-teal)]" : "border-slate-300"}`}>
+                          {isSelected && <Check size={10} className="text-white" />}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {selected.size > 0 && (
+              <div className="px-4 py-3 border-t border-slate-100 shrink-0 flex items-center justify-between bg-teal-50">
+                <p className="text-sm text-teal-700">{selected.size} question(s) selected</p>
+                <button onClick={addSelected} disabled={adding}
+                  className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50">
+                  {adding ? "Adding…" : `Add ${selected.size} to Set`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
-  const { data: sets, loading, load } = useFetch<PracticeSet[]>("/admin/practice-sets", getToken);
+  const [sets, setSets] = useState<PracticeSet[]>([]);
+  const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: PracticeSet } | null>(null);
+  const [pickerSet, setPickerSet] = useState<PracticeSet | null>(null);
   const [form, setForm] = useState({ name: "", description: "", subject: "" });
   const [saving, setSaving] = useState(false);
   useModalEscape(() => setModal(null), !!modal);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await fetchApi<PracticeSet[]>("/admin/practice-sets", getToken);
+      setSets(rows);
+    } catch { toast("error", "Failed to load practice sets"); }
+    finally { setLoading(false); }
+  }, [getToken, toast]);
+
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) { setInitialized(true); load(); }
+
   const openCreate = () => { setForm({ name: "", description: "", subject: "" }); setModal({ mode: "create" }); };
-  const openEdit = (s: PracticeSet) => { setForm({ name: s.name, description: s.description ?? "", subject: s.subject ?? "" }); setModal({ mode: "edit", item: s }); };
+  const openEdit = (s: PracticeSet) => {
+    setForm({ name: s.name, description: s.description ?? "", subject: s.subject ?? "" });
+    setModal({ mode: "edit", item: s });
+  };
 
   const save = async () => {
     setSaving(true);
     try {
-      if (modal?.mode === "create") await api("POST", "/admin/practice-sets", form, getToken);
-      else await api("PATCH", `/admin/practice-sets/${modal?.item?.id}`, form, getToken);
-      toast("success", modal?.mode === "create" ? "Practice set created" : "Practice set updated");
-      setModal(null); load();
+      if (modal?.mode === "create") {
+        await api("POST", "/admin/practice-sets", form, getToken);
+        toast("success", "Practice set created");
+      } else {
+        await api("PATCH", `/admin/practice-sets/${modal?.item?.id}`, form, getToken);
+        toast("success", "Practice set updated");
+      }
+      setModal(null);
+      load();
     } catch { toast("error", "Failed to save practice set"); }
     setSaving(false);
   };
@@ -381,55 +776,90 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Practice Sets</h2>
-        <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm"><Plus size={14} /> New Set</button>
+        <button onClick={openCreate} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm">
+          <Plus size={14} /> New Set
+        </button>
       </div>
+
       {loading && <SkeletonList rows={3} />}
+
       <div className="space-y-3">
-        {(sets ?? []).map(s => (
+        {sets.map(s => (
           <div key={s.id} className="card border border-slate-200 flex gap-3 items-center">
             <div className="flex-1">
               <p className="font-semibold text-sm text-[var(--color-navy)]">{s.name}</p>
-              <p className="text-xs text-slate-500">{s.subject && `${s.subject} · `}{s.questionCount} questions{s.description && ` · ${s.description}`}</p>
+              <p className="text-xs text-slate-500">
+                {s.subject && `${s.subject} · `}
+                {s.questionCount} question{s.questionCount !== 1 ? "s" : ""}
+                {s.description && ` · ${s.description}`}
+              </p>
             </div>
             <div className="flex gap-2 items-center shrink-0">
               {!s.isActive && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>}
-              <button onClick={() => openEdit(s)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)]"><Pencil size={14} /></button>
+              <button onClick={() => setPickerSet(s)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-teal)] text-[var(--color-teal)] hover:bg-teal-50 transition-colors">
+                <BookMarked size={12} /> Questions
+              </button>
+              <button onClick={() => openEdit(s)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)]">
+                <Pencil size={14} />
+              </button>
             </div>
           </div>
         ))}
-        {(sets ?? []).length === 0 && !loading && <p className="text-slate-400 text-sm">No practice sets yet.</p>}
+        {sets.length === 0 && !loading && (
+          <p className="text-slate-400 text-sm text-center py-8">No practice sets yet. Create one to get started.</p>
+        )}
       </div>
 
+      {/* Create / Edit modal */}
       {modal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-[var(--color-navy)]">{modal.mode === "create" ? "New Practice Set" : "Edit Practice Set"}</h3>
+              <h3 className="font-bold text-[var(--color-navy)]">
+                {modal.mode === "create" ? "New Practice Set" : "Edit Practice Set"}
+              </h3>
               <button onClick={() => setModal(null)}><X size={18} className="text-slate-400" /></button>
             </div>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Name *</label>
-                <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Subject</label>
-                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
+                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
                   <option value="">All subjects</option>
                   {SUBJECTS.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
-                <textarea rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+                <textarea rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                  value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-5">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
-              <button onClick={save} disabled={saving || !form.name} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+              <button onClick={save} disabled={saving || !form.name}
+                className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+                {saving ? "Saving…" : "Save"}
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Question picker modal */}
+      {pickerSet && (
+        <QuestionPickerModal
+          setId={pickerSet.id}
+          setName={pickerSet.name}
+          getToken={getToken}
+          onClose={() => { setPickerSet(null); load(); }}
+        />
       )}
     </div>
   );
