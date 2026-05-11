@@ -1,5 +1,5 @@
-import { Router } from "express";
-import { requireAuth } from "@clerk/express";
+import { Router, type Request, type Response, type NextFunction } from "express";
+import { requireAuth, getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   schedules, assignments, studyMaterials, attendance, liveClasses, classRecordings,
@@ -11,6 +11,23 @@ import { desc, eq, sql, asc, isNull, isNotNull, and, gte, lte, ilike, or } from 
 
 const router = Router();
 router.use(requireAuth());
+
+async function requireAdminRole(req: Request, res: Response, next: NextFunction) {
+  const { userId: clerkUserId } = getAuth(req);
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const [user] = await db.select({ role: users.role, approvalStatus: users.approvalStatus })
+      .from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+    if (!user || user.role !== "admin" || user.approvalStatus !== "approved") {
+      res.status(403).json({ error: "Forbidden: admin access required" }); return;
+    }
+    next();
+  } catch {
+    res.status(500).json({ error: "Failed to verify role" });
+  }
+}
+
+router.use(requireAdminRole);
 
 // ── Schedules (Timetable) ─────────────────────────────────────────────────────
 

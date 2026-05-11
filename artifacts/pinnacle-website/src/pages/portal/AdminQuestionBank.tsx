@@ -265,8 +265,8 @@ export function AdminQuestionBank({ getToken, onReviewComplete }: { getToken: ()
         ))}
       </div>
 
-      {/* Filters (only for all/pending tabs) */}
-      {(tab === "all" || tab === "pending") && (
+      {/* Filters (only for "all" tab — review-queue endpoint does not accept filter params) */}
+      {tab === "all" && (
         <div className="space-y-2 mb-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))}>
@@ -294,15 +294,13 @@ export function AdminQuestionBank({ getToken, onReviewComplete }: { getToken: ()
               <option value="">All Exam Targets</option>
               {EXAM_TARGETS.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
             </select>
-            {tab === "all" && (
-              <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.reviewStatus} onChange={e => setFilters(f => ({ ...f, reviewStatus: e.target.value }))}>
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            )}
-            <div className={`relative ${tab === "pending" ? "md:col-span-2" : ""}`}>
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.reviewStatus} onChange={e => setFilters(f => ({ ...f, reviewStatus: e.target.value }))}>
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input placeholder="Full-text search…" className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)}
