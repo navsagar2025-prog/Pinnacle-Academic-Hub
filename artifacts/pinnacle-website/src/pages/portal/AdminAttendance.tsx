@@ -21,6 +21,11 @@ function useFetch<T>(path: string, getToken: () => Promise<string | null>) {
 
 type Batch = { id: string; name: string };
 type AttendanceRow = { id: string; rollNumber: string; userName: string | null; status: string; attendance: unknown };
+type LowAlert = {
+  id: string; notifiedPct: number; notifiedAt: string; hasRecovered: boolean;
+  studentId: string | null; rollNumber: string | null; batchId: string | null;
+  batchName: string | null; studentName: string | null;
+};
 
 const STATUSES = ["present", "absent", "late"] as const;
 const STATUS_COLORS = { present: "bg-green-100 text-green-700", absent: "bg-red-100 text-red-700", late: "bg-yellow-100 text-yellow-700" };
@@ -28,6 +33,7 @@ const STATUS_COLORS = { present: "bg-green-100 text-green-700", absent: "bg-red-
 export function AdminAttendance({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
+  const { data: lowAlerts } = useFetch<LowAlert[]>("/admin/attendance/low-alerts", getToken);
   const [batchId, setBatchId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [subject, setSubject] = useState("");
@@ -72,10 +78,33 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
   const presentCount = Object.values(statuses).filter(s => s === "present").length;
   const absentCount = Object.values(statuses).filter(s => s === "absent").length;
   const lateCount = Object.values(statuses).filter(s => s === "late").length;
+  const total = rows.length;
+  const attendancePct = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+
+  const activeAlerts = (lowAlerts ?? []).filter(a => !a.hasRecovered);
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-6">Attendance</h2>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-4">Attendance</h2>
+
+      {activeAlerts.length > 0 && (
+        <div className="mb-6 card border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={16} className="text-red-600 shrink-0" />
+            <h3 className="text-sm font-semibold text-red-700">Low Attendance Alerts ({activeAlerts.length} student{activeAlerts.length !== 1 ? "s" : ""})</h3>
+          </div>
+          <div className="space-y-2">
+            {activeAlerts.map(a => (
+              <div key={a.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-red-100">
+                <span className="text-xs font-mono text-slate-500 w-12 shrink-0">{a.rollNumber ?? "—"}</span>
+                <span className="text-sm font-medium text-[var(--color-navy)] flex-1">{a.studentName ?? "Unknown"}</span>
+                {a.batchName && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{a.batchName}</span>}
+                <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">{a.notifiedPct}% attendance</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card border border-slate-200 mb-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -105,19 +134,20 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
       {rows.length > 0 && (
         <>
           <div className="flex items-center justify-between mb-3">
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <span className="text-sm text-green-600 font-medium">{presentCount} Present</span>
               <span className="text-sm text-red-500 font-medium">{absentCount} Absent</span>
               {lateCount > 0 && <span className="text-sm text-yellow-600 font-medium">{lateCount} Late</span>}
+              <span className="text-sm text-slate-500">{attendancePct}% attendance rate</span>
             </div>
             <button onClick={saveAttendance} disabled={saving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
               <Save size={14} /> {saving ? "Saving…" : "Save Attendance"}
             </button>
           </div>
 
-          {absentCount > rows.length * 0.25 && (
+          {absentCount > total * 0.25 && (
             <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-700">
-              <AlertTriangle size={16} /> More than 25% students are absent today
+              <AlertTriangle size={16} /> More than 25% of students are absent in this session
             </div>
           )}
 
@@ -141,11 +171,16 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
               </div>
             ))}
           </div>
+
+          <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-600">
+            Session summary: <strong>{presentCount}</strong> present · <strong>{absentCount}</strong> absent · <strong>{lateCount}</strong> late
+            {total > 0 && <> · <strong>{attendancePct}%</strong> attendance</>}
+          </div>
         </>
       )}
 
       {rows.length === 0 && !loading && batchId && (
-        <p className="text-slate-400 text-sm text-center py-8">Select a batch and date, then click Load.</p>
+        <p className="text-slate-400 text-sm text-center py-8">No students found for this batch, or click Load to fetch the attendance grid.</p>
       )}
       {!batchId && (
         <p className="text-slate-400 text-sm text-center py-8">Select a batch and date to mark attendance.</p>

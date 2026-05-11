@@ -2,7 +2,8 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { requireAuth, getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
-  schedules, assignments, studyMaterials, attendance, liveClasses, classRecordings,
+  schedules, assignments, studyMaterials, attendance, attendanceLowAlerts,
+  liveClasses, classRecordings,
   doubts, doubtAnswers, promotions, practiceSets, practiceSetQuestions,
   questionBank, siteSettings, seoOverrides, watermarkSettings, pageViews,
   securityEvents, ipLockouts, auditLogs, users, students, batches, courses, teachers,
@@ -104,7 +105,14 @@ router.post("/admin/assignments", async (req, res) => {
   const { batchId, title, subject, description, dueDate, maxMarks, fileUrl } = req.body;
   if (!title || !subject || !dueDate) { res.status(400).json({ error: "title, subject, dueDate required" }); return; }
   try {
-    const [row] = await db.insert(assignments).values({ batchId, title, subject, description, dueDate: new Date(dueDate), maxMarks, fileUrl }).returning();
+    const { userId: clerkUserId } = getAuth(req);
+    const [adminUser] = clerkUserId
+      ? await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1)
+      : [null];
+    const [row] = await db.insert(assignments).values({
+      batchId, title, subject, description, dueDate: new Date(dueDate), maxMarks, fileUrl,
+      postedBy: adminUser?.id ?? null,
+    }).returning();
     res.json({ ok: true, data: row });
   } catch (e) { console.error(e); res.status(500).json({ error: "Failed to create assignment" }); }
 });
@@ -148,7 +156,14 @@ router.post("/admin/study-materials", async (req, res) => {
   const { batchId, title, subject, type, fileUrl, fileSize } = req.body;
   if (!title || !subject || !type) { res.status(400).json({ error: "title, subject, type required" }); return; }
   try {
-    const [row] = await db.insert(studyMaterials).values({ batchId, title, subject, type, fileUrl, fileSize }).returning();
+    const { userId: clerkUserId } = getAuth(req);
+    const [adminUser] = clerkUserId
+      ? await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1)
+      : [null];
+    const [row] = await db.insert(studyMaterials).values({
+      batchId, title, subject, type, fileUrl, fileSize,
+      uploadedBy: adminUser?.id ?? null,
+    }).returning();
     res.json({ ok: true, data: row });
   } catch (e) { res.status(500).json({ error: "Failed to create study material" }); }
 });
@@ -169,6 +184,33 @@ router.delete("/admin/study-materials/:id", async (req, res) => {
 });
 
 // ── Attendance ─────────────────────────────────────────────────────────────────
+
+router.get("/admin/attendance/low-alerts", async (_req, res) => {
+  try {
+    const alerts = await db
+      .select({
+        id: attendanceLowAlerts.id,
+        notifiedPct: attendanceLowAlerts.notifiedPct,
+        notifiedAt: attendanceLowAlerts.notifiedAt,
+        hasRecovered: attendanceLowAlerts.hasRecovered,
+        studentId: students.id,
+        rollNumber: students.rollNumber,
+        batchId: students.batchId,
+        batchName: batches.name,
+        studentName: users.name,
+      })
+      .from(attendanceLowAlerts)
+      .leftJoin(students, eq(attendanceLowAlerts.studentId, students.id))
+      .leftJoin(users, eq(students.userId, users.id))
+      .leftJoin(batches, eq(students.batchId, batches.id))
+      .where(eq(attendanceLowAlerts.hasRecovered, false))
+      .orderBy(asc(attendanceLowAlerts.notifiedPct));
+    res.json({ ok: true, data: alerts });
+  } catch (e) {
+    console.error("GET /admin/attendance/low-alerts error:", e);
+    res.status(500).json({ error: "Failed to fetch low-attendance alerts" });
+  }
+});
 
 router.get("/admin/attendance", async (req, res) => {
   try {
