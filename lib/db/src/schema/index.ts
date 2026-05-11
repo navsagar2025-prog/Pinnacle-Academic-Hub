@@ -737,6 +737,8 @@ export const practiceSetAssignments = pgTable("practice_set_assignments", {
   index("practice_set_assignments_set_idx").on(t.setId),
   index("practice_set_assignments_batch_idx").on(t.batchId),
   index("practice_set_assignments_student_idx").on(t.studentId),
+  uniqueIndex("psa_set_batch_unique_idx").on(t.setId, t.batchId).where(sql`${t.batchId} IS NOT NULL`),
+  uniqueIndex("psa_set_student_unique_idx").on(t.setId, t.studentId).where(sql`${t.studentId} IS NOT NULL`),
 ]);
 
 // Per-admin saved filter combinations for the Question Bank screen. The

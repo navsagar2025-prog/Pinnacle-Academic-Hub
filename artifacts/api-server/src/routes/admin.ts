@@ -779,6 +779,24 @@ router.patch("/admin/security/lockouts/:id/unlock", async (req, res) => {
 // ── Question Bank ──────────────────────────────────────────────────────────
 
 // These literal sub-routes MUST come before any /:id routes to avoid mis-matching
+router.get("/admin/question-bank/review-queue", async (_req, res) => {
+  try {
+    const rows = await db.select({
+      id: questionBank.id, subject: questionBank.subject, topic: questionBank.topic,
+      difficulty: questionBank.difficulty, questionType: questionBank.questionType,
+      questionText: questionBank.questionText, source: questionBank.source,
+      reviewStatus: questionBank.reviewStatus, marks: questionBank.marks,
+      createdAt: questionBank.createdAt,
+    }).from(questionBank)
+      .where(and(eq(questionBank.reviewStatus, "pending"), isNull(questionBank.deletedAt)))
+      .orderBy(asc(questionBank.createdAt));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    console.error("GET /admin/question-bank/review-queue error:", e);
+    res.status(500).json({ error: "Failed to fetch review queue" });
+  }
+});
+
 router.get("/admin/question-bank/deletion-requests", async (_req, res) => {
   try {
     const rows = await db.select({
