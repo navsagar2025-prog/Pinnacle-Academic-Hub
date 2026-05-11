@@ -33,7 +33,7 @@ const STATUS_COLORS = { present: "bg-green-100 text-green-700", absent: "bg-red-
 export function AdminAttendance({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
   const { data: batches } = useFetch<Batch[]>("/admin/batches", getToken);
-  const { data: lowAlerts } = useFetch<LowAlert[]>("/admin/attendance/low-alerts", getToken);
+  const { data: lowAlerts, reload: reloadAlerts } = useFetch<LowAlert[]>("/admin/attendance/low-alerts", getToken);
   const [batchId, setBatchId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [subject, setSubject] = useState("");
@@ -69,7 +69,7 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ records, subject }),
       });
-      if (res.ok) toast("success", "Attendance saved");
+      if (res.ok) { toast("success", "Attendance saved"); reloadAlerts(); }
       else toast("error", "Save failed");
     } catch { toast("error", "Network error"); }
     finally { setSaving(false); }

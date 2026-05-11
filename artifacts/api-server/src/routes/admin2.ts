@@ -106,12 +106,12 @@ router.post("/admin/assignments", async (req, res) => {
   if (!title || !subject || !dueDate) { res.status(400).json({ error: "title, subject, dueDate required" }); return; }
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const [adminUser] = clerkUserId
-      ? await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1)
-      : [null];
+    if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const [adminUser] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+    if (!adminUser) { res.status(500).json({ error: "Admin user record not found" }); return; }
     const [row] = await db.insert(assignments).values({
       batchId, title, subject, description, dueDate: new Date(dueDate), maxMarks, fileUrl,
-      postedBy: adminUser?.id ?? null,
+      postedBy: adminUser.id,
     }).returning();
     res.json({ ok: true, data: row });
   } catch (e) { console.error(e); res.status(500).json({ error: "Failed to create assignment" }); }
@@ -157,12 +157,12 @@ router.post("/admin/study-materials", async (req, res) => {
   if (!title || !subject || !type) { res.status(400).json({ error: "title, subject, type required" }); return; }
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const [adminUser] = clerkUserId
-      ? await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1)
-      : [null];
+    if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const [adminUser] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+    if (!adminUser) { res.status(500).json({ error: "Admin user record not found" }); return; }
     const [row] = await db.insert(studyMaterials).values({
       batchId, title, subject, type, fileUrl, fileSize,
-      uploadedBy: adminUser?.id ?? null,
+      uploadedBy: adminUser.id,
     }).returning();
     res.json({ ok: true, data: row });
   } catch (e) { res.status(500).json({ error: "Failed to create study material" }); }
