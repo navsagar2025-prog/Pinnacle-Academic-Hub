@@ -230,7 +230,7 @@ router.get("/admin/attendance", async (req, res) => {
     const conditions = [
       sql`student_id IN (SELECT id FROM students WHERE batch_id = ${batchId})`,
       gte(attendance.date, day),
-      lte(attendance.date, nextDay),
+      sql`${attendance.date} < ${nextDay}`,
     ];
     if (subject) conditions.push(eq(attendance.subject, subject));
 

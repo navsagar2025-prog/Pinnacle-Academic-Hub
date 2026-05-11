@@ -43,7 +43,7 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
   const [saving, setSaving] = useState(false);
 
   const loadAttendance = async () => {
-    if (!batchId || !date) return;
+    if (!batchId || !date || !subject) { toast("error", "Select batch, date, and subject first"); return; }
     setLoading(true);
     try {
       const token = await getToken();
@@ -125,7 +125,7 @@ export function AdminAttendance({ getToken }: { getToken: () => Promise<string |
             <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Physics, Chemistry…" value={subject} onChange={e => setSubject(e.target.value)} />
           </div>
           <div className="flex items-end">
-            <button onClick={loadAttendance} disabled={!batchId || !date || loading} className="w-full flex items-center justify-center gap-2 bg-[var(--color-navy)] text-white rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+            <button onClick={loadAttendance} disabled={!batchId || !date || !subject || loading} className="w-full flex items-center justify-center gap-2 bg-[var(--color-navy)] text-white rounded-lg px-3 py-2 text-sm disabled:opacity-50">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Load
             </button>
           </div>
