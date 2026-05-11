@@ -1206,12 +1206,26 @@ export default function AdminDashboard() {
   const [section, setSection] = useState<Section>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [visited, setVisited] = useState<Set<Section>>(() => new Set<Section>(["overview"]));
+  const [qbPendingCount, setQbPendingCount] = useState(0);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/v1/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.ok) setQbPendingCount(json.data.pendingQBReviewCount ?? 0);
+      } catch { /* best-effort */ }
+    })();
+  }, [getToken]);
 
   const tokenFn = useCallback(() => getToken(), [getToken]);
 
@@ -1280,7 +1294,11 @@ export default function AdminDashboard() {
               items.push(
                 <button key={key} onClick={() => { setSection(key); setVisited(v => new Set([...v, key])); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${section === key ? "bg-white/15 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>
-                  <Icon size={15} />{label}
+                  <Icon size={15} />
+                  <span className="flex-1 text-left">{label}</span>
+                  {key === "question-bank" && qbPendingCount > 0 && (
+                    <span className="text-[10px] bg-orange-500 text-white rounded-full px-1.5 py-0.5 leading-none font-semibold">{qbPendingCount}</span>
+                  )}
                 </button>
               );
             });

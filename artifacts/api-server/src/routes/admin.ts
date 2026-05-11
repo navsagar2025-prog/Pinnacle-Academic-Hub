@@ -6,9 +6,9 @@ import {
   users, students, teachers, courses, batches, feeRecords, results,
   mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
   pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
-  practiceSets, practiceSetQuestions,
+  practiceSets, practiceSetQuestions, practiceSetAssignments,
 } from "@workspace/db/schema";
-import { desc, eq, sql, asc, and, or, isNull, isNotNull } from "drizzle-orm";
+import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 
 const router = Router();
 router.use(requireAuth());
@@ -27,6 +27,8 @@ router.get("/admin/stats", async (_req, res) => {
       [{ teacherCount }],
       [{ batchCount }],
       [{ openDoubtsCount }],
+      [{ pendingApprovalCount }],
+      [{ pendingQBReviewCount }],
     ] = await Promise.all([
       db.select({ noticeCount: sql<number>`count(*)::int` }).from(notices),
       db.select({ enquiryCount: sql<number>`count(*)::int` }).from(enquiries),
@@ -38,8 +40,9 @@ router.get("/admin/stats", async (_req, res) => {
       db.select({ batchCount: sql<number>`count(*)::int` }).from(batches),
       db.select({ openDoubtsCount: sql<number>`count(*)::int` }).from(doubts).where(eq(doubts.isResolved, false)),
       db.select({ pendingApprovalCount: sql<number>`count(*)::int` }).from(users).where(eq(users.approvalStatus, "pending")),
+      db.select({ pendingQBReviewCount: sql<number>`count(*)::int` }).from(questionBank).where(and(eq(questionBank.reviewStatus, "pending"), isNull(questionBank.deletedAt))),
     ]);
-    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount, studentCount, teacherCount, batchCount, openDoubtsCount, pendingApprovalCount } });
+    res.json({ ok: true, data: { noticeCount, enquiryCount, blogCount, galleryCount, newEnquiryCount, studentCount, teacherCount, batchCount, openDoubtsCount, pendingApprovalCount, pendingQBReviewCount } });
   } catch (e) {
     console.error("GET /admin/stats error:", e);
     res.status(500).json({ error: "Failed to fetch stats" });
@@ -813,19 +816,22 @@ router.get("/admin/question-bank", async (req, res) => {
     const limit = Math.min(50, Math.max(10, parseInt(String(req.query.limit ?? "30"))));
     const offset = (page - 1) * limit;
     const subject = String(req.query.subject ?? "").trim();
+    const topic = String(req.query.topic ?? "").trim();
     const difficulty = String(req.query.difficulty ?? "").trim();
     const questionType = String(req.query.questionType ?? "").trim();
     const source = String(req.query.source ?? "").trim();
     const reviewStatus = String(req.query.reviewStatus ?? "").trim();
+    const examTarget = String(req.query.examTarget ?? "").trim();
     const search = String(req.query.search ?? "").trim();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const conds: any[] = [isNull(questionBank.deletedAt), isNull(questionBank.deletionRequestedAt)];
+    const conds: SQL<unknown>[] = [isNull(questionBank.deletedAt), isNull(questionBank.deletionRequestedAt)];
     if (subject) conds.push(eq(questionBank.subject, subject));
+    if (topic) conds.push(sql`${questionBank.topic} ilike ${"%" + topic + "%"}`);
     if (difficulty) conds.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard"));
     if (questionType) conds.push(eq(questionBank.questionType, questionType as "mcq" | "short" | "long" | "numerical"));
     if (source) conds.push(eq(questionBank.source, source));
     if (reviewStatus) conds.push(eq(questionBank.reviewStatus, reviewStatus));
+    if (examTarget) conds.push(sql`${examTarget} = ANY(${questionBank.examTarget})`);
     if (search) conds.push(sql`${questionBank.searchVector} @@ plainto_tsquery('english', ${search})`);
 
     const where = and(...conds);
@@ -919,26 +925,25 @@ router.patch("/admin/question-bank/:id", async (req, res) => {
   try {
     const { subject, topic, classGrade, year, difficulty, questionType, questionText, options,
       correctAnswer, solution, examName, marks, isPublished, examTarget, source, language } = req.body;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setFields: Record<string, any> = { updatedAt: new Date() };
-    if (subject !== undefined) setFields.subject = subject;
-    if (topic !== undefined) setFields.topic = topic || null;
-    if (classGrade !== undefined) setFields.classGrade = classGrade || null;
-    if (year !== undefined) setFields.year = year ? parseInt(year) : null;
-    if (difficulty !== undefined) setFields.difficulty = difficulty;
-    if (questionType !== undefined) setFields.questionType = questionType;
-    if (questionText !== undefined) setFields.questionText = questionText;
-    if (options !== undefined) setFields.options = options;
-    if (correctAnswer !== undefined) setFields.correctAnswer = correctAnswer;
-    if (solution !== undefined) setFields.solution = solution || null;
-    if (examName !== undefined) setFields.examName = examName || null;
-    if (marks !== undefined) setFields.marks = parseInt(marks);
-    if (isPublished !== undefined) setFields.isPublished = isPublished;
-    if (examTarget !== undefined) setFields.examTarget = examTarget;
-    if (source !== undefined) setFields.source = source;
-    if (language !== undefined) setFields.language = language;
-    const [row] = await db.update(questionBank).set(setFields)
-      .where(eq(questionBank.id, req.params.id))
+    const [row] = await db.update(questionBank).set({
+      ...(subject !== undefined ? { subject } : {}),
+      ...(topic !== undefined ? { topic: topic || null } : {}),
+      ...(classGrade !== undefined ? { classGrade: classGrade || null } : {}),
+      ...(year !== undefined ? { year: year ? parseInt(year) : null } : {}),
+      ...(difficulty !== undefined ? { difficulty } : {}),
+      ...(questionType !== undefined ? { questionType } : {}),
+      ...(questionText !== undefined ? { questionText } : {}),
+      ...(options !== undefined ? { options } : {}),
+      ...(correctAnswer !== undefined ? { correctAnswer } : {}),
+      ...(solution !== undefined ? { solution: solution || null } : {}),
+      ...(examName !== undefined ? { examName: examName || null } : {}),
+      ...(marks !== undefined ? { marks: parseInt(marks) } : {}),
+      ...(isPublished !== undefined ? { isPublished } : {}),
+      ...(examTarget !== undefined ? { examTarget } : {}),
+      ...(source !== undefined ? { source } : {}),
+      ...(language !== undefined ? { language } : {}),
+      updatedAt: new Date(),
+    }).where(eq(questionBank.id, req.params.id))
       .returning({ id: questionBank.id, updatedAt: questionBank.updatedAt });
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true, data: row });
@@ -970,6 +975,7 @@ router.get("/admin/practice-sets", async (_req, res) => {
       subject: practiceSets.subject, isActive: practiceSets.isActive,
       createdAt: practiceSets.createdAt, updatedAt: practiceSets.updatedAt,
       questionCount: sql<number>`(select count(*)::int from practice_set_questions psq where psq.set_id = ${practiceSets.id})`,
+      assignmentCount: sql<number>`(select count(*)::int from practice_set_assignments psa where psa.set_id = ${practiceSets.id})`,
     }).from(practiceSets).orderBy(desc(practiceSets.createdAt));
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -992,14 +998,13 @@ router.post("/admin/practice-sets", async (req, res) => {
 router.patch("/admin/practice-sets/:id", async (req, res) => {
   try {
     const { name, description, subject, isActive } = req.body;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setFields: Record<string, any> = { updatedAt: new Date() };
-    if (name !== undefined) setFields.name = name.trim();
-    if (description !== undefined) setFields.description = description || null;
-    if (subject !== undefined) setFields.subject = subject || null;
-    if (isActive !== undefined) setFields.isActive = isActive;
-    const [row] = await db.update(practiceSets).set(setFields)
-      .where(eq(practiceSets.id, req.params.id)).returning();
+    const [row] = await db.update(practiceSets).set({
+      ...(name !== undefined ? { name: name.trim() } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+      ...(subject !== undefined ? { subject: subject || null } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+      updatedAt: new Date(),
+    }).where(eq(practiceSets.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true, data: row });
   } catch (e) { res.status(500).json({ error: "Failed to update practice set" }); }
@@ -1054,6 +1059,61 @@ router.delete("/admin/practice-sets/:setId/questions/:questionId", async (req, r
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: "Failed to remove question from set" }); }
+});
+
+// ── Practice Set Assignments ────────────────────────────────────────────────
+
+router.get("/admin/practice-sets/:id/assignments", async (req, res) => {
+  try {
+    const rows = await db.select({
+      id: practiceSetAssignments.id,
+      setId: practiceSetAssignments.setId,
+      batchId: practiceSetAssignments.batchId,
+      studentId: practiceSetAssignments.studentId,
+      assignedAt: practiceSetAssignments.assignedAt,
+      batchName: batches.name,
+      studentName: sql<string | null>`u.name`,
+    }).from(practiceSetAssignments)
+      .leftJoin(batches, eq(practiceSetAssignments.batchId, batches.id))
+      .leftJoin(sql`users u`, sql`u.id = ${practiceSetAssignments.studentId}`)
+      .where(eq(practiceSetAssignments.setId, req.params.id))
+      .orderBy(desc(practiceSetAssignments.assignedAt));
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    console.error("GET /admin/practice-sets/:id/assignments error:", e);
+    res.status(500).json({ error: "Failed to fetch assignments" });
+  }
+});
+
+router.post("/admin/practice-sets/:id/assignments", async (req, res) => {
+  try {
+    const { batchId, studentId } = req.body;
+    if (!batchId && !studentId) {
+      res.status(400).json({ error: "batchId or studentId is required" }); return;
+    }
+    if (batchId && studentId) {
+      res.status(400).json({ error: "Provide exactly one of batchId or studentId" }); return;
+    }
+    const [row] = await db.insert(practiceSetAssignments)
+      .values({ setId: req.params.id, batchId: batchId || null, studentId: studentId || null })
+      .onConflictDoNothing()
+      .returning();
+    res.status(201).json({ ok: true, data: row ?? null });
+  } catch (e) {
+    console.error("POST /admin/practice-sets/:id/assignments error:", e);
+    res.status(500).json({ error: "Failed to create assignment" });
+  }
+});
+
+router.delete("/admin/practice-sets/:id/assignments/:assignmentId", async (req, res) => {
+  try {
+    await db.delete(practiceSetAssignments).where(
+      and(eq(practiceSetAssignments.id, req.params.assignmentId), eq(practiceSetAssignments.setId, req.params.id))
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to remove assignment" });
+  }
 });
 
 // ── Audit Log ──────────────────────────────────────────────────────────────

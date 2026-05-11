@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
   Plus, X, Search, Check, Trash2, Pencil, ChevronLeft, ChevronRight,
-  RotateCcw, AlertTriangle, Recycle, BookMarked, MinusCircle,
+  RotateCcw, AlertTriangle, Recycle, BookMarked, MinusCircle, Eye, EyeOff, Users,
 } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape } from "./portalUtils";
 
@@ -30,7 +30,7 @@ type Question = {
   questionType: string; questionText: string; correctAnswer: string; options: Record<string, string> | null;
   marks: number; isPublished: boolean; examName: string | null;
   examTarget: string[] | null; source: string; reviewStatus: string;
-  year: number | null; classGrade: string | null; createdAt: string;
+  year: number | null; classGrade: string | null; language: string; createdAt: string;
 };
 
 type QBData = { rows: Question[]; total: number; page: number; limit: number };
@@ -53,10 +53,13 @@ const TYPES = ["mcq", "numerical", "short", "long"];
 const SOURCES = ["MANUAL", "PYQ", "NCERT_EXEMPLAR", "AI", "THIRD_PARTY_FREE"];
 const EXAM_TARGETS = ["JEE_MAIN", "JEE_ADVANCED", "NEET", "CBSE_BOARDS", "FOUNDATION"];
 
+const LANGUAGES = [{ value: "en", label: "English" }, { value: "hi", label: "Hindi" }, { value: "bi", label: "Bilingual" }];
+const CLASS_GRADES = ["8", "9", "10", "11", "12", "Dropper"];
+
 const EMPTY_FORM = {
   subject: "", topic: "", classGrade: "", year: "", difficulty: "medium", questionType: "mcq",
   questionText: "", correctAnswer: "", solution: "", examName: "", marks: 4,
-  examTarget: [] as string[], source: "MANUAL",
+  examTarget: [] as string[], source: "MANUAL", language: "en",
   optionA: "", optionB: "", optionC: "", optionD: "",
 };
 
@@ -76,7 +79,7 @@ type QBTab = "all" | "pending" | "deletion-requests" | "recycle-bin";
 export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<QBTab>("all");
-  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "" });
+  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", topic: "", examTarget: "" });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<QBData | null>(null);
@@ -113,9 +116,11 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       } else {
         const params = new URLSearchParams({ page: String(p), limit: "30" });
         if (filters.subject) params.set("subject", filters.subject);
+        if (filters.topic) params.set("topic", filters.topic);
         if (filters.difficulty) params.set("difficulty", filters.difficulty);
         if (filters.questionType) params.set("questionType", filters.questionType);
         if (filters.source) params.set("source", filters.source);
+        if (filters.examTarget) params.set("examTarget", filters.examTarget);
         if (search.trim()) params.set("search", search.trim());
         if (activeTab === "pending") params.set("reviewStatus", "pending");
         const d = await fetchApi<QBData>(`/admin/question-bank?${params}`, getToken);
@@ -144,7 +149,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       year: q.year ? String(q.year) : "", difficulty: q.difficulty, questionType: q.questionType,
       questionText: q.questionText, correctAnswer: q.correctAnswer, solution: "",
       examName: q.examName ?? "", marks: q.marks, examTarget: q.examTarget ?? [],
-      source: q.source,
+      source: q.source, language: q.language ?? "en",
       optionA: opts["A"] ?? "", optionB: opts["B"] ?? "",
       optionC: opts["C"] ?? "", optionD: opts["D"] ?? "",
     });
@@ -162,7 +167,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
       questionType: form.questionType, questionText: form.questionText,
       options, correctAnswer: form.correctAnswer, solution: form.solution || null,
       examName: form.examName || null, marks: Number(form.marks),
-      examTarget: form.examTarget, source: form.source,
+      examTarget: form.examTarget, source: form.source, language: form.language,
     };
     try {
       if (modal?.mode === "create") {
@@ -213,6 +218,13 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
     } catch { toast("error", "Failed to restore"); }
   };
 
+  const togglePublish = async (id: string, current: boolean) => {
+    try {
+      await api("PATCH", `/admin/question-bank/${id}`, { isPublished: !current }, getToken);
+      load(page, tab);
+    } catch { toast("error", "Failed to toggle publish state"); }
+  };
+
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 30);
@@ -250,28 +262,43 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
 
       {/* Filters (only for all/pending tabs) */}
       {(tab === "all" || tab === "pending") && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
-          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))}>
-            <option value="">All Subjects</option>
-            {SUBJECTS.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))}>
-            <option value="">All Difficulties</option>
-            {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
-          </select>
-          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.questionType} onChange={e => setFilters(f => ({ ...f, questionType: e.target.value }))}>
-            <option value="">All Types</option>
-            {TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input placeholder="Full-text search…" className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
-              value={search} onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && applyFilters()} />
+        <div className="space-y-2 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))}>
+              <option value="">All Subjects</option>
+              {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))}>
+              <option value="">All Difficulties</option>
+              {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
+            </select>
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.questionType} onChange={e => setFilters(f => ({ ...f, questionType: e.target.value }))}>
+              <option value="">All Types</option>
+              {TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.source} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}>
+              <option value="">All Sources</option>
+              {SOURCES.map(s => <option key={s}>{s}</option>)}
+            </select>
           </div>
-          <button onClick={applyFilters} className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-2 text-sm font-medium">
-            Apply
-          </button>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <input placeholder="Filter by topic…" className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              value={filters.topic} onChange={e => setFilters(f => ({ ...f, topic: e.target.value }))}
+              onKeyDown={e => e.key === "Enter" && applyFilters()} />
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.examTarget} onChange={e => setFilters(f => ({ ...f, examTarget: e.target.value }))}>
+              <option value="">All Exam Targets</option>
+              {EXAM_TARGETS.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+            </select>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input placeholder="Full-text search…" className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                value={search} onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && applyFilters()} />
+            </div>
+            <button onClick={applyFilters} className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-2 text-sm font-medium">
+              Apply Filters
+            </button>
+          </div>
         </div>
       )}
 
@@ -310,6 +337,10 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                           className="p-1.5 text-red-400 hover:bg-red-50 rounded"><X size={14} /></button>
                       </>
                     )}
+                    <button onClick={() => togglePublish(q.id, q.isPublished)} title={q.isPublished ? "Published — click to unpublish" : "Draft — click to publish"}
+                      className={`p-1.5 rounded transition-colors ${q.isPublished ? "text-green-500 hover:text-slate-400" : "text-slate-300 hover:text-green-500"}`}>
+                      {q.isPublished ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
                     <button onClick={() => openEdit(q)} className="p-1.5 text-slate-400 hover:text-[var(--color-navy)]"><Pencil size={14} /></button>
                     <button onClick={() => setDeleteModal({ id: q.id, reason: "" })} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                   </div>
@@ -438,6 +469,19 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
                   <input type="number" placeholder="e.g. 2023" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Class / Grade</label>
+                  <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.classGrade} onChange={e => setForm(f => ({ ...f, classGrade: e.target.value }))}>
+                    <option value="">—</option>
+                    {CLASS_GRADES.map(g => <option key={g} value={g}>Class {g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Language</label>
+                  <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))}>
+                    {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Exam Name</label>
                   <input placeholder="JEE Main 2023" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.examName} onChange={e => setForm(f => ({ ...f, examName: e.target.value }))} />
                 </div>
@@ -534,8 +578,139 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
 
 type PracticeSet = {
   id: string; name: string; description: string | null; subject: string | null;
-  isActive: boolean; questionCount: number; createdAt: string;
+  isActive: boolean; questionCount: number; assignmentCount: number; createdAt: string;
 };
+
+type Assignment = {
+  id: string; setId: string; batchId: string | null; studentId: string | null;
+  assignedAt: string; batchName: string | null; studentName: string | null;
+};
+
+type BatchOption = { id: string; name: string };
+
+function AssignmentModal({
+  practiceSet, getToken, onClose,
+}: { practiceSet: PracticeSet; getToken: () => Promise<string | null>; onClose: () => void }) {
+  const { toast } = useToast();
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [batches, setBatches] = useState<BatchOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<"batch" | "student">("batch");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [asgns, batchList] = await Promise.all([
+        fetchApi<Assignment[]>(`/admin/practice-sets/${practiceSet.id}/assignments`, getToken),
+        fetchApi<BatchOption[]>("/admin/batches", getToken),
+      ]);
+      setAssignments(asgns);
+      setBatches(batchList);
+    } catch { toast("error", "Failed to load assignments"); }
+    finally { setLoading(false); }
+  }, [practiceSet.id, getToken, toast]);
+
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) { setInitialized(true); load(); }
+
+  const assignToBatch = async () => {
+    if (!selectedBatchId) return;
+    setSaving(true);
+    try {
+      await api("POST", `/admin/practice-sets/${practiceSet.id}/assignments`, { batchId: selectedBatchId }, getToken);
+      toast("success", "Assigned to batch");
+      setSelectedBatchId("");
+      load();
+    } catch { toast("error", "Failed to assign"); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (assignmentId: string) => {
+    try {
+      await api("DELETE", `/admin/practice-sets/${practiceSet.id}/assignments/${assignmentId}`, null, getToken);
+      toast("success", "Assignment removed");
+      load();
+    } catch { toast("error", "Failed to remove"); }
+  };
+
+  useModalEscape(onClose, true);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+          <div>
+            <h3 className="font-bold text-[var(--color-navy)]">Assign: {practiceSet.name}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Assign this set to a batch or individual student</p>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+          {/* Assign form */}
+          <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+            <div className="flex gap-2">
+              <button onClick={() => setMode("batch")} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mode === "batch" ? "bg-[var(--color-navy)] text-white" : "bg-white border border-slate-200 text-slate-600"}`}>
+                Assign to Batch
+              </button>
+              <button onClick={() => setMode("student")} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mode === "student" ? "bg-[var(--color-navy)] text-white" : "bg-white border border-slate-200 text-slate-600"}`}>
+                Assign to Student
+              </button>
+            </div>
+            {mode === "batch" ? (
+              <div className="flex gap-2">
+                <select className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)}>
+                  <option value="">Select batch…</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+                <button onClick={assignToBatch} disabled={!selectedBatchId || saving}
+                  className="bg-[var(--color-teal)] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                  {saving ? "…" : "Assign"}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">Individual student assignment coming soon. Use batch assignment for now.</p>
+            )}
+          </div>
+
+          {/* Current assignments */}
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-navy)] mb-2">
+              Current Assignments ({assignments.length})
+            </p>
+            {loading && <SkeletonList rows={2} />}
+            {!loading && assignments.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">No assignments yet.</p>
+            )}
+            <div className="space-y-2">
+              {assignments.map(a => (
+                <div key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">
+                      {a.batchId ? `Batch: ${a.batchName ?? a.batchId}` : `Student: ${a.studentName ?? a.studentId}`}
+                    </p>
+                    <p className="text-xs text-slate-400">{new Date(a.assignedAt).toLocaleDateString("en-IN")}</p>
+                  </div>
+                  <button onClick={() => remove(a.id)} className="text-slate-300 hover:text-red-500 p-1 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 pb-4 shrink-0">
+          <button onClick={onClose} className="w-full py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type SetQuestion = {
   id: string; questionId: string; sortOrder: number;
@@ -734,6 +909,7 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; item?: PracticeSet } | null>(null);
   const [pickerSet, setPickerSet] = useState<PracticeSet | null>(null);
+  const [assignSet, setAssignSet] = useState<PracticeSet | null>(null);
   const [form, setForm] = useState({ name: "", description: "", subject: "" });
   const [saving, setSaving] = useState(false);
   useModalEscape(() => setModal(null), !!modal);
@@ -791,11 +967,19 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
               <p className="text-xs text-slate-500">
                 {s.subject && `${s.subject} · `}
                 {s.questionCount} question{s.questionCount !== 1 ? "s" : ""}
+                {" · "}
+                <span className={s.assignmentCount > 0 ? "text-teal-600 font-medium" : "text-slate-400"}>
+                  {s.assignmentCount} assigned
+                </span>
                 {s.description && ` · ${s.description}`}
               </p>
             </div>
             <div className="flex gap-2 items-center shrink-0">
               {!s.isActive && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>}
+              <button onClick={() => setAssignSet(s)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-50 transition-colors">
+                <Users size={12} /> Assign
+              </button>
               <button onClick={() => setPickerSet(s)}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-teal)] text-[var(--color-teal)] hover:bg-teal-50 transition-colors">
                 <BookMarked size={12} /> Questions
@@ -859,6 +1043,15 @@ export function AdminPracticeSets({ getToken }: { getToken: () => Promise<string
           setName={pickerSet.name}
           getToken={getToken}
           onClose={() => { setPickerSet(null); load(); }}
+        />
+      )}
+
+      {/* Assignment modal */}
+      {assignSet && (
+        <AssignmentModal
+          practiceSet={assignSet}
+          getToken={getToken}
+          onClose={() => { setAssignSet(null); load(); }}
         />
       )}
     </div>
