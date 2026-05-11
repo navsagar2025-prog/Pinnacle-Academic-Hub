@@ -1070,14 +1070,15 @@ router.get("/admin/practice-sets/:id/assignments", async (req, res) => {
       setId: practiceSetAssignments.setId,
       batchId: practiceSetAssignments.batchId,
       studentId: practiceSetAssignments.studentId,
-      assignedAt: practiceSetAssignments.assignedAt,
+      assignedAt: practiceSetAssignments.createdAt,
       batchName: batches.name,
-      studentName: sql<string | null>`u.name`,
+      studentName: users.name,
     }).from(practiceSetAssignments)
       .leftJoin(batches, eq(practiceSetAssignments.batchId, batches.id))
-      .leftJoin(sql`users u`, sql`u.id = ${practiceSetAssignments.studentId}`)
+      .leftJoin(students, eq(practiceSetAssignments.studentId, students.id))
+      .leftJoin(users, eq(students.userId, users.id))
       .where(eq(practiceSetAssignments.setId, req.params.id))
-      .orderBy(desc(practiceSetAssignments.assignedAt));
+      .orderBy(desc(practiceSetAssignments.createdAt));
     res.json({ ok: true, data: rows });
   } catch (e) {
     console.error("GET /admin/practice-sets/:id/assignments error:", e);

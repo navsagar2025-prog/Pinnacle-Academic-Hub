@@ -28,7 +28,7 @@ async function fetchApi<T>(path: string, getToken: () => Promise<string | null>)
 type Question = {
   id: string; subject: string; topic: string | null; difficulty: string;
   questionType: string; questionText: string; correctAnswer: string; options: Record<string, string> | null;
-  marks: number; isPublished: boolean; examName: string | null;
+  solution: string | null; marks: number; isPublished: boolean; examName: string | null;
   examTarget: string[] | null; source: string; reviewStatus: string;
   year: number | null; classGrade: string | null; language: string; createdAt: string;
 };
@@ -79,7 +79,7 @@ type QBTab = "all" | "pending" | "deletion-requests" | "recycle-bin";
 export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<QBTab>("all");
-  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", topic: "", examTarget: "" });
+  const [filters, setFilters] = useState({ subject: "", difficulty: "", questionType: "", source: "", topic: "", examTarget: "", reviewStatus: "" });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<QBData | null>(null);
@@ -122,7 +122,11 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
         if (filters.source) params.set("source", filters.source);
         if (filters.examTarget) params.set("examTarget", filters.examTarget);
         if (search.trim()) params.set("search", search.trim());
-        if (activeTab === "pending") params.set("reviewStatus", "pending");
+        if (activeTab === "pending") {
+          params.set("reviewStatus", "pending");
+        } else if (filters.reviewStatus) {
+          params.set("reviewStatus", filters.reviewStatus);
+        }
         const d = await fetchApi<QBData>(`/admin/question-bank?${params}`, getToken);
         setData(d);
       }
@@ -147,7 +151,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
     setForm({
       subject: q.subject, topic: q.topic ?? "", classGrade: q.classGrade ?? "",
       year: q.year ? String(q.year) : "", difficulty: q.difficulty, questionType: q.questionType,
-      questionText: q.questionText, correctAnswer: q.correctAnswer, solution: "",
+      questionText: q.questionText, correctAnswer: q.correctAnswer, solution: q.solution ?? "",
       examName: q.examName ?? "", marks: q.marks, examTarget: q.examTarget ?? [],
       source: q.source, language: q.language ?? "en",
       optionA: opts["A"] ?? "", optionB: opts["B"] ?? "",
@@ -281,7 +285,7 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
               {SOURCES.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             <input placeholder="Filter by topic…" className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={filters.topic} onChange={e => setFilters(f => ({ ...f, topic: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && applyFilters()} />
@@ -289,7 +293,15 @@ export function AdminQuestionBank({ getToken }: { getToken: () => Promise<string
               <option value="">All Exam Targets</option>
               {EXAM_TARGETS.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
             </select>
-            <div className="relative">
+            {tab === "all" && (
+              <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.reviewStatus} onChange={e => setFilters(f => ({ ...f, reviewStatus: e.target.value }))}>
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            )}
+            <div className={`relative ${tab === "pending" ? "md:col-span-2" : ""}`}>
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input placeholder="Full-text search…" className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)}
@@ -587,6 +599,7 @@ type Assignment = {
 };
 
 type BatchOption = { id: string; name: string };
+type StudentOption = { id: string; userName: string | null; rollNumber: string | null; batchName: string | null };
 
 function AssignmentModal({
   practiceSet, getToken, onClose,
@@ -594,26 +607,38 @@ function AssignmentModal({
   const { toast } = useToast();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [batches, setBatches] = useState<BatchOption[]>([]);
+  const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"batch" | "student">("batch");
   const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [asgns, batchList] = await Promise.all([
+      const [asgns, batchList, studentList] = await Promise.all([
         fetchApi<Assignment[]>(`/admin/practice-sets/${practiceSet.id}/assignments`, getToken),
         fetchApi<BatchOption[]>("/admin/batches", getToken),
+        fetchApi<StudentOption[]>("/admin/students", getToken),
       ]);
       setAssignments(asgns);
       setBatches(batchList);
+      setAllStudents(studentList);
     } catch { toast("error", "Failed to load assignments"); }
     finally { setLoading(false); }
   }, [practiceSet.id, getToken, toast]);
 
   const [initialized, setInitialized] = useState(false);
   if (!initialized) { setInitialized(true); load(); }
+
+  const filteredStudents = studentSearch.trim().length > 0
+    ? allStudents.filter(s =>
+        (s.userName ?? "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+        (s.rollNumber ?? "").toLowerCase().includes(studentSearch.toLowerCase())
+      ).slice(0, 8)
+    : [];
 
   const assignToBatch = async () => {
     if (!selectedBatchId) return;
@@ -622,6 +647,19 @@ function AssignmentModal({
       await api("POST", `/admin/practice-sets/${practiceSet.id}/assignments`, { batchId: selectedBatchId }, getToken);
       toast("success", "Assigned to batch");
       setSelectedBatchId("");
+      load();
+    } catch { toast("error", "Failed to assign"); }
+    finally { setSaving(false); }
+  };
+
+  const assignToStudent = async () => {
+    if (!selectedStudent) return;
+    setSaving(true);
+    try {
+      await api("POST", `/admin/practice-sets/${practiceSet.id}/assignments`, { studentId: selectedStudent.id }, getToken);
+      toast("success", `Assigned to ${selectedStudent.userName ?? selectedStudent.rollNumber}`);
+      setSelectedStudent(null);
+      setStudentSearch("");
       load();
     } catch { toast("error", "Failed to assign"); }
     finally { setSaving(false); }
@@ -671,7 +709,44 @@ function AssignmentModal({
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 italic">Individual student assignment coming soon. Use batch assignment for now.</p>
+              <div className="space-y-2">
+                {selectedStudent ? (
+                  <div className="flex items-center gap-2 border border-teal-200 bg-teal-50 rounded-lg px-3 py-2">
+                    <span className="text-sm text-teal-800 flex-1">{selectedStudent.userName} {selectedStudent.rollNumber && `(${selectedStudent.rollNumber})`}</span>
+                    <button onClick={() => { setSelectedStudent(null); setStudentSearch(""); }} className="text-teal-400 hover:text-teal-700"><X size={14} /></button>
+                    <button onClick={assignToStudent} disabled={saving}
+                      className="bg-[var(--color-teal)] text-white rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50">
+                      {saving ? "…" : "Assign"}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                        placeholder="Search student by name or roll…"
+                        value={studentSearch}
+                        onChange={e => setStudentSearch(e.target.value)}
+                      />
+                    </div>
+                    {filteredStudents.length > 0 && (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        {filteredStudents.map(s => (
+                          <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentSearch(""); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0 flex justify-between">
+                            <span>{s.userName ?? "—"}</span>
+                            <span className="text-slate-400 text-xs">{s.rollNumber}{s.batchName && ` · ${s.batchName}`}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {studentSearch.trim().length > 0 && filteredStudents.length === 0 && (
+                      <p className="text-xs text-slate-400 text-center py-2">No students match.</p>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
 
