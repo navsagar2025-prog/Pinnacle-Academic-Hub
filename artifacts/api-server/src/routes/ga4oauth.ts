@@ -114,22 +114,30 @@ router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (re
   const clientSecret = (body.clientSecret?.trim() || ENV_CLIENT_SECRET) ?? "";
   const propertyId = body.propertyId?.trim() ?? "";
 
-  if (!clientId || !clientSecret || !propertyId) {
+  if (!clientId || !clientSecret) {
     res.status(400).json({
-      error: !clientId || !clientSecret
-        ? "Client ID and Client Secret are required (or pre-configure GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET as environment variables)"
-        : "Property ID is required",
+      error: "Client ID and Client Secret are required (or pre-configure GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET as environment variables)",
     });
+    return;
+  }
+  if (!propertyId) {
+    res.status(400).json({ error: "Property ID is required" });
+    return;
+  }
+  if (!/^\d+$/.test(propertyId)) {
+    res.status(400).json({ error: "Property ID must be numeric (e.g. 123456789)" });
     return;
   }
 
   try {
     const state = crypto.randomBytes(24).toString("hex");
     const redirectUri = buildCallbackUri(req);
+    const stateExpiresAt = (Date.now() + 15 * 60 * 1000).toString(); // 15 min
 
     const upserts: Promise<void>[] = [
       upsertSetting("ga4_property_id", propertyId, "GA4 Property ID"),
       upsertSetting("ga4_oauth_state", state),
+      upsertSetting("ga4_oauth_state_expires", stateExpiresAt),
       upsertSetting("ga4_oauth_redirect_uri", redirectUri),
     ];
     if (!ENV_CLIENT_ID) upserts.push(upsertSetting("ga4_client_id", clientId, "GA4 OAuth Client ID"));
@@ -170,6 +178,11 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
       res.redirect(`${failRedirect}&reason=invalid_state`);
       return;
     }
+    const expiresAt = Number(settings.ga4_oauth_state_expires ?? "0");
+    if (!expiresAt || Date.now() > expiresAt) {
+      res.redirect(`${failRedirect}&reason=state_expired`);
+      return;
+    }
 
     const clientId = settings.ga4_client_id || ENV_CLIENT_ID || "";
     const clientSecret = settings.ga4_client_secret || ENV_CLIENT_SECRET || "";
@@ -190,6 +203,7 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
     await Promise.all([
       upsertSetting("ga4_refresh_token", tokens.refresh_token, "GA4 OAuth Refresh Token"),
       upsertSetting("ga4_oauth_state", null),
+      upsertSetting("ga4_oauth_state_expires", null),
       upsertSetting("ga4_oauth_redirect_uri", null),
     ]);
 
