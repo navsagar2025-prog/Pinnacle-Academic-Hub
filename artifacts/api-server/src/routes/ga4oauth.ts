@@ -214,10 +214,12 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
   }
 });
 
+// Note: oauth/start uses POST (not GET) because it accepts sensitive
+// credentials (clientId, clientSecret) in the request body.
 router.delete("/admin/ga4/oauth", requireAuth(), requireAdminRole, async (_req, res) => {
   try {
     await Promise.all(
-      [...GA4_DB_KEYS, "ga4_oauth_state", "ga4_oauth_redirect_uri"].map(key =>
+      [...GA4_DB_KEYS, "ga4_oauth_state", "ga4_oauth_state_expires", "ga4_oauth_redirect_uri"].map(key =>
         db.delete(siteSettings).where(eq(siteSettings.key, key)),
       ),
     );
