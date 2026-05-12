@@ -76,7 +76,7 @@ function Overview({ profile, getToken }: { profile: ProfileData; getToken: () =>
 type Notice = { id: string; title: string; body: string; category: string; publishedAt: string };
 type Material = { id: string; title: string; subject: string; type: string; fileUrl: string | null; fileSize: string | null };
 type Assignment = { id: string; title: string; subject: string; description: string | null; dueDate: string; maxMarks: number | null };
-type FeeRecord = { id: string; period: string; amount: number; paidAmount: number; dueDate: string; status: string; paidDate: string | null };
+type FeeRecord = { id: string; period: string; amount: number; paidAmount: number; dueDate: string; status: string; paidDate: string | null; paymentMethod: string | null; transactionRef: string | null };
 type MockTest = { id: string; title: string; subject: string; durationMinutes: number; marksPerQuestion: number; scheduledStart: string | null };
 type AttRow = { id: string; date: string; subject: string; status: string };
 type ProfileData = { user: { name: string; email: string }; roleRecord: { rollNumber: string; batchName: string; batchTiming: string; batchDays: string; courseName: string; batchId: string } | null };
@@ -252,38 +252,100 @@ function AttendanceSection({ getToken }: { getToken: () => Promise<string | null
 }
 
 function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
-  const { data, loading } = useFetch<{ data: FeeRecord[] }>("/portal/student/fee-records", getToken);
+  const { data, loading } = useFetch<{ data: FeeRecord[]; summary: { totalFee: number; totalPaid: number; totalDue: number; nextDue: string | null } }>("/portal/fees", getToken);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const downloadReceipt = async (feeId: string) => {
+    setDownloading(feeId);
+    try {
+      const token = await getToken();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/v1/portal/fees/receipt/${feeId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Could not download receipt. Please try again.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
-  const totalDue = (data?.data ?? []).filter(f => f.status === "due" || f.status === "overdue").reduce((s, f) => s + (f.amount - f.paidAmount), 0);
+  const records = data?.data ?? [];
+  const summary = data?.summary;
   return (
     <div>
       <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Fee Records</h2>
-      {totalDue > 0 && (
-        <div className="mb-4 card border border-red-200 bg-red-50">
-          <p className="text-red-700 font-semibold text-sm">Outstanding Balance: ₹{totalDue.toLocaleString("en-IN")}</p>
-          <p className="text-red-500 text-xs mt-0.5">Please clear dues at the Pinnacle office or contact +91 99718 62138</p>
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="card border border-slate-200 text-center">
+            <p className="text-xs text-slate-400 mb-1">Total Fee</p>
+            <p className="text-lg font-bold text-[var(--color-navy)]">₹{summary.totalFee.toLocaleString("en-IN")}</p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <p className="text-xs text-slate-400 mb-1">Total Paid</p>
+            <p className="text-lg font-bold text-green-600">₹{summary.totalPaid.toLocaleString("en-IN")}</p>
+          </div>
+          <div className={`card border text-center ${summary.totalDue > 0 ? "border-red-200 bg-red-50" : "border-slate-200"}`}>
+            <p className="text-xs text-slate-400 mb-1">Amount Due</p>
+            <p className={`text-lg font-bold ${summary.totalDue > 0 ? "text-red-600" : "text-green-600"}`}>
+              {summary.totalDue > 0 ? `₹${summary.totalDue.toLocaleString("en-IN")}` : "Nil"}
+            </p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <p className="text-xs text-slate-400 mb-1">Next Due Date</p>
+            <p className="text-sm font-bold text-[var(--color-navy)]">
+              {summary.nextDue ? new Date(summary.nextDue).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+            </p>
+          </div>
+        </div>
+      )}
+      {summary && summary.totalDue > 0 && (
+        <div className="mb-4 flex items-center gap-2 text-sm bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          <AlertCircle size={16} /> Outstanding ₹{summary.totalDue.toLocaleString("en-IN")} — contact Pinnacle office or call +91 99718 62138
         </div>
       )}
       <div className="space-y-3">
-        {(data?.data ?? []).map(f => (
+        {records.map(f => (
           <div key={f.id} className="card border border-slate-200">
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[var(--color-navy)] text-sm">{f.period}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Total: ₹{f.amount.toLocaleString("en-IN")} · Paid: ₹{f.paidAmount.toLocaleString("en-IN")}
+                  {f.amount - f.paidAmount > 0 ? ` · Due: ₹${(f.amount - f.paidAmount).toLocaleString("en-IN")}` : ""}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">Due: {new Date(f.dueDate).toLocaleDateString("en-IN")}
-                  {f.paidDate ? ` · Paid: ${new Date(f.paidDate).toLocaleDateString("en-IN")}` : ""}
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Due: {new Date(f.dueDate).toLocaleDateString("en-IN")}
+                  {f.paidDate ? ` · Paid on: ${new Date(f.paidDate).toLocaleDateString("en-IN")}` : ""}
+                  {f.paymentMethod ? ` · Mode: ${f.paymentMethod}` : ""}
                 </p>
               </div>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${FEE_COLOR[f.status] ?? "bg-slate-100 text-slate-600"}`}>
-                {f.status}
-              </span>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${FEE_COLOR[f.status] ?? "bg-slate-100 text-slate-600"}`}>
+                  {f.status}
+                </span>
+                {(f.status === "paid" || f.status === "partial") && (
+                  <button
+                    onClick={() => downloadReceipt(f.id)}
+                    disabled={downloading === f.id}
+                    className="flex items-center gap-1 text-xs text-[var(--color-teal)] font-medium hover:underline disabled:opacity-50"
+                  >
+                    <Download size={12} />
+                    {downloading === f.id ? "Opening…" : "Open Receipt"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
-        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No fee records found.</p>}
+        {records.length === 0 && <p className="text-slate-400 text-sm">No fee records found.</p>}
       </div>
     </div>
   );

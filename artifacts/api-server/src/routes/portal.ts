@@ -5,6 +5,7 @@ import {
   users, students, parents, teachers, batches, courses,
   notices, studyMaterials, assignments, feeRecords,
   attendance, studentTestResults, schedules, mockTests, mockTestAttempts,
+  watermarkSettings, siteSettings,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray } from "drizzle-orm";
 
@@ -357,6 +358,236 @@ router.get("/portal/parent/overview", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: "Failed to load overview" });
   }
+});
+
+// ── Unified fees route (student or parent) ────────────────────────────────────
+router.get("/portal/fees", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.json({ ok: true, data: [], summary: { totalFee: 0, totalPaid: 0, totalDue: 0, nextDue: null } }); return; }
+
+    if (!["student", "parent"].includes(user.role)) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+
+    let studentId: string | null = null;
+
+    if (user.role === "parent") {
+      const [parent] = await db.select().from(parents).where(eq(parents.userId, user.id)).limit(1);
+      if (!parent?.studentId) { res.json({ ok: true, data: [], summary: { totalFee: 0, totalPaid: 0, totalDue: 0, nextDue: null } }); return; }
+      studentId = parent.studentId;
+    } else {
+      const [student] = await db.select().from(students).where(eq(students.userId, user.id)).limit(1);
+      if (!student) { res.json({ ok: true, data: [], summary: { totalFee: 0, totalPaid: 0, totalDue: 0, nextDue: null } }); return; }
+      studentId = student.id;
+    }
+
+    const rows = await db.select().from(feeRecords)
+      .where(eq(feeRecords.studentId, studentId))
+      .orderBy(desc(feeRecords.dueDate));
+
+    const totalFee = rows.reduce((s, f) => s + f.amount, 0);
+    const totalPaid = rows.reduce((s, f) => s + f.paidAmount, 0);
+    const dueRows = rows.filter(f => f.status === "due" || f.status === "overdue");
+    const totalDue = dueRows.reduce((s, f) => s + (f.amount - f.paidAmount), 0);
+    const nextDue = [...dueRows].sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())[0]?.dueDate ?? null;
+
+    res.json({ ok: true, data: rows, summary: { totalFee, totalPaid, totalDue, nextDue } });
+  } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// ── HTML escape helper (prevents XSS in receipt) ─────────────────────────────
+function he(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// CSS string escape — used only for content: "..." in style blocks
+function csse(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\A ");
+}
+
+// ── Fee receipt (watermarked HTML) ───────────────────────────────────────────
+router.get("/portal/fees/receipt/:id", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const [record] = await db.select().from(feeRecords).where(eq(feeRecords.id, req.params.id)).limit(1);
+    if (!record) { res.status(404).json({ error: "Record not found" }); return; }
+
+    let authorized = false;
+    let studentName = user.name;
+
+    if (user.role === "student") {
+      const [student] = await db.select().from(students).where(eq(students.userId, user.id)).limit(1);
+      if (student?.id === record.studentId) { authorized = true; }
+    } else if (user.role === "parent") {
+      const [parent] = await db.select().from(parents).where(eq(parents.userId, user.id)).limit(1);
+      if (parent?.studentId === record.studentId) {
+        authorized = true;
+        const [sw] = await db
+          .select({ name: users.name })
+          .from(students)
+          .leftJoin(users, eq(students.userId, users.id))
+          .where(eq(students.id, record.studentId))
+          .limit(1);
+        if (sw?.name) studentName = sw.name;
+      }
+    } else if (user.role === "admin") {
+      authorized = true;
+    }
+
+    if (!authorized) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const wmRows = await db.select().from(watermarkSettings)
+      .where(or(eq(watermarkSettings.docType, "receipt"), eq(watermarkSettings.docType, "global")));
+    let wm = wmRows.find(w => w.docType === "receipt");
+    if (!wm || wm.useGlobal) wm = wmRows.find(w => w.docType === "global") ?? wm;
+
+    const [siteRow] = await db.select().from(siteSettings).where(eq(siteSettings.key, "site_name")).limit(1);
+    const centreName = siteRow?.value ?? "Pinnacle Academic Classes";
+
+    const today = new Date().toLocaleDateString("en-IN");
+    const rawTemplate = wm?.textTemplate ?? "{{centreName}} • {{date}}";
+    const wmText = rawTemplate
+      .replace(/\{\{centreName\}\}/g, centreName)
+      .replace(/\{\{userName\}\}/g, studentName)
+      .replace(/\{\{date\}\}/g, today);
+
+    const wmEnabled = wm?.enabled ?? true;
+    const wmOpacity = ((wm?.opacity ?? 12) / 100).toFixed(2);
+    const wmRotation = wm?.rotation ?? -45;
+    const wmFontSize = wm?.fontSize ?? 36;
+    const wmColor = wm?.color ?? "#888888";
+    const wmPosition = wm?.position ?? "tile";
+
+    // CSS content: "..." values must use CSS string escaping, not HTML escaping
+    const cssWmText = csse(wmText);
+
+    // Validate wmColor is a safe hex/named color (prevent CSS injection)
+    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(wmColor) ? wmColor : "#888888";
+
+    let wmCss = "";
+    if (wmEnabled) {
+      if (wmPosition === "tile") {
+        wmCss = `
+          .watermark { position: fixed; inset: 0; pointer-events: none; z-index: 1000; overflow: hidden; }
+          .watermark::after {
+            content: "${cssWmText}";
+            font-size: ${wmFontSize}px; color: ${safeColor}; opacity: ${wmOpacity};
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(${wmRotation}deg);
+            white-space: nowrap; pointer-events: none;
+          }`;
+      } else if (wmPosition === "center") {
+        wmCss = `
+          .watermark { position: fixed; inset: 0; pointer-events: none; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+          .watermark::after {
+            content: "${cssWmText}";
+            font-size: ${wmFontSize}px; color: ${safeColor}; opacity: ${wmOpacity};
+            transform: rotate(${wmRotation}deg); white-space: nowrap; pointer-events: none;
+          }`;
+      } else {
+        wmCss = `
+          .watermark {
+            position: fixed; bottom: 20px; left: 0; right: 0; text-align: center;
+            pointer-events: none; z-index: 1000;
+            font-size: ${Math.round(wmFontSize * 0.6)}px; color: ${safeColor}; opacity: ${wmOpacity};
+          }`;
+      }
+    }
+
+    const statusLabel: Record<string, string> = {
+      paid: "Paid", partial: "Partially Paid", due: "Due", overdue: "Overdue", waived: "Waived",
+    };
+
+    // All user-controlled values are HTML-escaped via he() before interpolation
+    const safeStatus = ["paid", "partial", "due", "overdue", "waived"].includes(record.status) ? record.status : "due";
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fee Receipt &mdash; ${he(centreName)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 40px; }
+    .page { max-width: 680px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .hdr { background: #0A1F5C; color: white; padding: 32px; text-align: center; }
+    .hdr h1 { font-size: 22px; font-weight: 800; }
+    .hdr p { font-size: 13px; opacity: 0.7; margin-top: 6px; }
+    .hdr .ref { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 16px; font-size: 12px; margin-top: 10px; }
+    .body { padding: 32px; }
+    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 24px; }
+    .info-item label { font-size: 11px; color: #94a3b8; display: block; margin-bottom: 2px; }
+    .info-item span { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .divider { height: 1px; background: #e2e8f0; margin: 20px 0; }
+    .amt-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+    .amt-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
+    .amt-row:last-child { margin-bottom: 0; padding-top: 10px; border-top: 1px dashed #cbd5e1; margin-top: 10px; font-size: 16px; font-weight: 700; }
+    .amt-row label { color: #64748b; }
+    .amt-row span { font-weight: 600; color: #1e293b; }
+    .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-partial { background: #fef9c3; color: #854d0e; }
+    .badge-due { background: #fee2e2; color: #991b1b; }
+    .badge-overdue { background: #fecaca; color: #7f1d1d; }
+    .badge-waived { background: #f1f5f9; color: #475569; }
+    .ftr { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 32px; text-align: center; }
+    .ftr p { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+    .print-btn { background: #0A1F5C; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: block; margin: 0 auto; }
+    ${wmCss}
+    @media print { body { background: white; padding: 0; } .page { box-shadow: none; border-radius: 0; } .print-btn { display: none !important; } }
+  </style>
+</head>
+<body>
+  ${wmEnabled ? `<div class="watermark">${wmPosition === "footer" ? he(wmText) : ""}</div>` : ""}
+  <div class="page">
+    <div class="hdr">
+      <h1>${he(centreName)}</h1>
+      <p>Fee Payment Receipt</p>
+      <div class="ref">Ref: ${he(record.transactionRef ?? record.id.slice(0, 12).toUpperCase())}</div>
+    </div>
+    <div class="body">
+      <p class="sec-title">Student Details</p>
+      <div class="info-grid">
+        <div class="info-item"><label>Name</label><span>${he(studentName)}</span></div>
+        <div class="info-item"><label>Period</label><span>${he(record.period)}</span></div>
+        <div class="info-item"><label>Due Date</label><span>${record.dueDate ? he(new Date(record.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })) : "—"}</span></div>
+        ${record.paidDate ? `<div class="info-item"><label>Payment Date</label><span>${he(new Date(record.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }))}</span></div>` : ""}
+        ${record.paymentMethod ? `<div class="info-item"><label>Payment Mode</label><span>${he(record.paymentMethod)}</span></div>` : ""}
+        <div class="info-item"><label>Status</label><span class="badge badge-${safeStatus}">${he(statusLabel[record.status] ?? record.status)}</span></div>
+      </div>
+      <div class="divider"></div>
+      <p class="sec-title">Amount Details</p>
+      <div class="amt-box">
+        <div class="amt-row"><label>Total Fee</label><span>&#x20B9;${record.amount.toLocaleString("en-IN")}</span></div>
+        <div class="amt-row"><label>Amount Paid</label><span>&#x20B9;${record.paidAmount.toLocaleString("en-IN")}</span></div>
+        ${record.paidAmount < record.amount ? `<div class="amt-row"><label>Balance Due</label><span style="color:#dc2626">&#x20B9;${(record.amount - record.paidAmount).toLocaleString("en-IN")}</span></div>` : ""}
+        <div class="amt-row"><label>Net Amount Paid</label><span style="color:#0A1F5C">&#x20B9;${record.paidAmount.toLocaleString("en-IN")}</span></div>
+      </div>
+      ${record.notes ? `<p style="font-size:12px;color:#64748b;margin-bottom:16px;line-height:1.5">Note: ${he(record.notes)}</p>` : ""}
+      <button class="print-btn" onclick="window.print()">&#128424; Print / Save as PDF</button>
+    </div>
+    <div class="ftr">
+      <p>${he(centreName)} &bull; Computer-generated receipt. No signature required.<br>For queries, contact the Pinnacle office.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (e) { res.status(500).json({ error: "Failed to generate receipt" }); }
 });
 
 export default router;
