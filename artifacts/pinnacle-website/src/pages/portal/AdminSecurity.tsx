@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Shield, BarChart2, ClipboardList, RefreshCw, Unlock } from "lucide-react";
+import { Shield, BarChart2, ClipboardList, RefreshCw, Unlock, Zap, Users, TrendingUp, Globe, ArrowUpRight, AlertCircle } from "lucide-react";
 import { useToast, SkeletonList, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -24,6 +24,13 @@ type IpLockout = { id: string; ip: string; attempts: number; lockedUntil: string
 type AuditLog = { id: string; actorName: string | null; action: string; entityType: string | null; entityId: string | null; createdAt: string };
 type PageViewData = { date: string; total: number };
 type TopPage = { path: string; total: number };
+type GA4Summary = {
+  available: boolean;
+  activeUsers7d: number | null;
+  sessions30d: number | null;
+  bounceRate30d: number | null;
+  topSource: string | null;
+};
 
 const OUTCOME_COLORS: Record<string, string> = { success: "bg-green-100 text-green-700", fail: "bg-red-100 text-red-700", blocked: "bg-orange-100 text-orange-700" };
 
@@ -31,15 +38,95 @@ const OUTCOME_COLORS: Record<string, string> = { success: "bg-green-100 text-gre
 export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | null> }) {
   const { data: pageviews, loading: pvLoading } = useFetch<PageViewData[]>("/admin/analytics/pageviews?days=30", getToken);
   const { data: topPages, loading: tpLoading } = useFetch<TopPage[]>("/admin/analytics/top-pages?days=30", getToken);
+  const { data: ga4, loading: ga4Loading } = useFetch<GA4Summary>("/admin/analytics/ga4/summary", getToken);
 
   const maxCount = Math.max(...(pageviews ?? []).map(p => p.total), 1);
+  const isGA4Active = !ga4Loading && ga4?.available === true;
+  const ga4Missing = !ga4Loading && ga4?.available === false;
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6">
-        <BarChart2 size={20} className="text-[var(--color-teal)]" />
-        <h2 className="text-xl font-bold text-[var(--color-navy)]">Analytics (Last 30 Days)</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <BarChart2 size={20} className="text-[var(--color-teal)]" />
+          <h2 className="text-xl font-bold text-[var(--color-navy)]">Analytics (Last 30 Days)</h2>
+        </div>
+        {isGA4Active && (
+          <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-1 rounded-full">
+            <Zap size={11} /> Powered by GA4
+          </span>
+        )}
+        {!ga4Loading && !isGA4Active && (
+          <span className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+            Internal tracker
+          </span>
+        )}
       </div>
+
+      {/* GA4 not configured — setup nudge */}
+      {ga4Missing && (
+        <div className="card border border-amber-200 bg-amber-50 mb-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle size={18} className="text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-amber-800 text-sm mb-1">Connect Google Analytics 4 for richer insights</p>
+              <p className="text-amber-700 text-xs mb-3">
+                Currently using the internal page-view tracker. Add your GA4 OAuth 2.0 credentials to unlock active users, sessions, bounce rate, and traffic sources.
+              </p>
+              <div className="space-y-1 text-xs font-mono bg-amber-100 rounded-lg p-3 text-amber-900">
+                <p>GOOGLE_OAUTH_CLIENT_ID=your-client-id</p>
+                <p>GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret</p>
+                <p>GOOGLE_OAUTH_REFRESH_TOKEN=your-refresh-token</p>
+                <p>GOOGLE_GA4_PROPERTY_ID=123456789</p>
+                <p>VITE_GA4_MEASUREMENT_ID=G-XXXXXXXXXX</p>
+              </div>
+              <p className="text-amber-700 text-xs mt-2">
+                Get a refresh token via the{" "}
+                <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="underline font-medium">
+                  Google OAuth Playground
+                </a>{" "}
+                — select the <em>Google Analytics Data API v1</em> scope.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GA4 summary cards */}
+      {isGA4Active && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="card border border-slate-200 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[var(--color-teal)] mb-1">
+              <Users size={14} />
+              <span className="text-xs font-medium">Active Users (7d)</span>
+            </div>
+            <p className="text-2xl font-bold text-[var(--color-navy)]">{ga4?.activeUsers7d?.toLocaleString("en-IN") ?? "—"}</p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[var(--color-teal)] mb-1">
+              <TrendingUp size={14} />
+              <span className="text-xs font-medium">Sessions (30d)</span>
+            </div>
+            <p className="text-2xl font-bold text-[var(--color-navy)]">{ga4?.sessions30d?.toLocaleString("en-IN") ?? "—"}</p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[var(--color-teal)] mb-1">
+              <ArrowUpRight size={14} />
+              <span className="text-xs font-medium">Bounce Rate</span>
+            </div>
+            <p className="text-2xl font-bold text-[var(--color-navy)]">
+              {ga4?.bounceRate30d != null ? `${ga4.bounceRate30d}%` : "—"}
+            </p>
+          </div>
+          <div className="card border border-slate-200 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[var(--color-teal)] mb-1">
+              <Globe size={14} />
+              <span className="text-xs font-medium">Top Source</span>
+            </div>
+            <p className="text-sm font-bold text-[var(--color-navy)] truncate px-1">{ga4?.topSource ?? "—"}</p>
+          </div>
+        </div>
+      )}
 
       <div className="card border border-slate-200 mb-6">
         <h3 className="font-semibold text-sm text-[var(--color-navy)] mb-4">Page Views Over Time</h3>
@@ -76,7 +163,7 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <p className="text-xs font-mono text-slate-700 truncate">{p.path}</p>
-                    <span className="text-xs text-slate-500 shrink-0">{p.total}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{p.total.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full bg-[var(--color-teal)] rounded-full" style={{ width: `${(p.total / maxTP) * 100}%` }} />

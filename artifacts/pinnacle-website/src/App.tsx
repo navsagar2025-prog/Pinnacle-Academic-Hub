@@ -258,8 +258,41 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+    dataLayer?: unknown[];
+  }
+}
+
+const GA4_ID = import.meta.env.VITE_GA4_MEASUREMENT_ID as string | undefined;
+
+function GA4PageTracker() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    if (!GA4_ID) return;
+    if (window.gtag) {
+      window.gtag("config", GA4_ID, { page_path: location });
+      return;
+    }
+    window.dataLayer = window.dataLayer ?? [];
+    window.gtag = function (...args: unknown[]) { window.dataLayer!.push(args); };
+    window.gtag("js", new Date());
+    window.gtag("config", GA4_ID, { send_page_view: false });
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
+    document.head.appendChild(s);
+  }, [location]);
+
+  return null;
+}
+
 function Router() {
   return (
+    <>
+    <GA4PageTracker />
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/about" component={AboutPage} />
@@ -294,6 +327,7 @@ function Router() {
 
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
