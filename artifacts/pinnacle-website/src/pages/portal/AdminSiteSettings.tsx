@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 import { useLocation } from "wouter";
 
@@ -24,12 +24,15 @@ type SiteSetting = { id: string; key: string; value: string | null; label: strin
 type SeoOverride = { id: string; route: string; title: string | null; description: string | null; focusKeyword: string | null; noIndex: boolean };
 type WatermarkSetting = { id: string; docType: string; enabled: boolean; textTemplate: string; position: string; opacity: number; rotation: number; fontSize: number; color: string; useGlobal: boolean };
 
+const EMAIL_SETTING_KEYS = ["portal_url", "contact_phone"] as const;
+
 // ─── Site Settings ────────────────────────────────────────────────────────────
 export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
   const { data: settings, loading, reload } = useFetch<SiteSetting[]>("/admin/site-settings", getToken);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -42,7 +45,9 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
   const saveAll = async () => {
     setSaving(true);
     try {
-      const updates = (settings ?? []).map(s => ({ key: s.key, value: values[s.key] ?? "", label: s.label ?? undefined }));
+      const generalSettings = (settings ?? []).filter(s => !EMAIL_SETTING_KEYS.includes(s.key as typeof EMAIL_SETTING_KEYS[number]));
+      const updates = generalSettings.map(s => ({ key: s.key, value: values[s.key] ?? "", label: s.label ?? undefined }));
+      if (!updates.length) { toast("success", "Nothing to save"); setSaving(false); return; }
       const res = await apiMutation("PATCH", "/admin/site-settings/bulk", { updates }, getToken);
       if (res.ok) { toast("success", "Settings saved"); reload(); }
       else toast("error", "Save failed");
@@ -50,28 +55,92 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
     finally { setSaving(false); }
   };
 
+  const saveEmailSettings = async () => {
+    setEmailSaving(true);
+    try {
+      const updates = [
+        { key: "portal_url", value: values["portal_url"] ?? "", label: "Portal Login URL" },
+        { key: "contact_phone", value: values["contact_phone"] ?? "", label: "Support Contact Number" },
+      ];
+      const res = await apiMutation("PATCH", "/admin/site-settings/bulk", { updates }, getToken);
+      if (res.ok) { toast("success", "Email settings saved"); reload(); }
+      else toast("error", "Save failed");
+    } catch { toast("error", "Network error"); }
+    finally { setEmailSaving(false); }
+  };
+
+  const generalSettings = (settings ?? []).filter(s => !EMAIL_SETTING_KEYS.includes(s.key as typeof EMAIL_SETTING_KEYS[number]));
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-[var(--color-navy)]">Site Settings</h2>
-        <button onClick={saveAll} disabled={saving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
-          <Save size={14} /> {saving ? "Saving…" : "Save All"}
-        </button>
-      </div>
-      {loading && <SkeletonList rows={4} />}
-      {(settings ?? []).length === 0 && !loading && (
-        <div className="card border border-slate-200 text-center py-8">
-          <p className="text-slate-400 text-sm">No settings configured yet.</p>
-          <p className="text-slate-400 text-xs mt-1">Settings rows are seeded via the DB or API.</p>
+    <div className="space-y-8">
+      {/* Email Settings Section */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Mail size={18} className="text-[var(--color-teal)]" />
+          <h2 className="text-xl font-bold text-[var(--color-navy)]">Email Settings</h2>
         </div>
-      )}
-      <div className="space-y-3">
-        {(settings ?? []).map(s => (
-          <div key={s.id} className="card border border-slate-200">
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{s.label ?? s.key} <span className="font-mono font-normal text-slate-400">({s.key})</span></label>
-            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={values[s.key] ?? ""} onChange={e => setValues(v => ({ ...v, [s.key]: e.target.value }))} />
+        <p className="text-sm text-slate-500 mb-4">
+          These values are used in approval and rejection emails sent to applicants.
+          Leave blank to use the environment variable fallback.
+        </p>
+        {loading ? <SkeletonList rows={2} /> : (
+          <div className="space-y-3">
+            <div className="card border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">
+                Portal Login URL <span className="font-mono font-normal text-slate-400">(portal_url)</span>
+              </label>
+              <input
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                placeholder={`https://${typeof window !== "undefined" ? window.location.hostname : "pinnacle.edu.in"}`}
+                value={values["portal_url"] ?? ""}
+                onChange={e => setValues(v => ({ ...v, portal_url: e.target.value }))}
+              />
+              <p className="text-xs text-slate-400 mt-1">The URL included in approval emails so students can log in to their portal.</p>
+            </div>
+            <div className="card border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">
+                Support Contact Number <span className="font-mono font-normal text-slate-400">(contact_phone)</span>
+              </label>
+              <input
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                placeholder="+91-XXXXXXXXXX"
+                value={values["contact_phone"] ?? ""}
+                onChange={e => setValues(v => ({ ...v, contact_phone: e.target.value }))}
+              />
+              <p className="text-xs text-slate-400 mt-1">The phone number shown in rejection emails for applicants to contact support.</p>
+            </div>
+            <div className="flex justify-end">
+              <button onClick={saveEmailSettings} disabled={emailSaving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
+                <Save size={14} /> {emailSaving ? "Saving…" : "Save Email Settings"}
+              </button>
+            </div>
           </div>
-        ))}
+        )}
+      </div>
+
+      {/* General Settings Section */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-[var(--color-navy)]">General Settings</h2>
+          <button onClick={saveAll} disabled={saving} className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
+            <Save size={14} /> {saving ? "Saving…" : "Save All"}
+          </button>
+        </div>
+        {loading && <SkeletonList rows={4} />}
+        {generalSettings.length === 0 && !loading && (
+          <div className="card border border-slate-200 text-center py-8">
+            <p className="text-slate-400 text-sm">No general settings configured yet.</p>
+            <p className="text-slate-400 text-xs mt-1">Settings rows are seeded via the DB or API.</p>
+          </div>
+        )}
+        <div className="space-y-3">
+          {generalSettings.map(s => (
+            <div key={s.id} className="card border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">{s.label ?? s.key} <span className="font-mono font-normal text-slate-400">({s.key})</span></label>
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={values[s.key] ?? ""} onChange={e => setValues(v => ({ ...v, [s.key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

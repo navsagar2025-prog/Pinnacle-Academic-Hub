@@ -8,7 +8,7 @@ import {
   questionBank, siteSettings, seoOverrides, watermarkSettings, pageViews,
   securityEvents, ipLockouts, auditLogs, users, students, batches, courses, teachers,
 } from "@workspace/db/schema";
-import { desc, eq, sql, asc, isNull, isNotNull, and, gte, lte, ilike, or } from "drizzle-orm";
+import { desc, eq, sql, asc, isNull, isNotNull, and, gte, lte, ilike, or, inArray } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildApprovalEmail, buildRejectionEmail } from "../lib/email.js";
 
@@ -675,7 +675,8 @@ router.patch("/admin/users/:id/approve", async (req, res) => {
     const [row] = await db.update(users).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
     if (emailAvailable() && row.email) {
-      const portalUrl = process.env.PORTAL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacle.edu.in"}`;
+      const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "portal_url")).limit(1);
+      const portalUrl = setting?.value || process.env.PORTAL_URL || `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacle.edu.in"}`;
       const { subject, html } = buildApprovalEmail(row.name ?? "Student", portalUrl);
       sendEmail({ to: row.email, subject, html }).catch(err =>
         console.error("[email] Failed to send approval email:", err)
@@ -690,7 +691,8 @@ router.patch("/admin/users/:id/reject", async (req, res) => {
     const [row] = await db.update(users).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
     if (emailAvailable() && row.email) {
-      const contactNumber = process.env.CONTACT_PHONE ?? "+91-XXXXXXXXXX";
+      const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "contact_phone")).limit(1);
+      const contactNumber = setting?.value || process.env.CONTACT_PHONE || "+91-XXXXXXXXXX";
       const { subject, html } = buildRejectionEmail(row.name ?? "Applicant", contactNumber);
       sendEmail({ to: row.email, subject, html }).catch(err =>
         console.error("[email] Failed to send rejection email:", err)
