@@ -91,6 +91,7 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
       toast("success", "User approved");
       if (res.emailSent && res.emailTo) toast("success", `Approval email sent to ${res.emailTo}`);
       else if (res.emailConfigured && !res.emailSent) toast("error", "Approval email could not be delivered");
+      else if (!res.emailConfigured) toast("info", "Email not configured — user status updated without notification");
       load();
     } else {
       toast("error", "Approval failed");
@@ -107,6 +108,7 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
       toast("success", "User rejected");
       if (res.emailSent && res.emailTo) toast("success", `Rejection email sent to ${res.emailTo}`);
       else if (res.emailConfigured && !res.emailSent) toast("error", "Rejection email could not be delivered");
+      else if (!res.emailConfigured) toast("info", "Email not configured — user status updated without notification");
       load();
     } else {
       toast("error", "Rejection failed");
