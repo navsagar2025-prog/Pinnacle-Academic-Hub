@@ -224,9 +224,6 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
               ))}
             </div>
           )}
-          {!fuLoading && !featureUsage?.available && (
-            <p className="text-xs text-slate-400 mt-2">Connect Google Analytics 4 to see student feature engagement.</p>
-          )}
         </div>
       )}
     </div>
