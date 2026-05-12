@@ -120,3 +120,37 @@ export async function runReport(
     dateRanges,
   );
 }
+
+export async function runEventReport(
+  creds: GA4Creds,
+  dateRanges: DateRange[],
+  eventNamePrefix?: string,
+): Promise<{ eventName: string; count: number }[]> {
+  const auth = buildAuthFromCreds(creds);
+  const analyticsdata = google.analyticsdata({ version: "v1beta", auth });
+  const res = await analyticsdata.properties.runReport({
+    property: `properties/${creds.propertyId}`,
+    requestBody: {
+      dimensions: [{ name: "eventName" }],
+      metrics: [{ name: "eventCount" }],
+      dateRanges,
+      ...(eventNamePrefix ? {
+        dimensionFilter: {
+          filter: {
+            fieldName: "eventName",
+            stringFilter: {
+              matchType: "BEGINS_WITH",
+              value: eventNamePrefix,
+              caseSensitive: false,
+            },
+          },
+        },
+      } : {}),
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+    },
+  });
+  return (res.data.rows ?? []).map(r => ({
+    eventName: r.dimensionValues?.[0]?.value ?? "",
+    count: parseInt(r.metricValues?.[0]?.value ?? "0"),
+  }));
+}

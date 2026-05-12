@@ -9,7 +9,7 @@ import {
   practiceSets, practiceSetQuestions, practiceSetAssignments,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
-import { getEffectiveCreds, runReportWithCreds } from "../lib/ga4.js";
+import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -827,6 +827,25 @@ router.get("/admin/analytics/ga4/summary", async (_req, res) => {
       .sort((a, b) => b.sessions - a.sessions)[0]?.source ?? null;
     res.json({ ok: true, data: { available: true, activeUsers7d, sessions30d, bounceRate30d, topSource } });
   } catch (e) { console.error(e); res.status(500).json({ error: "Failed to fetch GA4 summary" }); }
+});
+
+router.get("/admin/analytics/feature-usage", async (req, res) => {
+  const creds = await getEffectiveCreds();
+  if (!creds) {
+    res.json({ ok: true, data: [], available: false });
+    return;
+  }
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const startDate = cutoff.toISOString().split("T")[0];
+    const rows = await runEventReport(creds, [{ startDate, endDate: "today" }], "pinnacle_");
+    res.json({ ok: true, data: rows, available: true });
+  } catch (e) {
+    console.error("GA4 feature-usage error:", e);
+    res.status(500).json({ error: "Failed to fetch feature usage data" });
+  }
 });
 
 // ── Security Events ────────────────────────────────────────────────────────

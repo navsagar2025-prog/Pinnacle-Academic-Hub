@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Shield, BarChart2, ClipboardList, RefreshCw, Unlock, Zap, Users, TrendingUp, Globe, ArrowUpRight, AlertCircle } from "lucide-react";
+import { Shield, BarChart2, ClipboardList, RefreshCw, Unlock, Zap, Users, TrendingUp, Globe, ArrowUpRight, AlertCircle, BookOpen } from "lucide-react";
 import { useToast, SkeletonList, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -31,6 +31,24 @@ type GA4Summary = {
   bounceRate30d: number | null;
   topSource: string | null;
 };
+type FeatureUsageRow = { eventName: string; count: number };
+type FeatureUsageResponse = { available: boolean; data: FeatureUsageRow[] };
+
+const EVENT_LABELS: Record<string, string> = {
+  pinnacle_section_viewed: "Section Viewed",
+  pinnacle_material_downloaded: "Material Downloaded",
+  pinnacle_assignment_viewed: "Assignments Viewed",
+  pinnacle_recording_viewed: "Recording Watched",
+  pinnacle_practice_section_viewed: "Practice Tests Opened",
+  pinnacle_practice_started: "Practice Test Started",
+  pinnacle_practice_submitted: "Practice Test Submitted",
+  pinnacle_doubt_submitted: "Doubt Submitted",
+};
+
+function labelFor(eventName: string): string {
+  return EVENT_LABELS[eventName]
+    ?? eventName.replace(/^pinnacle_/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
 
 const OUTCOME_COLORS: Record<string, string> = { success: "bg-green-100 text-green-700", fail: "bg-red-100 text-red-700", blocked: "bg-orange-100 text-orange-700" };
 
@@ -39,10 +57,13 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
   const { data: pageviews, loading: pvLoading } = useFetch<PageViewData[]>("/admin/analytics/pageviews?days=30", getToken);
   const { data: topPages, loading: tpLoading } = useFetch<TopPage[]>("/admin/analytics/top-pages?days=30", getToken);
   const { data: ga4, loading: ga4Loading } = useFetch<GA4Summary>("/admin/analytics/ga4/summary", getToken);
+  const { data: featureUsage, loading: fuLoading } = useFetch<FeatureUsageResponse>("/admin/analytics/feature-usage?days=30", getToken);
 
   const maxCount = Math.max(...(pageviews ?? []).map(p => p.total), 1);
   const isGA4Active = !ga4Loading && ga4?.available === true;
   const ga4Missing = !ga4Loading && ga4?.available === false;
+  const featureRows = featureUsage?.data ?? [];
+  const maxFeatureCount = Math.max(...featureRows.map(r => r.count), 1);
 
   return (
     <div>
@@ -167,6 +188,47 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
           {(topPages ?? []).length === 0 && !tpLoading && <p className="text-slate-400 text-sm">No data yet.</p>}
         </div>
       </div>
+
+      {/* Student Feature Usage — only shown when GA4 is active */}
+      {isGA4Active && (
+        <div className="card border border-slate-200 mt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen size={15} className="text-[var(--color-teal)]" />
+            <h3 className="font-semibold text-sm text-[var(--color-navy)]">Student Feature Usage (Last 30 Days)</h3>
+          </div>
+          {fuLoading && <SkeletonList rows={5} />}
+          {!fuLoading && featureRows.length === 0 && (
+            <p className="text-slate-400 text-sm">No student portal events recorded yet. Events appear once students use the portal with GA4 active.</p>
+          )}
+          {!fuLoading && featureRows.length > 0 && (
+            <div className="space-y-2.5">
+              {featureRows.map((row, i) => (
+                <div key={row.eventName} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-4 text-right shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <p className="text-xs font-medium text-slate-700 truncate">{labelFor(row.eventName)}</p>
+                      <span className="text-xs font-semibold text-[var(--color-navy)] shrink-0">{row.count.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(row.count / maxFeatureCount) * 100}%`,
+                          background: `linear-gradient(90deg, var(--color-teal), var(--color-navy))`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!fuLoading && !featureUsage?.available && (
+            <p className="text-xs text-slate-400 mt-2">Connect Google Analytics 4 to see student feature engagement.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
