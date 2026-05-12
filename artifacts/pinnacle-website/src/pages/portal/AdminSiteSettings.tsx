@@ -179,7 +179,7 @@ export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> 
 }
 
 // ─── GA4 OAuth Setup ──────────────────────────────────────────────────────────
-type GA4Status = { connected: boolean; source: "env" | "db" | null; propertyId: string | null; measurementId: string | null };
+type GA4Status = { connected: boolean; source: "env" | "db" | null; propertyId: string | null; measurementId: string | null; envCredsConfigured?: boolean };
 
 export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | null> }) {
   const { toast } = useToast();
@@ -221,19 +221,29 @@ export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | n
     }
   }, [location]);
 
+  const envCredsConfigured = status?.envCredsConfigured ?? false;
+
   const connect = async () => {
-    if (!form.clientId.trim() || !form.clientSecret.trim() || !form.propertyId.trim()) {
-      toast("error", "Client ID, Client Secret, and Property ID are required");
+    const needsCreds = !envCredsConfigured;
+    if (needsCreds && (!form.clientId.trim() || !form.clientSecret.trim())) {
+      toast("error", "Client ID and Client Secret are required");
+      return;
+    }
+    if (!form.propertyId.trim()) {
+      toast("error", "Property ID is required");
       return;
     }
     setConnecting(true);
     try {
-      const res = await apiMutation("POST", "/admin/ga4/oauth/start", {
-        clientId: form.clientId.trim(),
-        clientSecret: form.clientSecret.trim(),
+      const body: Record<string, string | undefined> = {
         propertyId: form.propertyId.trim(),
         measurementId: form.measurementId.trim() || undefined,
-      }, getToken) as { ok?: boolean; authUrl?: string; error?: string };
+      };
+      if (needsCreds) {
+        body.clientId = form.clientId.trim();
+        body.clientSecret = form.clientSecret.trim();
+      }
+      const res = await apiMutation("POST", "/admin/ga4/oauth/start", body, getToken) as { ok?: boolean; authUrl?: string; error?: string };
       if (res.ok && res.authUrl) {
         window.location.href = res.authUrl;
       } else {
@@ -325,28 +335,41 @@ export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | n
           </div>
 
           <div className="card border border-slate-200 p-5 space-y-4">
-            <p className="text-sm font-semibold text-[var(--color-navy)]">OAuth 2.0 Credentials</p>
+            <p className="text-sm font-semibold text-[var(--color-navy)]">
+              {envCredsConfigured ? "Connect GA4" : "OAuth 2.0 Credentials"}
+            </p>
+
+            {envCredsConfigured && (
+              <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <CheckCircle2 size={13} className="shrink-0" />
+                <span>OAuth Client ID &amp; Secret are pre-configured via environment variables.</span>
+              </div>
+            )}
 
             <div className="grid gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Client ID <span className="text-red-400">*</span></label>
-                <input
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
-                  placeholder="123456789-abc.apps.googleusercontent.com"
-                  value={form.clientId}
-                  onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Client Secret <span className="text-red-400">*</span></label>
-                <input
-                  type="password"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
-                  placeholder="GOCSPX-…"
-                  value={form.clientSecret}
-                  onChange={e => setForm(f => ({ ...f, clientSecret: e.target.value }))}
-                />
-              </div>
+              {!envCredsConfigured && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Client ID <span className="text-red-400">*</span></label>
+                    <input
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                      placeholder="123456789-abc.apps.googleusercontent.com"
+                      value={form.clientId}
+                      onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Client Secret <span className="text-red-400">*</span></label>
+                    <input
+                      type="password"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                      placeholder="GOCSPX-…"
+                      value={form.clientSecret}
+                      onChange={e => setForm(f => ({ ...f, clientSecret: e.target.value }))}
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">GA4 Property ID <span className="text-red-400">*</span></label>
                 <input
@@ -371,7 +394,7 @@ export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | n
 
             <button
               onClick={connect}
-              disabled={connecting || !form.clientId || !form.clientSecret || !form.propertyId}
+              disabled={connecting || !form.propertyId || (!envCredsConfigured && (!form.clientId || !form.clientSecret))}
               className="w-full btn-primary py-2.5 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
               {connecting ? <><Loader2 size={15} className="animate-spin" /> Opening Google consent screen…</> : <>
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -390,10 +413,10 @@ export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | n
             <ol className="text-xs text-slate-500 space-y-1.5 list-decimal list-inside">
               <li>In <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-[var(--color-teal)] underline">Google Cloud Console</a>, enable the <strong>Google Analytics Data API</strong>.</li>
               <li>Go to APIs &amp; Services → Credentials → Create Credentials → OAuth 2.0 Client ID.</li>
-              <li>Set Application type to <strong>Web application</strong>. Add your site URL as an Authorized redirect URI — the system will show the exact URI after you click Connect.</li>
-              <li>Copy the Client ID and Client Secret into the form above.</li>
+              <li>Application type: <strong>Web application</strong>. Add your Replit domain as an Authorized Redirect URI — the exact URI will be shown after you click Connect.</li>
+              {!envCredsConfigured && <li>Copy the Client ID and Client Secret into the form above.</li>}
               <li>Enter your GA4 Property ID (numeric, from GA4 Admin → Property Settings).</li>
-              <li>Click <strong>Connect with Google</strong> and approve the Analytics read scope.</li>
+              <li>Click <strong>Connect with Google</strong> and approve the Analytics read scope — no manual token copying needed.</li>
             </ol>
           </div>
         </div>

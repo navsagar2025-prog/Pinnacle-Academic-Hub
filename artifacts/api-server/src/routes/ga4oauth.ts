@@ -15,8 +15,15 @@ async function requireAdminRole(req: Request, res: Response, next: NextFunction)
   const { userId: clerkUserId } = getAuth(req);
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
   try {
-    const [user] = await db.select({ role: users.role }).from(users).where(eq(users.clerkId, clerkUserId)).limit(1);
-    if (!user || user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return; }
+    const [user] = await db
+      .select({ role: users.role, approvalStatus: users.approvalStatus })
+      .from(users)
+      .where(eq(users.clerkUserId, clerkUserId))
+      .limit(1);
+    if (!user || user.role !== "admin" || user.approvalStatus !== "approved") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     next();
   } catch { res.status(500).json({ error: "Auth check failed" }); }
 }
@@ -47,13 +54,17 @@ function buildFrontendBase(req: Request): string {
   return `${proto}://${host}`;
 }
 
+const ENV_CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
+const ENV_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+
 router.get("/admin/ga4/status", requireAuth(), requireAdminRole, async (_req, res) => {
   const envConnected = !!(
-    process.env.GOOGLE_OAUTH_CLIENT_ID &&
+    ENV_CLIENT_ID &&
     process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
     process.env.GOOGLE_OAUTH_REFRESH_TOKEN &&
     process.env.GOOGLE_GA4_PROPERTY_ID
   );
+
   if (envConnected) {
     res.json({
       ok: true,
@@ -62,15 +73,17 @@ router.get("/admin/ga4/status", requireAuth(), requireAdminRole, async (_req, re
         source: "env",
         propertyId: process.env.GOOGLE_GA4_PROPERTY_ID ?? null,
         measurementId: process.env.VITE_GA4_MEASUREMENT_ID ?? null,
+        envCredsConfigured: true,
       },
     });
     return;
   }
+
   try {
     const settings = await getDbSettings();
     const dbConnected = !!(
-      settings.ga4_client_id &&
-      settings.ga4_client_secret &&
+      (settings.ga4_client_id || ENV_CLIENT_ID) &&
+      (settings.ga4_client_secret || ENV_CLIENT_SECRET) &&
       settings.ga4_refresh_token &&
       settings.ga4_property_id
     );
@@ -81,6 +94,7 @@ router.get("/admin/ga4/status", requireAuth(), requireAdminRole, async (_req, re
         source: dbConnected ? "db" : null,
         propertyId: settings.ga4_property_id || null,
         measurementId: settings.ga4_measurement_id || null,
+        envCredsConfigured: !!(ENV_CLIENT_ID && ENV_CLIENT_SECRET),
       },
     });
   } catch (e) {
@@ -89,15 +103,23 @@ router.get("/admin/ga4/status", requireAuth(), requireAdminRole, async (_req, re
 });
 
 router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (req, res) => {
-  const { clientId, clientSecret, propertyId, measurementId } = req.body as {
-    clientId: string;
-    clientSecret: string;
+  const body = req.body as {
+    clientId?: string;
+    clientSecret?: string;
     propertyId: string;
     measurementId?: string;
   };
 
-  if (!clientId?.trim() || !clientSecret?.trim() || !propertyId?.trim()) {
-    res.status(400).json({ error: "clientId, clientSecret, and propertyId are required" });
+  const clientId = (body.clientId?.trim() || ENV_CLIENT_ID) ?? "";
+  const clientSecret = (body.clientSecret?.trim() || ENV_CLIENT_SECRET) ?? "";
+  const propertyId = body.propertyId?.trim() ?? "";
+
+  if (!clientId || !clientSecret || !propertyId) {
+    res.status(400).json({
+      error: !clientId || !clientSecret
+        ? "Client ID and Client Secret are required (or pre-configure GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET as environment variables)"
+        : "Property ID is required",
+    });
     return;
   }
 
@@ -105,18 +127,18 @@ router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (re
     const state = crypto.randomBytes(24).toString("hex");
     const redirectUri = buildCallbackUri(req);
 
-    await Promise.all([
-      upsertSetting("ga4_client_id", clientId.trim(), "GA4 OAuth Client ID"),
-      upsertSetting("ga4_client_secret", clientSecret.trim(), "GA4 OAuth Client Secret"),
-      upsertSetting("ga4_property_id", propertyId.trim(), "GA4 Property ID"),
+    const upserts: Promise<void>[] = [
+      upsertSetting("ga4_property_id", propertyId, "GA4 Property ID"),
       upsertSetting("ga4_oauth_state", state),
       upsertSetting("ga4_oauth_redirect_uri", redirectUri),
-      measurementId?.trim()
-        ? upsertSetting("ga4_measurement_id", measurementId.trim(), "GA4 Measurement ID")
-        : Promise.resolve(),
-    ]);
+    ];
+    if (!ENV_CLIENT_ID) upserts.push(upsertSetting("ga4_client_id", clientId, "GA4 OAuth Client ID"));
+    if (!ENV_CLIENT_SECRET) upserts.push(upsertSetting("ga4_client_secret", clientSecret, "GA4 OAuth Client Secret"));
+    if (body.measurementId?.trim()) upserts.push(upsertSetting("ga4_measurement_id", body.measurementId.trim(), "GA4 Measurement ID"));
 
-    const oauth2Client = new google.auth.OAuth2(clientId.trim(), clientSecret.trim(), redirectUri);
+    await Promise.all(upserts);
+
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: GA4_SCOPE,
@@ -124,7 +146,7 @@ router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (re
       prompt: "consent",
     });
 
-    res.json({ ok: true, authUrl });
+    res.json({ ok: true, authUrl, callbackUri: redirectUri });
   } catch (e) {
     console.error("GA4 oauth/start error:", e);
     res.status(500).json({ error: "Failed to initiate GA4 OAuth flow" });
@@ -149,14 +171,15 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
       return;
     }
 
-    const { ga4_client_id, ga4_client_secret, ga4_oauth_redirect_uri } = settings;
-    if (!ga4_client_id || !ga4_client_secret) {
+    const clientId = settings.ga4_client_id || ENV_CLIENT_ID || "";
+    const clientSecret = settings.ga4_client_secret || ENV_CLIENT_SECRET || "";
+    if (!clientId || !clientSecret) {
       res.redirect(`${failRedirect}&reason=missing_credentials`);
       return;
     }
 
-    const redirectUri = ga4_oauth_redirect_uri || buildCallbackUri(req);
-    const oauth2Client = new google.auth.OAuth2(ga4_client_id, ga4_client_secret, redirectUri);
+    const redirectUri = settings.ga4_oauth_redirect_uri || buildCallbackUri(req);
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     const { tokens } = await oauth2Client.getToken(code);
 
     if (!tokens.refresh_token) {
