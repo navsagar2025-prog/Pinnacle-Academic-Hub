@@ -288,4 +288,75 @@ router.get("/portal/parent/notices", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
+router.get("/portal/parent/overview", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.json({ ok: true, data: null }); return; }
+    if (user.role !== "parent") { res.status(403).json({ error: "Forbidden" }); return; }
+    const [parent] = await db.select().from(parents).where(eq(parents.userId, user.id)).limit(1);
+    if (!parent?.studentId) { res.json({ ok: true, data: null }); return; }
+
+    const studentId = parent.studentId;
+
+    // Child info
+    const [child] = await db
+      .select({
+        id: students.id, rollNumber: students.rollNumber, enrolledAt: students.enrolledAt,
+        batchId: students.batchId,
+        batchName: batches.name, batchTiming: batches.timingLabel, batchDays: batches.daysLabel,
+        courseName: courses.title, userName: users.name, userEmail: users.email, userPhone: users.phone,
+      })
+      .from(students).leftJoin(users, eq(students.userId, users.id))
+      .leftJoin(batches, eq(students.batchId, batches.id))
+      .leftJoin(courses, eq(batches.courseId, courses.id))
+      .where(eq(students.id, studentId)).limit(1);
+
+    // Attendance (last 60 records)
+    const attendanceRows = await db.select().from(attendance)
+      .where(eq(attendance.studentId, studentId))
+      .orderBy(desc(attendance.date)).limit(60);
+    const present = attendanceRows.filter(r => r.status === "present").length;
+    const total = attendanceRows.length;
+    const attendanceStats = { present, total, pct: total ? Math.round(present / total * 100) : 0 };
+
+    // All assignments for student's batch (pending + overdue — no date floor so nothing is hidden)
+    let pendingAssignments: typeof assignments.$inferSelect[] = [];
+    if (child?.batchId) {
+      pendingAssignments = await db.select().from(assignments)
+        .where(and(
+          eq(assignments.batchId, child.batchId),
+          eq(assignments.isVisible, true),
+        ))
+        .orderBy(asc(assignments.dueDate)).limit(20);
+    }
+
+    // Fee records
+    const feeRows = await db.select().from(feeRecords)
+      .where(eq(feeRecords.studentId, studentId))
+      .orderBy(desc(feeRecords.dueDate));
+    const totalDue = feeRows
+      .filter(f => f.status === "due" || f.status === "overdue")
+      .reduce((s, f) => s + (f.amount - f.paidAmount), 0);
+
+    // Recent test results (last 10)
+    const results = await db.select().from(studentTestResults)
+      .where(eq(studentTestResults.studentId, studentId))
+      .orderBy(desc(studentTestResults.examDate)).limit(10);
+
+    res.json({
+      ok: true,
+      data: {
+        child: child ?? null,
+        attendance: { stats: attendanceStats, recent: attendanceRows.slice(0, 10) },
+        assignments: pendingAssignments,
+        fees: { records: feeRows, totalDue },
+        results,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to load overview" });
+  }
+});
+
 export default router;
