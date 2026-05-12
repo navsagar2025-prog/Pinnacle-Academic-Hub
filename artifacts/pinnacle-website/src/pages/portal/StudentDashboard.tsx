@@ -1,13 +1,14 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import {
   LayoutDashboard, Bell, BookOpen, ClipboardList, BarChart2,
   CalendarCheck, CreditCard, LogOut, Menu, Download, AlertCircle,
+  Video, MessageCircle, ExternalLink, Send, CheckCircle2,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
-import { useFetch } from "./portalUtils";
+import { useFetch, apiMutation, trackEvent } from "./portalUtils";
 
-type Section = "overview" | "notices" | "materials" | "assignments" | "tests" | "attendance" | "fees";
+type Section = "overview" | "notices" | "materials" | "assignments" | "tests" | "recordings" | "doubts" | "attendance" | "fees";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -15,6 +16,8 @@ const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
   { key: "materials", label: "Study Materials", Icon: BookOpen },
   { key: "assignments", label: "Assignments", Icon: ClipboardList },
   { key: "tests", label: "Mock Tests", Icon: BarChart2 },
+  { key: "recordings", label: "Recordings", Icon: Video },
+  { key: "doubts", label: "Ask a Doubt", Icon: MessageCircle },
   { key: "attendance", label: "Attendance", Icon: CalendarCheck },
   { key: "fees", label: "Fee Records", Icon: CreditCard },
 ];
@@ -131,7 +134,13 @@ function MaterialsSection({ getToken }: { getToken: () => Promise<string | null>
               <p className="text-xs text-slate-500">{m.subject} · {m.type}{m.fileSize ? ` · ${m.fileSize}` : ""}</p>
             </div>
             {m.fileUrl && (
-              <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-[var(--color-teal)] font-medium hover:underline shrink-0">
+              <a
+                href={m.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-sm text-[var(--color-teal)] font-medium hover:underline shrink-0"
+                onClick={() => trackEvent("pinnacle_material_downloaded", { material_id: m.id, title: m.title, subject: m.subject, file_type: m.type })}
+              >
                 <Download size={14} /> Download
               </a>
             )}
@@ -145,6 +154,13 @@ function MaterialsSection({ getToken }: { getToken: () => Promise<string | null>
 
 function AssignmentsSection({ getToken }: { getToken: () => Promise<string | null> }) {
   const { data, loading } = useFetch<{ data: Assignment[] }>("/portal/student/assignments", getToken);
+
+  useEffect(() => {
+    if (!loading && data) {
+      trackEvent("pinnacle_assignment_viewed", { assignment_count: (data.data ?? []).length });
+    }
+  }, [loading, data]);
+
   if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
   return (
     <div>
@@ -174,7 +190,56 @@ function AssignmentsSection({ getToken }: { getToken: () => Promise<string | nul
 }
 
 function MockTestsSection({ getToken }: { getToken: () => Promise<string | null> }) {
-  const { data, loading } = useFetch<{ data: MockTest[]; attempts: { testId: string; score: number; maxScore: number; isCompleted: boolean }[] }>("/portal/student/mock-tests", getToken);
+  const { data, loading, reload } = useFetch<{ data: MockTest[]; attempts: { testId: string; score: number; maxScore: number; isCompleted: boolean }[] }>("/portal/student/mock-tests", getToken);
+  const [submitModal, setSubmitModal] = useState<MockTest | null>(null);
+  const [scoreInput, setScoreInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && data) {
+      trackEvent("pinnacle_practice_section_viewed", { test_count: (data.data ?? []).length });
+    }
+  }, [loading, data]);
+
+  const handleStart = (t: MockTest) => {
+    trackEvent("pinnacle_practice_started", { test_id: t.id, title: t.title, subject: t.subject, duration_minutes: t.durationMinutes });
+    setScoreInput("");
+    setSubmitErr(null);
+    setSubmitModal(t);
+  };
+
+  const handleSubmit = async () => {
+    if (!submitModal) return;
+    const score = parseInt(scoreInput, 10);
+    const maxScore = submitModal.marksPerQuestion * 40;
+    if (isNaN(score) || score < 0 || score > maxScore) { setSubmitErr(`Enter a score between 0 and ${maxScore}`); return; }
+    setSubmitting(true);
+    setSubmitErr(null);
+    try {
+      const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const token = await getToken();
+      const serverMaxScore = submitModal.marksPerQuestion * 40;
+      const res = await fetch(`${BASE}/api/v1/portal/student/mock-tests/${submitModal.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ score }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        trackEvent("pinnacle_practice_submitted", { test_id: submitModal.id, title: submitModal.title, subject: submitModal.subject, score, max_score: serverMaxScore });
+        setSubmitModal(null);
+        reload();
+      } else {
+        setSubmitErr(json.error ?? "Failed to submit");
+      }
+    } catch {
+      setSubmitErr("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
   const attemptMap = new Map((data?.attempts ?? []).map(a => [a.testId, a]));
   return (
@@ -197,13 +262,184 @@ function MockTestsSection({ getToken }: { getToken: () => Promise<string | null>
                   <p className="text-xs text-slate-400">Completed</p>
                 </div>
               ) : (
-                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0 self-center">Available</span>
+                <button
+                  onClick={() => handleStart(t)}
+                  className="text-xs bg-blue-100 text-blue-700 font-medium px-3 py-1.5 rounded-full shrink-0 self-center hover:bg-blue-200 transition-colors"
+                >
+                  Start & Submit
+                </button>
               )}
             </div>
           );
         })}
         {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No mock tests published yet.</p>}
       </div>
+
+      {submitModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-[var(--color-navy)] mb-1">{submitModal.title}</h3>
+            <p className="text-xs text-slate-500 mb-4">{submitModal.subject} · {submitModal.durationMinutes} min</p>
+            <p className="text-sm text-slate-600 mb-3">After completing the test offline or on paper, enter your score to record it.</p>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Your score (out of {submitModal.marksPerQuestion * 40})</label>
+            <input
+              type="number" value={scoreInput} onChange={e => setScoreInput(e.target.value)}
+              min={0} max={submitModal.marksPerQuestion * 40}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]"
+              placeholder={`0 – ${submitModal.marksPerQuestion * 40}`}
+            />
+            {submitErr && <p className="text-xs text-red-500 mb-3">{submitErr}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => setSubmitModal(null)} className="flex-1 px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button onClick={handleSubmit} disabled={submitting || !scoreInput}
+                className="flex-1 px-4 py-2 rounded-lg bg-[var(--color-navy)] text-white text-sm font-medium hover:bg-[#1a3580] disabled:opacity-50 transition-colors">
+                {submitting ? "Saving…" : "Submit Score"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Recording = { id: string; title: string; subject: string; teacherName: string | null; recordingUrl: string; sourceProvider: string; classDate: string | null; durationMinutes: number | null; viewCount: number };
+type Doubt = { id: string; subject: string; topic: string | null; questionText: string; isResolved: boolean; answerCount: number; createdAt: string };
+
+const SUBJECTS_LIST = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
+const SOURCE_LABEL: Record<string, string> = { zoom: "Zoom", youtube: "YouTube", google_meet: "Google Meet" };
+
+function RecordingsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading } = useFetch<{ data: Recording[] }>("/portal/student/recordings", getToken);
+  if (loading) return <div className="text-slate-400 text-sm">Loading…</div>;
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Class Recordings</h2>
+      <div className="space-y-3">
+        {(data?.data ?? []).map(r => (
+          <div key={r.id} className="card border border-slate-200 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0">
+              <Video size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[var(--color-navy)] text-sm">{r.title}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {r.subject}{r.teacherName ? ` · ${r.teacherName}` : ""}{r.durationMinutes ? ` · ${r.durationMinutes} min` : ""}
+                {r.classDate ? ` · ${new Date(r.classDate).toLocaleDateString("en-IN")}` : ""}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">{SOURCE_LABEL[r.sourceProvider] ?? r.sourceProvider}</p>
+            </div>
+            <a
+              href={r.recordingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-sm text-[var(--color-teal)] font-medium hover:underline shrink-0"
+              onClick={() => trackEvent("pinnacle_recording_viewed", { recording_id: r.id, title: r.title, subject: r.subject, source_provider: r.sourceProvider })}
+            >
+              <ExternalLink size={14} /> Watch
+            </a>
+          </div>
+        ))}
+        {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">No class recordings available yet. Check back after your next class.</p>}
+      </div>
+    </div>
+  );
+}
+
+function DoubtsSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { data, loading, reload } = useFetch<{ data: Doubt[] }>("/portal/student/doubts", getToken);
+  const [subject, setSubject] = useState("");
+  const [topic, setTopic] = useState("");
+  const [questionText, setQuestionText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject || !questionText.trim()) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await apiMutation("POST", "/portal/student/doubts", { subject, topic, questionText }, getToken);
+      if (res.ok) {
+        trackEvent("pinnacle_doubt_submitted", { subject, has_topic: Boolean(topic) });
+        setSubject("");
+        setTopic("");
+        setQuestionText("");
+        setSubmitted(true);
+        reload();
+        setTimeout(() => setSubmitted(false), 3000);
+      } else {
+        setSubmitError((res as { error?: string }).error ?? "Failed to submit");
+      }
+    } catch {
+      setSubmitError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-5">Ask a Doubt</h2>
+      <div className="card border border-slate-200 mb-6">
+        <h3 className="text-sm font-semibold text-[var(--color-navy)] mb-4">Submit a new question</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Subject *</label>
+              <select value={subject} onChange={e => setSubject(e.target.value)} required
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]">
+                <option value="">Select subject</option>
+                {SUBJECTS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Topic (optional)</label>
+              <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g. Thermodynamics"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Your question *</label>
+            <textarea value={questionText} onChange={e => setQuestionText(e.target.value)} required rows={3}
+              placeholder="Describe your doubt clearly…"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)] resize-none" />
+          </div>
+          {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+          {submitted && (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <CheckCircle2 size={14} /> Doubt submitted! A teacher will respond soon.
+            </div>
+          )}
+          <button type="submit" disabled={submitting || !subject || !questionText.trim()}
+            className="flex items-center gap-2 bg-[var(--color-navy)] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#1a3580] disabled:opacity-50 transition-colors">
+            <Send size={14} /> {submitting ? "Submitting…" : "Submit Doubt"}
+          </button>
+        </form>
+      </div>
+      <h3 className="text-sm font-semibold text-[var(--color-navy)] mb-3">Your past doubts</h3>
+      {loading ? <div className="text-slate-400 text-sm">Loading…</div> : (
+        <div className="space-y-3">
+          {(data?.data ?? []).map(d => (
+            <div key={d.id} className="card border border-slate-200">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{d.subject}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${d.isResolved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                  {d.isResolved ? "Resolved" : "Open"}
+                </span>
+              </div>
+              {d.topic && <p className="text-xs text-slate-400 mb-1">Topic: {d.topic}</p>}
+              <p className="text-sm text-[var(--color-navy)]">{d.questionText}</p>
+              <p className="text-xs text-slate-400 mt-1.5">
+                {d.answerCount} answer{d.answerCount !== 1 ? "s" : ""} · {new Date(d.createdAt).toLocaleDateString("en-IN")}
+              </p>
+            </div>
+          ))}
+          {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">You haven't submitted any doubts yet.</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -371,6 +607,8 @@ export default function StudentDashboard() {
       case "materials": return <MaterialsSection getToken={tokenFn} />;
       case "assignments": return <AssignmentsSection getToken={tokenFn} />;
       case "tests": return <MockTestsSection getToken={tokenFn} />;
+      case "recordings": return <RecordingsSection getToken={tokenFn} />;
+      case "doubts": return <DoubtsSection getToken={tokenFn} />;
       case "attendance": return <AttendanceSection getToken={tokenFn} />;
       case "fees": return <FeesSection getToken={tokenFn} />;
     }
@@ -390,7 +628,11 @@ export default function StudentDashboard() {
         </div>
         <nav className="flex-1 py-4 space-y-0.5 px-2">
           {NAV.map(({ key, label, Icon }) => (
-            <button key={key} onClick={() => { setSection(key); setSidebarOpen(false); }}
+            <button key={key} onClick={() => {
+              setSection(key);
+              setSidebarOpen(false);
+              trackEvent("pinnacle_section_viewed", { section: key, section_label: label });
+            }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${section === key ? "bg-white/15 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>
               <Icon size={16} />{label}
             </button>

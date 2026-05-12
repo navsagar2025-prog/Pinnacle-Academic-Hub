@@ -5,9 +5,10 @@ import {
   users, students, parents, teachers, batches, courses,
   notices, studyMaterials, assignments, feeRecords,
   attendance, studentTestResults, schedules, mockTests, mockTestAttempts,
+  classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
 } from "@workspace/db/schema";
-import { eq, and, or, isNull, gte, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
 
 const router = Router();
 router.use(requireAuth());
@@ -199,6 +200,113 @@ router.get("/portal/student/mock-tests", async (req, res) => {
     }
     res.json({ ok: true, data: rows, attempts });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// ── Student: recordings ───────────────────────────────────────────────────────
+router.get("/portal/student/recordings", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const student = await getStudentRecord(clerkUserId!);
+    const batchId = student?.batchId;
+    if (!batchId) { res.json({ ok: true, data: [] }); return; }
+    const rows = await db
+      .select({
+        id: classRecordings.id, title: classRecordings.title, subject: classRecordings.subject,
+        teacherName: classRecordings.teacherName, recordingUrl: classRecordings.recordingUrl,
+        sourceProvider: classRecordings.sourceProvider, classDate: classRecordings.classDate,
+        durationMinutes: classRecordings.durationMinutes, viewCount: classRecordings.viewCount,
+      })
+      .from(classRecordings)
+      .where(and(
+        eq(classRecordings.isVisible, true),
+        isNull(classRecordings.archivedAt),
+        or(
+          eq(classRecordings.batchId, batchId),
+          sql`${classRecordings.batchIds}::jsonb @> ${JSON.stringify([batchId])}::jsonb`,
+        ),
+      ))
+      .orderBy(desc(classRecordings.classDate))
+      .limit(30);
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch recordings" }); }
+});
+
+// ── Student: doubts ───────────────────────────────────────────────────────────
+router.get("/portal/student/doubts", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const student = await getStudentRecord(clerkUserId!);
+    if (!student) { res.json({ ok: true, data: [] }); return; }
+    const rows = await db.select({
+      id: doubts.id, subject: doubts.subject, topic: doubts.topic,
+      questionText: doubts.questionText, isResolved: doubts.isResolved,
+      answerCount: doubts.answerCount, createdAt: doubts.createdAt,
+    }).from(doubts)
+      .where(eq(doubts.studentId, student.id))
+      .orderBy(desc(doubts.createdAt))
+      .limit(30);
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed to fetch doubts" }); }
+});
+
+router.post("/portal/student/doubts", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  const { subject, topic, questionText } = req.body as { subject?: string; topic?: string; questionText?: string };
+  if (!subject || !questionText) { res.status(400).json({ error: "subject and questionText required" }); return; }
+  try {
+    const student = await getStudentRecord(clerkUserId!);
+    if (!student) { res.status(403).json({ error: "Student profile not found" }); return; }
+    const [row] = await db.insert(doubts).values({
+      studentId: student.id,
+      batchId: student.batchId ?? null,
+      subject,
+      topic: topic ?? null,
+      questionText,
+    }).returning();
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to submit doubt" }); }
+});
+
+// ── Student: mock test submission ─────────────────────────────────────────────
+router.post("/portal/student/mock-tests/:id/submit", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  const { score } = req.body as { score?: number };
+  if (score === undefined || typeof score !== "number") { res.status(400).json({ error: "score (number) is required" }); return; }
+  try {
+    const student = await getStudentRecord(clerkUserId!);
+    if (!student) { res.status(403).json({ error: "Student profile not found" }); return; }
+
+    const batchId = student.batchId;
+    const [test] = await db.select().from(mockTests)
+      .where(and(
+        eq(mockTests.id, req.params.id),
+        eq(mockTests.isPublished, true),
+        batchId ? or(eq(mockTests.batchId, batchId), eq(mockTests.isPublic, true)) : eq(mockTests.isPublic, true),
+      )).limit(1);
+    if (!test) { res.status(404).json({ error: "Test not found or not accessible" }); return; }
+
+    const maxScore = test.marksPerQuestion * 40;
+    if (score < 0 || score > maxScore) {
+      res.status(400).json({ error: `score must be between 0 and ${maxScore}` });
+      return;
+    }
+
+    const [existing] = await db.select().from(mockTestAttempts)
+      .where(and(eq(mockTestAttempts.testId, req.params.id), eq(mockTestAttempts.studentId, student.id)))
+      .limit(1);
+    let row;
+    if (existing) {
+      [row] = await db.update(mockTestAttempts)
+        .set({ score, maxScore, isCompleted: true, submittedAt: new Date() })
+        .where(eq(mockTestAttempts.id, existing.id))
+        .returning();
+    } else {
+      [row] = await db.insert(mockTestAttempts).values({
+        testId: req.params.id, studentId: student.id, score, maxScore, isCompleted: true, submittedAt: new Date(),
+      }).returning();
+    }
+    res.json({ ok: true, data: row });
+  } catch (e) { res.status(500).json({ error: "Failed to submit attempt" }); }
 });
 
 // ── Teacher routes ────────────────────────────────────────────────────────────

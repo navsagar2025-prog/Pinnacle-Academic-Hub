@@ -188,3 +188,16 @@ export async function apiCall(
 ) {
   return apiMutation(method, path, body, getToken);
 }
+
+// ── GA4 custom event tracking ─────────────────────────────────────────────────
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+export function trackEvent(name: string, params?: Record<string, unknown>) {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", name, params ?? {});
+  }
+}
