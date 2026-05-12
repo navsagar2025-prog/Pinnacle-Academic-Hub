@@ -38,7 +38,7 @@ async function getDbSettings() {
   const rows = await db
     .select()
     .from(siteSettings)
-    .where(inArray(siteSettings.key, [...GA4_DB_KEYS, "ga4_oauth_state", "ga4_oauth_redirect_uri"]));
+    .where(inArray(siteSettings.key, [...GA4_DB_KEYS, "ga4_oauth_state", "ga4_oauth_state_expires", "ga4_oauth_redirect_uri"]));
   return Object.fromEntries(rows.map(r => [r.key, r.value ?? ""]));
 }
 
