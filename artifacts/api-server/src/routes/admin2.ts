@@ -9,7 +9,7 @@ import {
   securityEvents, ipLockouts, auditLogs, users, students, batches, courses, teachers,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, isNull, isNotNull, and, gte, lte, ilike, or } from "drizzle-orm";
-import { ga4Available, runReport } from "../lib/ga4.js";
+import { getEffectiveCreds, runReportWithCreds } from "../lib/ga4.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -781,12 +781,14 @@ router.patch("/admin/watermarks/:docType", async (req, res) => {
 router.get("/admin/analytics/pageviews", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt((req.query.days as string) ?? "30")));
-    if (ga4Available()) {
+    const creds = await getEffectiveCreds();
+    if (creds) {
       try {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - days);
         const startDate = cutoff.toISOString().split("T")[0];
-        const rows = await runReport(
+        const rows = await runReportWithCreds(
+          creds,
           [{ name: "date" }],
           [{ name: "screenPageViews" }],
           [{ startDate, endDate: "today" }],
@@ -817,12 +819,14 @@ router.get("/admin/analytics/pageviews", async (req, res) => {
 router.get("/admin/analytics/top-pages", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt((req.query.days as string) ?? "30")));
-    if (ga4Available()) {
+    const creds = await getEffectiveCreds();
+    if (creds) {
       try {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - days);
         const startDate = cutoff.toISOString().split("T")[0];
-        const rows = await runReport(
+        const rows = await runReportWithCreds(
+          creds,
           [{ name: "pagePath" }],
           [{ name: "screenPageViews" }],
           [{ startDate, endDate: "today" }],
@@ -852,27 +856,16 @@ router.get("/admin/analytics/top-pages", async (req, res) => {
 });
 
 router.get("/admin/analytics/ga4/summary", async (_req, res) => {
-  if (!ga4Available()) {
+  const creds = await getEffectiveCreds();
+  if (!creds) {
     res.json({ ok: true, data: { available: false, activeUsers7d: null, sessions30d: null, bounceRate30d: null, topSource: null } });
     return;
   }
   try {
     const [usersRows, sessionsRows, sourceRows] = await Promise.all([
-      runReport(
-        [],
-        [{ name: "active7DayUsers" }],
-        [{ startDate: "7daysAgo", endDate: "today" }],
-      ),
-      runReport(
-        [],
-        [{ name: "sessions" }, { name: "bounceRate" }],
-        [{ startDate: "30daysAgo", endDate: "today" }],
-      ),
-      runReport(
-        [{ name: "sessionDefaultChannelGroup" }],
-        [{ name: "sessions" }],
-        [{ startDate: "30daysAgo", endDate: "today" }],
-      ),
+      runReportWithCreds(creds, [], [{ name: "active7DayUsers" }], [{ startDate: "7daysAgo", endDate: "today" }]),
+      runReportWithCreds(creds, [], [{ name: "sessions" }, { name: "bounceRate" }], [{ startDate: "30daysAgo", endDate: "today" }]),
+      runReportWithCreds(creds, [{ name: "sessionDefaultChannelGroup" }], [{ name: "sessions" }], [{ startDate: "30daysAgo", endDate: "today" }]),
     ]);
 
     const activeUsers7d = parseInt(usersRows[0]?.metricValues[0]?.value ?? "0");

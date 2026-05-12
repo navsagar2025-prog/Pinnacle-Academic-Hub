@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2, BarChart2, ExternalLink } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
+import { useLocation } from "wouter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -177,65 +178,223 @@ export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> 
   );
 }
 
-// ─── GA4 Setup Guide ─────────────────────────────────────────────────────────
-export function AdminGA4Setup() {
-  const GA4_ID = import.meta.env.VITE_GA4_MEASUREMENT_ID as string | undefined;
-  const isConfigured = !!GA4_ID;
+// ─── GA4 OAuth Setup ──────────────────────────────────────────────────────────
+type GA4Status = { connected: boolean; source: "env" | "db" | null; propertyId: string | null; measurementId: string | null };
+
+export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
+  const [location] = useLocation();
+  const [status, setStatus] = useState<GA4Status | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [form, setForm] = useState({ clientId: "", clientSecret: "", propertyId: "", measurementId: "" });
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    setStatusLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/ga4/status`, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (json.ok) setStatus(json.data);
+    } catch { }
+    finally { setStatusLoading(false); }
+  }, [getToken]);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ga4Param = params.get("ga4");
+    if (ga4Param === "connected") {
+      toast("success", "Google Analytics 4 connected successfully!");
+      window.history.replaceState({}, "", window.location.pathname + "?section=ga4-setup");
+      loadStatus();
+    } else if (ga4Param === "error") {
+      const reason = params.get("reason") ?? "unknown";
+      const hint = params.get("hint");
+      const msg = reason === "no_refresh_token"
+        ? "No refresh token received — please revoke access in your Google account and try again."
+        : `Connection failed (${reason}).`;
+      toast("error", hint ? `${msg} ${hint}` : msg);
+      window.history.replaceState({}, "", window.location.pathname + "?section=ga4-setup");
+    }
+  }, [location]);
+
+  const connect = async () => {
+    if (!form.clientId.trim() || !form.clientSecret.trim() || !form.propertyId.trim()) {
+      toast("error", "Client ID, Client Secret, and Property ID are required");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const res = await apiMutation("POST", "/admin/ga4/oauth/start", {
+        clientId: form.clientId.trim(),
+        clientSecret: form.clientSecret.trim(),
+        propertyId: form.propertyId.trim(),
+        measurementId: form.measurementId.trim() || undefined,
+      }, getToken) as { ok?: boolean; authUrl?: string; error?: string };
+      if (res.ok && res.authUrl) {
+        window.location.href = res.authUrl;
+      } else {
+        toast("error", res.error ?? "Failed to start OAuth flow");
+      }
+    } catch { toast("error", "Network error"); }
+    finally { setConnecting(false); }
+  };
+
+  const disconnect = async () => {
+    if (!confirm("Disconnect Google Analytics 4? This will remove all stored credentials.")) return;
+    setDisconnecting(true);
+    try {
+      const res = await apiMutation("DELETE", "/admin/ga4/oauth", null, getToken) as { ok?: boolean; error?: string };
+      if (res.ok) { toast("success", "GA4 disconnected"); loadStatus(); }
+      else toast("error", res.error ?? "Failed to disconnect");
+    } catch { toast("error", "Network error"); }
+    finally { setDisconnecting(false); }
+  };
+
+  const isEnvConnected = status?.source === "env";
+  const isDbConnected = status?.source === "db";
+  const isConnected = status?.connected;
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-6">
         <BarChart2 size={20} className="text-[var(--color-teal)]" />
         <h2 className="text-xl font-bold text-[var(--color-navy)]">Google Analytics 4</h2>
-        {isConfigured && (
-          <span className="ml-auto text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Connected</span>
+        {!statusLoading && isConnected && (
+          <span className="ml-auto text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <CheckCircle2 size={11} /> Connected
+          </span>
+        )}
+        {!statusLoading && !isConnected && (
+          <span className="ml-auto text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <AlertCircle size={11} /> Not connected
+          </span>
         )}
       </div>
 
-      {isConfigured ? (
-        <div className="card border border-emerald-200 bg-emerald-50 text-sm text-emerald-800 p-4">
-          <p className="font-semibold mb-1">GA4 is active (Measurement ID: <span className="font-mono">{GA4_ID}</span>)</p>
-          <p className="text-emerald-700 text-xs">Page views are being sent to GA4 on every navigation. Live analytics are visible in the Analytics tab.</p>
+      {statusLoading && (
+        <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center">
+          <Loader2 size={16} className="animate-spin" /> Checking connection…
         </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            <p className="font-semibold mb-1">GA4 not connected</p>
-            <p className="text-amber-700 text-xs">Add the five environment variables below to start tracking real visitors with Google Analytics 4.</p>
-          </div>
+      )}
 
-          <div className="card border border-slate-200 p-4 space-y-3">
-            <p className="text-sm font-semibold text-[var(--color-navy)]">Required environment variables</p>
-            <div className="space-y-2">
-              {[
-                { key: "GOOGLE_OAUTH_CLIENT_ID", note: "From Google Cloud Console → OAuth 2.0 Credentials" },
-                { key: "GOOGLE_OAUTH_CLIENT_SECRET", note: "From Google Cloud Console → OAuth 2.0 Credentials" },
-                { key: "GOOGLE_OAUTH_REFRESH_TOKEN", note: "Generated via OAuth Playground (see below)" },
-                { key: "GOOGLE_GA4_PROPERTY_ID", note: "Numeric ID from GA4 Admin → Property Settings" },
-                { key: "VITE_GA4_MEASUREMENT_ID", note: "Starts with G- from GA4 Admin → Data Streams" },
-              ].map(({ key, note }) => (
-                <div key={key} className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
-                  <p className="font-mono text-xs text-[var(--color-navy)] font-medium">{key}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{note}</p>
-                </div>
-              ))}
+      {!statusLoading && isConnected && (
+        <div className="space-y-4">
+          <div className="card border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-emerald-800 text-sm mb-1 flex items-center gap-1.5">
+                  <CheckCircle2 size={14} /> GA4 is active
+                  {isEnvConnected && <span className="text-xs font-normal text-emerald-600 ml-1">(via environment variables)</span>}
+                  {isDbConnected && <span className="text-xs font-normal text-emerald-600 ml-1">(via OAuth — stored in database)</span>}
+                </p>
+                {status?.propertyId && (
+                  <p className="text-xs text-emerald-700">Property ID: <span className="font-mono font-medium">{status.propertyId}</span></p>
+                )}
+                {status?.measurementId && (
+                  <p className="text-xs text-emerald-700">Measurement ID: <span className="font-mono font-medium">{status.measurementId}</span></p>
+                )}
+                <p className="text-xs text-emerald-600 mt-2">Live analytics are visible in the Analytics dashboard tab.</p>
+              </div>
+              {isDbConnected && (
+                <button onClick={disconnect} disabled={disconnecting}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg disabled:opacity-50 transition-colors">
+                  {disconnecting ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
+                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="card border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-[var(--color-navy)] mb-2">How to get a refresh token</p>
-            <ol className="text-xs text-slate-600 space-y-1 list-decimal list-inside">
-              <li>Enable "Google Analytics Data API" in your Google Cloud project.</li>
-              <li>Create an OAuth 2.0 Web client — copy Client ID and Client Secret.</li>
-              <li>Open the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[var(--color-teal)] underline">OAuth Playground</a>, click the gear icon and paste your credentials.</li>
-              <li>Select scope: <span className="font-mono bg-slate-100 px-1 rounded">analytics.readonly</span></li>
-              <li>Authorize and exchange the code — copy the <strong>Refresh token</strong>.</li>
-              <li>Set all five secrets in your Replit environment, then restart the API server.</li>
+          {isEnvConnected && (
+            <div className="card border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+              Connected via environment variables. To switch to the database-stored OAuth connection, remove the <span className="font-mono">GOOGLE_OAUTH_*</span> environment variables and use the form below.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!statusLoading && !isConnected && (
+        <div className="space-y-4">
+          <div className="card border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-semibold mb-1">Connect GA4 with one click</p>
+            <p className="text-amber-700 text-xs">Enter your Google Cloud OAuth credentials and click "Connect with Google". You will be redirected to Google's consent screen — no manual token copying needed.</p>
+          </div>
+
+          <div className="card border border-slate-200 p-5 space-y-4">
+            <p className="text-sm font-semibold text-[var(--color-navy)]">OAuth 2.0 Credentials</p>
+
+            <div className="grid gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Client ID <span className="text-red-400">*</span></label>
+                <input
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                  placeholder="123456789-abc.apps.googleusercontent.com"
+                  value={form.clientId}
+                  onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Client Secret <span className="text-red-400">*</span></label>
+                <input
+                  type="password"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                  placeholder="GOCSPX-…"
+                  value={form.clientSecret}
+                  onChange={e => setForm(f => ({ ...f, clientSecret: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">GA4 Property ID <span className="text-red-400">*</span></label>
+                <input
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                  placeholder="123456789"
+                  value={form.propertyId}
+                  onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
+                />
+                <p className="text-xs text-slate-400 mt-1">Numeric ID from GA4 Admin → Property Settings</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Measurement ID <span className="text-slate-400 font-normal">(optional, for client-side tracking)</span></label>
+                <input
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                  placeholder="G-XXXXXXXXXX"
+                  value={form.measurementId}
+                  onChange={e => setForm(f => ({ ...f, measurementId: e.target.value }))}
+                />
+                <p className="text-xs text-slate-400 mt-1">From GA4 Admin → Data Streams. Also set <span className="font-mono">VITE_GA4_MEASUREMENT_ID</span> in env for full page tracking.</p>
+              </div>
+            </div>
+
+            <button
+              onClick={connect}
+              disabled={connecting || !form.clientId || !form.clientSecret || !form.propertyId}
+              className="w-full btn-primary py-2.5 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+              {connecting ? <><Loader2 size={15} className="animate-spin" /> Opening Google consent screen…</> : <>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Connect with Google
+              </>}
+            </button>
+          </div>
+
+          <div className="card border border-slate-100 p-4">
+            <p className="text-xs font-semibold text-slate-600 mb-2">How to set up credentials</p>
+            <ol className="text-xs text-slate-500 space-y-1.5 list-decimal list-inside">
+              <li>In <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-[var(--color-teal)] underline">Google Cloud Console</a>, enable the <strong>Google Analytics Data API</strong>.</li>
+              <li>Go to APIs &amp; Services → Credentials → Create Credentials → OAuth 2.0 Client ID.</li>
+              <li>Set Application type to <strong>Web application</strong>. Add your site URL as an Authorized redirect URI — the system will show the exact URI after you click Connect.</li>
+              <li>Copy the Client ID and Client Secret into the form above.</li>
+              <li>Enter your GA4 Property ID (numeric, from GA4 Admin → Property Settings).</li>
+              <li>Click <strong>Connect with Google</strong> and approve the Analytics read scope.</li>
             </ol>
-            <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--color-teal)] hover:underline font-medium">
-              Open OAuth Playground <ExternalLink size={12} />
-            </a>
           </div>
         </div>
       )}

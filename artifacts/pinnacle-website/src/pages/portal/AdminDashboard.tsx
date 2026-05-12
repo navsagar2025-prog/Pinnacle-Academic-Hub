@@ -1272,7 +1272,7 @@ export default function AdminDashboard() {
     "site-settings": <AdminSiteSettings getToken={tokenFn} />,
     seo: <AdminSEO getToken={tokenFn} />,
     watermarks: <AdminWatermarks getToken={tokenFn} />,
-    "ga4-setup": <AdminGA4Setup />,
+    "ga4-setup": <AdminGA4Setup getToken={tokenFn} />,
     analytics: <AdminAnalytics getToken={tokenFn} />,
     security: <AdminSecurity getToken={tokenFn} />,
   };

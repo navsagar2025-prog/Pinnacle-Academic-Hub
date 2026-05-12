@@ -68,25 +68,17 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
         <div className="card border border-amber-200 bg-amber-50 mb-6">
           <div className="flex gap-3 items-start">
             <AlertCircle size={18} className="text-amber-600 mt-0.5 shrink-0" />
-            <div>
+            <div className="flex-1">
               <p className="font-semibold text-amber-800 text-sm mb-1">Connect Google Analytics 4 for richer insights</p>
               <p className="text-amber-700 text-xs mb-3">
-                Currently using the internal page-view tracker. Add your GA4 OAuth 2.0 credentials to unlock active users, sessions, bounce rate, and traffic sources.
+                Currently using the internal page-view tracker. Connect GA4 to unlock active users, sessions, bounce rate, and traffic sources — no manual token copying needed.
               </p>
-              <div className="space-y-1 text-xs font-mono bg-amber-100 rounded-lg p-3 text-amber-900">
-                <p>GOOGLE_OAUTH_CLIENT_ID=your-client-id</p>
-                <p>GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret</p>
-                <p>GOOGLE_OAUTH_REFRESH_TOKEN=your-refresh-token</p>
-                <p>GOOGLE_GA4_PROPERTY_ID=123456789</p>
-                <p>VITE_GA4_MEASUREMENT_ID=G-XXXXXXXXXX</p>
-              </div>
-              <p className="text-amber-700 text-xs mt-2">
-                Get a refresh token via the{" "}
-                <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="underline font-medium">
-                  Google OAuth Playground
-                </a>{" "}
-                — select the <em>Google Analytics Data API v1</em> scope.
-              </p>
+              <a
+                href="?section=ga4-setup"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+              >
+                <BarChart2 size={12} /> Configure Google Analytics
+              </a>
             </div>
           </div>
         </div>
