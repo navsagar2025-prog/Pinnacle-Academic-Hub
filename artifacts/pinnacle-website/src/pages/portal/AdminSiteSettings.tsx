@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, ExternalLink } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -170,6 +170,72 @@ export function AdminSEO({ getToken }: { getToken: () => Promise<string | null> 
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
               <button onClick={save} disabled={saving || !form.route} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── GA4 Setup Guide ─────────────────────────────────────────────────────────
+export function AdminGA4Setup() {
+  const GA4_ID = import.meta.env.VITE_GA4_MEASUREMENT_ID as string | undefined;
+  const isConfigured = !!GA4_ID;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-6">
+        <BarChart2 size={20} className="text-[var(--color-teal)]" />
+        <h2 className="text-xl font-bold text-[var(--color-navy)]">Google Analytics 4</h2>
+        {isConfigured && (
+          <span className="ml-auto text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Connected</span>
+        )}
+      </div>
+
+      {isConfigured ? (
+        <div className="card border border-emerald-200 bg-emerald-50 text-sm text-emerald-800 p-4">
+          <p className="font-semibold mb-1">GA4 is active (Measurement ID: <span className="font-mono">{GA4_ID}</span>)</p>
+          <p className="text-emerald-700 text-xs">Page views are being sent to GA4 on every navigation. Live analytics are visible in the Analytics tab.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-semibold mb-1">GA4 not connected</p>
+            <p className="text-amber-700 text-xs">Add the five environment variables below to start tracking real visitors with Google Analytics 4.</p>
+          </div>
+
+          <div className="card border border-slate-200 p-4 space-y-3">
+            <p className="text-sm font-semibold text-[var(--color-navy)]">Required environment variables</p>
+            <div className="space-y-2">
+              {[
+                { key: "GOOGLE_OAUTH_CLIENT_ID", note: "From Google Cloud Console → OAuth 2.0 Credentials" },
+                { key: "GOOGLE_OAUTH_CLIENT_SECRET", note: "From Google Cloud Console → OAuth 2.0 Credentials" },
+                { key: "GOOGLE_OAUTH_REFRESH_TOKEN", note: "Generated via OAuth Playground (see below)" },
+                { key: "GOOGLE_GA4_PROPERTY_ID", note: "Numeric ID from GA4 Admin → Property Settings" },
+                { key: "VITE_GA4_MEASUREMENT_ID", note: "Starts with G- from GA4 Admin → Data Streams" },
+              ].map(({ key, note }) => (
+                <div key={key} className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                  <p className="font-mono text-xs text-[var(--color-navy)] font-medium">{key}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card border border-slate-200 p-4">
+            <p className="text-sm font-semibold text-[var(--color-navy)] mb-2">How to get a refresh token</p>
+            <ol className="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+              <li>Enable "Google Analytics Data API" in your Google Cloud project.</li>
+              <li>Create an OAuth 2.0 Web client — copy Client ID and Client Secret.</li>
+              <li>Open the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[var(--color-teal)] underline">OAuth Playground</a>, click the gear icon and paste your credentials.</li>
+              <li>Select scope: <span className="font-mono bg-slate-100 px-1 rounded">analytics.readonly</span></li>
+              <li>Authorize and exchange the code — copy the <strong>Refresh token</strong>.</li>
+              <li>Set all five secrets in your Replit environment, then restart the API server.</li>
+            </ol>
+            <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--color-teal)] hover:underline font-medium">
+              Open OAuth Playground <ExternalLink size={12} />
+            </a>
           </div>
         </div>
       )}

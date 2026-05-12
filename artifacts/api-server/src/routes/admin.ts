@@ -9,6 +9,7 @@ import {
   practiceSets, practiceSetQuestions, practiceSetAssignments,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
+import { ga4Available, runReport } from "../lib/ga4.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -732,14 +733,31 @@ router.patch("/admin/watermarks/:docType", async (req, res) => {
 router.get("/admin/analytics/pageviews", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
+    if (ga4Available()) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const startDate = cutoff.toISOString().split("T")[0];
+      const rows = await runReport(
+        [{ name: "date" }],
+        [{ name: "screenPageViews" }],
+        [{ startDate, endDate: "today" }],
+      );
+      const data = rows.map(r => ({
+        date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"),
+        total: parseInt(r.metricValues[0].value ?? "0"),
+      })).sort((a, b) => a.date.localeCompare(b.date));
+      res.json({ ok: true, data, source: "ga4" });
+      return;
+    }
     const rows = await db
       .select({ date: pageViews.date, total: sql<number>`sum(${pageViews.count})::int` })
       .from(pageViews)
       .where(sql`${pageViews.date} >= to_char(now() - interval '${sql.raw(String(days))} days', 'YYYY-MM-DD')`)
       .groupBy(pageViews.date)
       .orderBy(asc(pageViews.date));
-    res.json({ ok: true, data: rows });
+    res.json({ ok: true, data: rows, source: "internal" });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Failed to fetch pageviews" });
   }
 });
@@ -747,6 +765,22 @@ router.get("/admin/analytics/pageviews", async (req, res) => {
 router.get("/admin/analytics/top-pages", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
+    if (ga4Available()) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const startDate = cutoff.toISOString().split("T")[0];
+      const rows = await runReport(
+        [{ name: "pagePath" }],
+        [{ name: "screenPageViews" }],
+        [{ startDate, endDate: "today" }],
+      );
+      const data = rows
+        .map(r => ({ path: r.dimensionValues[0].value, total: parseInt(r.metricValues[0].value ?? "0") }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 20);
+      res.json({ ok: true, data, source: "ga4" });
+      return;
+    }
     const rows = await db
       .select({ path: pageViews.path, total: sql<number>`sum(${pageViews.count})::int` })
       .from(pageViews)
@@ -754,10 +788,32 @@ router.get("/admin/analytics/top-pages", async (req, res) => {
       .groupBy(pageViews.path)
       .orderBy(sql`sum(${pageViews.count}) desc`)
       .limit(20);
-    res.json({ ok: true, data: rows });
+    res.json({ ok: true, data: rows, source: "internal" });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Failed to fetch top pages" });
   }
+});
+
+router.get("/admin/analytics/ga4/summary", async (_req, res) => {
+  if (!ga4Available()) {
+    res.json({ ok: true, data: { available: false, activeUsers7d: null, sessions30d: null, bounceRate30d: null, topSource: null } });
+    return;
+  }
+  try {
+    const [usersRows, sessionsRows, sourceRows] = await Promise.all([
+      runReport([], [{ name: "active7DayUsers" }], [{ startDate: "7daysAgo", endDate: "today" }]),
+      runReport([], [{ name: "sessions" }, { name: "bounceRate" }], [{ startDate: "30daysAgo", endDate: "today" }]),
+      runReport([{ name: "sessionDefaultChannelGroup" }], [{ name: "sessions" }], [{ startDate: "30daysAgo", endDate: "today" }]),
+    ]);
+    const activeUsers7d = parseInt(usersRows[0]?.metricValues[0]?.value ?? "0");
+    const sessions30d = parseInt(sessionsRows[0]?.metricValues[0]?.value ?? "0");
+    const bounceRate30d = Math.round(parseFloat(sessionsRows[0]?.metricValues[1]?.value ?? "0") * 100);
+    const topSource = sourceRows
+      .map(r => ({ source: r.dimensionValues[0].value, sessions: parseInt(r.metricValues[0].value ?? "0") }))
+      .sort((a, b) => b.sessions - a.sessions)[0]?.source ?? null;
+    res.json({ ok: true, data: { available: true, activeUsers7d, sessions30d, bounceRate30d, topSource } });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to fetch GA4 summary" }); }
 });
 
 // ── Security Events ────────────────────────────────────────────────────────

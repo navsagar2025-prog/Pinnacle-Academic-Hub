@@ -18,7 +18,7 @@ import { AdminLiveClasses } from "./AdminLiveClasses";
 import { AdminDoubts } from "./AdminDoubts";
 import { AdminPromotions } from "./AdminPromotions";
 import { AdminUsers } from "./AdminUsers";
-import { AdminSiteSettings, AdminSEO, AdminWatermarks } from "./AdminSiteSettings";
+import { AdminSiteSettings, AdminSEO, AdminWatermarks, AdminGA4Setup } from "./AdminSiteSettings";
 import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
 import { AdminRecordingsSection } from "./AdminRecordings";
 import { ToastProvider, SkeletonList } from "./portalUtils";
@@ -31,7 +31,7 @@ type Section = "overview" | "notices" | "enquiries" | "blog" | "gallery"
   | "timetable" | "assignments" | "study-materials" | "live-classes" | "recordings"
   | "question-bank" | "practice-sets"
   | "promotions"
-  | "site-settings" | "seo" | "watermarks" | "analytics" | "security";
+  | "site-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType; group?: string }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -60,6 +60,7 @@ const NAV: { key: Section; label: string; Icon: React.ElementType; group?: strin
   { key: "site-settings", label: "Site Settings", Icon: Settings, group: "Settings" },
   { key: "seo", label: "SEO", Icon: SearchCode, group: "Settings" },
   { key: "watermarks", label: "Watermarks", Icon: Droplet, group: "Settings" },
+  { key: "ga4-setup", label: "Google Analytics", Icon: BarChart2, group: "Settings" },
   { key: "analytics", label: "Analytics", Icon: BarChart2, group: "Settings" },
   { key: "security", label: "Security", Icon: ShieldAlert, group: "Settings" },
 ];
@@ -1271,6 +1272,7 @@ export default function AdminDashboard() {
     "site-settings": <AdminSiteSettings getToken={tokenFn} />,
     seo: <AdminSEO getToken={tokenFn} />,
     watermarks: <AdminWatermarks getToken={tokenFn} />,
+    "ga4-setup": <AdminGA4Setup />,
     analytics: <AdminAnalytics getToken={tokenFn} />,
     security: <AdminSecurity getToken={tokenFn} />,
   };
