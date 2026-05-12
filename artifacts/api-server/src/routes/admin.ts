@@ -734,20 +734,24 @@ router.get("/admin/analytics/pageviews", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
     if (ga4Available()) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      const startDate = cutoff.toISOString().split("T")[0];
-      const rows = await runReport(
-        [{ name: "date" }],
-        [{ name: "screenPageViews" }],
-        [{ startDate, endDate: "today" }],
-      );
-      const data = rows.map(r => ({
-        date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"),
-        total: parseInt(r.metricValues[0].value ?? "0"),
-      })).sort((a, b) => a.date.localeCompare(b.date));
-      res.json({ ok: true, data, source: "ga4" });
-      return;
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        const startDate = cutoff.toISOString().split("T")[0];
+        const rows = await runReport(
+          [{ name: "date" }],
+          [{ name: "screenPageViews" }],
+          [{ startDate, endDate: "today" }],
+        );
+        const data = rows.map(r => ({
+          date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"),
+          total: parseInt(r.metricValues[0].value ?? "0"),
+        })).sort((a, b) => a.date.localeCompare(b.date));
+        res.json({ ok: true, data, source: "ga4" });
+        return;
+      } catch (ga4Err) {
+        console.warn("GA4 pageviews failed, falling back to internal:", ga4Err);
+      }
     }
     const rows = await db
       .select({ date: pageViews.date, total: sql<number>`sum(${pageViews.count})::int` })
@@ -766,20 +770,24 @@ router.get("/admin/analytics/top-pages", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"))));
     if (ga4Available()) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      const startDate = cutoff.toISOString().split("T")[0];
-      const rows = await runReport(
-        [{ name: "pagePath" }],
-        [{ name: "screenPageViews" }],
-        [{ startDate, endDate: "today" }],
-      );
-      const data = rows
-        .map(r => ({ path: r.dimensionValues[0].value, total: parseInt(r.metricValues[0].value ?? "0") }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 20);
-      res.json({ ok: true, data, source: "ga4" });
-      return;
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        const startDate = cutoff.toISOString().split("T")[0];
+        const rows = await runReport(
+          [{ name: "pagePath" }],
+          [{ name: "screenPageViews" }],
+          [{ startDate, endDate: "today" }],
+        );
+        const data = rows
+          .map(r => ({ path: r.dimensionValues[0].value, total: parseInt(r.metricValues[0].value ?? "0") }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 20);
+        res.json({ ok: true, data, source: "ga4" });
+        return;
+      } catch (ga4Err) {
+        console.warn("GA4 top-pages failed, falling back to internal:", ga4Err);
+      }
     }
     const rows = await db
       .select({ path: pageViews.path, total: sql<number>`sum(${pageViews.count})::int` })

@@ -280,6 +280,7 @@ function GA4PageTracker() {
     window.gtag = function (...args: unknown[]) { window.dataLayer!.push(args); };
     window.gtag("js", new Date());
     window.gtag("config", GA4_ID, { send_page_view: false });
+    window.gtag("config", GA4_ID, { page_path: location });
     const s = document.createElement("script");
     s.async = true;
     s.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
