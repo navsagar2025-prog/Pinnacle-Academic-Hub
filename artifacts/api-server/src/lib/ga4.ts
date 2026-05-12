@@ -46,12 +46,19 @@ export async function getDbCreds(): Promise<(GA4Config & { source: "db" }) | nul
     .from(siteSettings)
     .where(inArray(siteSettings.key, [...GA4_DB_KEYS, "ga4_oauth_state"]));
   const map = Object.fromEntries(rows.map(r => [r.key, r.value ?? ""]));
-  if (!map.ga4_client_id || !map.ga4_client_secret || !map.ga4_refresh_token || !map.ga4_property_id) {
+
+  // Client ID and Secret fall back to env vars when not stored in DB
+  // (this happens when GOOGLE_OAUTH_CLIENT_ID/SECRET were pre-configured
+  // as env vars and used directly during the OAuth flow without DB persistence)
+  const clientId = map.ga4_client_id || CLIENT_ID || "";
+  const clientSecret = map.ga4_client_secret || CLIENT_SECRET || "";
+
+  if (!clientId || !clientSecret || !map.ga4_refresh_token || !map.ga4_property_id) {
     return null;
   }
   return {
-    clientId: map.ga4_client_id,
-    clientSecret: map.ga4_client_secret,
+    clientId,
+    clientSecret,
     refreshToken: map.ga4_refresh_token,
     propertyId: map.ga4_property_id,
     measurementId: map.ga4_measurement_id || undefined,
