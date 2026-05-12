@@ -832,7 +832,7 @@ router.get("/admin/analytics/ga4/summary", async (_req, res) => {
 router.get("/admin/analytics/feature-usage", async (req, res) => {
   const creds = await getEffectiveCreds();
   if (!creds) {
-    res.json({ ok: true, data: [], available: false });
+    res.json({ ok: true, data: { available: false, rows: [] } });
     return;
   }
   try {
@@ -841,7 +841,7 @@ router.get("/admin/analytics/feature-usage", async (req, res) => {
     cutoff.setDate(cutoff.getDate() - days);
     const startDate = cutoff.toISOString().split("T")[0];
     const rows = await runEventReport(creds, [{ startDate, endDate: "today" }], "pinnacle_");
-    res.json({ ok: true, data: rows, available: true });
+    res.json({ ok: true, data: { available: true, rows } });
   } catch (e) {
     console.error("GA4 feature-usage error:", e);
     res.status(500).json({ error: "Failed to fetch feature usage data" });

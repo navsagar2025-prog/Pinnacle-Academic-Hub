@@ -32,7 +32,7 @@ type GA4Summary = {
   topSource: string | null;
 };
 type FeatureUsageRow = { eventName: string; count: number };
-type FeatureUsageResponse = { available: boolean; data: FeatureUsageRow[] };
+type FeatureUsageResponse = { available: boolean; rows: FeatureUsageRow[] };
 
 const EVENT_LABELS: Record<string, string> = {
   pinnacle_section_viewed: "Section Viewed",
@@ -62,7 +62,7 @@ export function AdminAnalytics({ getToken }: { getToken: () => Promise<string | 
   const maxCount = Math.max(...(pageviews ?? []).map(p => p.total), 1);
   const isGA4Active = !ga4Loading && ga4?.available === true;
   const ga4Missing = !ga4Loading && ga4?.available === false;
-  const featureRows = featureUsage?.data ?? [];
+  const featureRows = featureUsage?.rows ?? [];
   const maxFeatureCount = Math.max(...featureRows.map(r => r.count), 1);
 
   return (
