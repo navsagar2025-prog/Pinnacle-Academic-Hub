@@ -84,17 +84,33 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
 
   const approveUser = async (id: string) => {
     setUpdatingId(id);
-    const res = await apiMutation("PATCH", `/admin/users/${id}/approve`, {}, getToken);
-    if (res.ok) { toast("success", "User approved"); load(); }
-    else toast("error", "Approval failed");
+    const res = await apiMutation("PATCH", `/admin/users/${id}/approve`, {}, getToken) as {
+      ok?: boolean; emailSent?: boolean; emailConfigured?: boolean; emailTo?: string | null; data?: { error?: string };
+    };
+    if (res.ok) {
+      toast("success", "User approved");
+      if (res.emailSent && res.emailTo) toast("success", `Approval email sent to ${res.emailTo}`);
+      else if (res.emailConfigured && !res.emailSent) toast("error", "Approval email could not be delivered");
+      load();
+    } else {
+      toast("error", "Approval failed");
+    }
     setUpdatingId(null); setConfirm(null);
   };
 
   const rejectUser = async (id: string) => {
     setUpdatingId(id);
-    const res = await apiMutation("PATCH", `/admin/users/${id}/reject`, {}, getToken);
-    if (res.ok) { toast("success", "User rejected"); load(); }
-    else toast("error", "Rejection failed");
+    const res = await apiMutation("PATCH", `/admin/users/${id}/reject`, {}, getToken) as {
+      ok?: boolean; emailSent?: boolean; emailConfigured?: boolean; emailTo?: string | null; data?: { error?: string };
+    };
+    if (res.ok) {
+      toast("success", "User rejected");
+      if (res.emailSent && res.emailTo) toast("success", `Rejection email sent to ${res.emailTo}`);
+      else if (res.emailConfigured && !res.emailSent) toast("error", "Rejection email could not be delivered");
+      load();
+    } else {
+      toast("error", "Rejection failed");
+    }
     setUpdatingId(null); setConfirm(null);
   };
 

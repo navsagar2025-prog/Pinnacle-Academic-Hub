@@ -674,15 +674,20 @@ router.patch("/admin/users/:id/approve", async (req, res) => {
   try {
     const [row] = await db.update(users).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
-    if (emailAvailable() && row.email) {
-      const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "portal_url")).limit(1);
-      const portalUrl = setting?.value || process.env.PORTAL_URL || `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacle.edu.in"}`;
-      const { subject, html } = buildApprovalEmail(row.name ?? "Student", portalUrl);
-      sendEmail({ to: row.email, subject, html }).catch(err =>
-        console.error("[email] Failed to send approval email:", err)
-      );
+    const emailConfigured = emailAvailable();
+    let emailSent = false;
+    if (emailConfigured && row.email) {
+      try {
+        const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "portal_url")).limit(1);
+        const portalUrl = setting?.value || process.env.PORTAL_URL || `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacle.edu.in"}`;
+        const { subject, html } = buildApprovalEmail(row.name ?? "Student", portalUrl);
+        await sendEmail({ to: row.email, subject, html });
+        emailSent = true;
+      } catch (err) {
+        console.error("[email] Failed to send approval email:", err);
+      }
     }
-    res.json({ ok: true, data: row });
+    res.json({ ok: true, data: row, emailSent, emailConfigured, emailTo: row.email ?? null });
   } catch (e) { res.status(500).json({ error: "Failed to approve user" }); }
 });
 
@@ -690,15 +695,20 @@ router.patch("/admin/users/:id/reject", async (req, res) => {
   try {
     const [row] = await db.update(users).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
-    if (emailAvailable() && row.email) {
-      const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "contact_phone")).limit(1);
-      const contactNumber = setting?.value || process.env.CONTACT_PHONE || "+91-XXXXXXXXXX";
-      const { subject, html } = buildRejectionEmail(row.name ?? "Applicant", contactNumber);
-      sendEmail({ to: row.email, subject, html }).catch(err =>
-        console.error("[email] Failed to send rejection email:", err)
-      );
+    const emailConfigured = emailAvailable();
+    let emailSent = false;
+    if (emailConfigured && row.email) {
+      try {
+        const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "contact_phone")).limit(1);
+        const contactNumber = setting?.value || process.env.CONTACT_PHONE || "+91-XXXXXXXXXX";
+        const { subject, html } = buildRejectionEmail(row.name ?? "Applicant", contactNumber);
+        await sendEmail({ to: row.email, subject, html });
+        emailSent = true;
+      } catch (err) {
+        console.error("[email] Failed to send rejection email:", err);
+      }
     }
-    res.json({ ok: true, data: row });
+    res.json({ ok: true, data: row, emailSent, emailConfigured, emailTo: row.email ?? null });
   } catch (e) { res.status(500).json({ error: "Failed to reject user" }); }
 });
 
