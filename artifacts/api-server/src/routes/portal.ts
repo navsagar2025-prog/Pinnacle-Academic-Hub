@@ -707,7 +707,6 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
 // ── Teacher: Social Media Posts ───────────────────────────────────────────────
 
 // Returns the teacher's social media access settings so the UI can show/hide the composer.
-// Also returns connectedPlatforms so the composer can intersect allowed + connected platforms.
 router.get("/portal/teacher/social/access", async (req, res) => {
   const { userId: clerkUserId } = getAuth(req);
   try {
@@ -760,8 +759,7 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
     const uploadDir = pathJoin(process.cwd(), "uploads", "social");
     if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 
-    // writeFinished resolves only after the write stream closes — awaited after busboy
-    // finishes so we never respond with savedUrl=null due to a timing race.
+    // writeFinished is awaited after busboy.finish to avoid a race where savedUrl is still null.
     let writeFinished: Promise<void> = Promise.resolve();
 
     await new Promise<void>((resolve, reject) => {
@@ -772,13 +770,9 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
         const filename = `${randomUUID()}.${ext}`;
         const savePath = pathJoin(uploadDir, filename);
         const ws = createWriteStream(savePath);
-        // Track the write-stream completion separately so we can await it after bb.finish.
         writeFinished = new Promise<void>((wsResolve, wsReject) => {
           ws.on("finish", () => {
-            // Must be an absolute HTTPS URL — social platforms fetch it directly.
-            // WEBSITE_BASE_URL takes priority; fall back to request origin.
-            const base = process.env.WEBSITE_BASE_URL
-              ?? `${req.protocol}://${req.get("host")}`;
+            const base = process.env.WEBSITE_BASE_URL ?? `${req.protocol}://${req.get("host")}`;
             savedUrl = `${base.replace(/\/$/, "")}/api/v1/social/media/${filename}`;
             wsResolve();
           });
@@ -790,7 +784,6 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
       bb.on("error", reject);
       req.pipe(bb);
     });
-    // Wait for the write stream to fully flush before we check savedUrl.
     await writeFinished;
 
     if (fileErr) { res.status(400).json({ error: fileErr }); return; }
@@ -871,19 +864,15 @@ router.post("/portal/teacher/social/posts", async (req, res) => {
     const [user] = await db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
     if (!user || user.role !== "teacher") { res.status(403).json({ error: "Teacher access required" }); return; }
 
-    // Enforce social media access for this teacher.
     const [access] = await db.select().from(socialTeacherAccess).where(eq(socialTeacherAccess.userId, user.id)).limit(1);
     if (!access?.isEnabled) { res.status(403).json({ error: "Social media access not granted for your account. Contact admin." }); return; }
 
-    // Validate each requested platform is in the teacher's allowlist.
     const allowed: string[] = access.platformsAllowed ?? [];
     const disallowed = (platformTargets as string[]).filter(p => !allowed.includes(p));
     if (disallowed.length > 0) {
       res.status(403).json({ error: `You do not have access to post on: ${disallowed.join(", ")}` }); return;
     }
 
-    // Validate that every targeted platform has a connected account (status="connected").
-    // Prevents teacher submissions that would always fail at publish time.
     const connectedAccounts = await db
       .select({ platform: socialAccounts.platform })
       .from(socialAccounts)

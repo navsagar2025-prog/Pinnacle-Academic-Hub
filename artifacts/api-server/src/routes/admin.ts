@@ -45,12 +45,7 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
 
   const { platform, codeVerifier, adminClerkUserId } = stateEntry;
 
-  // Identity continuity check — verify the callback session matches the initiating admin.
-  // The callback is public (no requireAuth) but clerkMiddleware runs, so userId is available
-  // when the admin's browser session cookie is present.
-  // When adminClerkUserId is stored in state we REQUIRE a matching session; a missing session
-  // (callbackUserId undefined) is treated as a mismatch — not silently passed — to prevent
-  // an unauthenticated caller from completing an admin-initiated OAuth flow.
+  // Require the callback session to match the initiating admin; missing session = reject.
   if (adminClerkUserId) {
     const { userId: callbackUserId } = getAuth(req);
     if (!callbackUserId || callbackUserId !== adminClerkUserId) {
@@ -1715,9 +1710,7 @@ router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
   // Generate PKCE verifier for Twitter (S256); other platforms don't use PKCE here
   const codeVerifier = platform === "twitter" ? generateCodeVerifier() : undefined;
 
-  // Bind OAuth state to the initiating admin's Clerk user ID for identity continuity
   const { userId: adminClerkUserId } = getAuth(req);
-  // Persist state server-side — validated on callback to prevent CSRF
   const state = createOAuthState(platform, codeVerifier, adminClerkUserId ?? undefined);
 
   const url = buildOAuthUrl(platform, state, codeVerifier);
@@ -1728,7 +1721,6 @@ router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
     return;
   }
   res.json({ ok: true, url });
-  // Note: do NOT return state to client — it is validated server-side only
 });
 
 // ── Social Media: Teacher Access ────────────────────────────────────────────

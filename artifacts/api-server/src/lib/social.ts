@@ -197,13 +197,11 @@ async function publishInstagram(
 }
 
 async function publishTwitter(token: string, content: string, mediaUrls: string[]): Promise<PublishResult> {
-  // Twitter v2 API with OAuth 2 user context token.
-  // Media attachment via v1.1 media/upload.json requires OAuth 1.0a, which we don't have stored.
-  // If media URLs are present, append the first one as a link in the tweet text as best-effort.
+  // OAuth 2 bearer tokens can't use v1.1 media upload (requires OAuth 1.0a);
+  // append first media URL as a link instead.
   let tweetText = content;
   if (mediaUrls.length > 0) {
     const suffix = ` ${mediaUrls[0]}`;
-    // Twitter limit 280 chars; truncate content if needed to fit
     if ((tweetText + suffix).length <= 280) {
       tweetText = tweetText + suffix;
     } else {
@@ -227,9 +225,7 @@ async function publishLinkedIn(
   token: string, urn: string | undefined, content: string, mediaUrls: string[]
 ): Promise<PublishResult> {
   if (!urn) return { ok: false, error: "LinkedIn person/org URN not configured (set in accountId field)" };
-  // If media URLs are present, publish as an ARTICLE share so the image/link is referenced.
-  // Full binary media upload (IMAGE category) requires a separate asset registration flow
-  // not yet implemented; ARTICLE allows embedding a URL with thumbnail.
+  // Use ARTICLE share when mediaUrls present so LinkedIn renders a link card.
   const hasMedia = mediaUrls.length > 0;
   const shareContent: Record<string, unknown> = {
     shareCommentary: { text: content },
@@ -264,9 +260,6 @@ async function publishLinkedIn(
 }
 
 // ── OAuth State Store (in-memory, 10-minute TTL) ──────────────────────────────
-// Prevents CSRF and account-linking attacks by binding each OAuth flow to a
-// server-generated random state that is validated on callback before processing.
-// Also stores the PKCE code_verifier so the callback can complete the exchange.
 
 type OAuthStateEntry = {
   platform: string;
