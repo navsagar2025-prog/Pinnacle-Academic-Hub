@@ -750,6 +750,10 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
   try {
     const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
     if (!user || (user.role !== "teacher" && user.role !== "admin")) { res.status(403).json({ error: "Staff access required" }); return; }
+    if (user.role === "teacher") {
+      const [access] = await db.select({ isEnabled: socialTeacherAccess.isEnabled }).from(socialTeacherAccess).where(eq(socialTeacherAccess.userId, user.id)).limit(1);
+      if (!access?.isEnabled) { res.status(403).json({ error: "Social media access not enabled for your account" }); return; }
+    }
 
     const bb = busboy({ headers: req.headers, limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
 

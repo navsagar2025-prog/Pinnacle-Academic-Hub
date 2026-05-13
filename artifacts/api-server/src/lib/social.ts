@@ -355,7 +355,7 @@ export function buildOAuthUrl(platform: string, state: string, codeVerifier?: st
   if (platform === "linkedin") {
     const clientId = process.env.SOCIAL_LINKEDIN_CLIENT_ID;
     if (!clientId) return null;
-    const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, scope: "w_member_social r_liteprofile", state, response_type: "code" });
+    const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, scope: "openid profile w_member_social", state, response_type: "code" });
     return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
   }
 
