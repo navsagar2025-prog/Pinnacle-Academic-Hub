@@ -46,13 +46,16 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
   const { platform, codeVerifier, adminClerkUserId } = stateEntry;
 
   // Identity continuity check — verify the callback session matches the initiating admin.
-  // The callback is public (no requireAuth) but clerkMiddleware runs, so userId may be available
-  // if the admin's browser session is still active.
+  // The callback is public (no requireAuth) but clerkMiddleware runs, so userId is available
+  // when the admin's browser session cookie is present.
+  // When adminClerkUserId is stored in state we REQUIRE a matching session; a missing session
+  // (callbackUserId undefined) is treated as a mismatch — not silently passed — to prevent
+  // an unauthenticated caller from completing an admin-initiated OAuth flow.
   if (adminClerkUserId) {
     const { userId: callbackUserId } = getAuth(req);
-    if (callbackUserId && callbackUserId !== adminClerkUserId) {
-      logger.warn({ adminClerkUserId, callbackUserId }, "OAuth callback user mismatch — possible account-linking attack");
-      closeWithMsg({ type: "social_oauth_error", error: "Session mismatch. Please ensure you are logged in as the initiating admin." });
+    if (!callbackUserId || callbackUserId !== adminClerkUserId) {
+      logger.warn({ adminClerkUserId, callbackUserId }, "OAuth callback user mismatch or missing session — aborting");
+      closeWithMsg({ type: "social_oauth_error", error: "Session mismatch. Please ensure you are logged in as the initiating admin and try again." });
       return;
     }
   }
