@@ -8,6 +8,7 @@ import {
   classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
   socialTeacherAccess, socialPosts, socialAccounts, blogPosts,
+  questionBank, questionBookmarks,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
 import busboy from "busboy";
@@ -912,5 +913,105 @@ router.post("/portal/teacher/social/posts", async (req, res) => {
 // It is a PUBLIC unauthenticated route registered directly in routes/index.ts
 // so that social platforms (Instagram, Facebook, etc.) can fetch uploaded media
 // without needing a Clerk session cookie or Bearer token.
+
+// ── Question Bank (student) ────────────────────────────────────────────────
+// GET /question-bank — list published, approved questions with filtering + bookmarks
+router.get("/question-bank", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const { subject, difficulty, examTarget, hasFigure, search, page, pageSize, questionType, classGrade } = req.query as Record<string, string>;
+    const limit = Math.min(parseInt(pageSize ?? "50", 10) || 50, 100);
+    const offset = (Math.max(parseInt(page ?? "1", 10) || 1, 1) - 1) * limit;
+
+    const conditions: ReturnType<typeof eq>[] = [
+      eq(questionBank.isPublished, true),
+      eq(questionBank.reviewStatus, "approved"),
+      isNull(questionBank.deletedAt),
+    ] as any[];
+
+    if (subject && subject !== "All") conditions.push(eq(questionBank.subject, subject) as any);
+    if (difficulty) conditions.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard") as any);
+    if (questionType) conditions.push(eq(questionBank.questionType, questionType as "mcq" | "short" | "long" | "numerical") as any);
+    if (classGrade) conditions.push(eq(questionBank.classGrade, classGrade) as any);
+    if (hasFigure === "1") conditions.push(sql`${questionBank.imageUrl} IS NOT NULL` as any);
+    if (examTarget) conditions.push(sql`${questionBank.examTarget} @> ARRAY[${examTarget}]::text[]` as any);
+    if (search && search.trim()) {
+      const tsq = search.trim().split(/\s+/).map(w => w + ":*").join(" & ");
+      conditions.push(sql`${questionBank.searchVector} @@ to_tsquery('english', ${tsq})` as any);
+    }
+
+    const rows = await db.select({
+      id: questionBank.id,
+      subject: questionBank.subject,
+      topic: questionBank.topic,
+      year: questionBank.year,
+      difficulty: questionBank.difficulty,
+      questionType: questionBank.questionType,
+      questionText: questionBank.questionText,
+      options: questionBank.options,
+      correctAnswer: questionBank.correctAnswer,
+      solution: questionBank.solution,
+      imageUrl: questionBank.imageUrl,
+      solutionImageUrl: questionBank.solutionImageUrl,
+      marks: questionBank.marks,
+      examTarget: questionBank.examTarget,
+    }).from(questionBank)
+      .where(and(...conditions))
+      .orderBy(desc(questionBank.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get bookmarked IDs for this student (if logged in)
+    let bookmarkedIds: string[] = [];
+    if (clerkUserId) {
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+      if (user) {
+        const [stu] = await db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)).limit(1);
+        if (stu) {
+          const bmarks = await db.select({ questionId: questionBookmarks.questionId })
+            .from(questionBookmarks)
+            .where(eq(questionBookmarks.studentId, stu.id));
+          bookmarkedIds = bmarks.map(b => b.questionId);
+        }
+      }
+    }
+
+    const [{ total }] = await db.select({ total: sql<number>`count(*)::int` })
+      .from(questionBank).where(and(...conditions));
+
+    res.json({ ok: true, items: rows, bookmarkedIds, total, page: parseInt(page ?? "1", 10) || 1, limit });
+  } catch (e) {
+    console.error("GET /question-bank error:", e);
+    res.status(500).json({ error: "Failed to fetch question bank" });
+  }
+});
+
+// POST /question-bank/:id/bookmark — bookmark a question
+router.post("/question-bank/:id/bookmark", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const [stu] = await db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)).limit(1);
+    if (!stu) { res.status(403).json({ error: "Student record not found" }); return; }
+    await db.insert(questionBookmarks).values({ studentId: stu.id, questionId: req.params.id }).onConflictDoNothing();
+    res.json({ ok: true, success: true, bookmarked: true });
+  } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// DELETE /question-bank/:id/bookmark — remove bookmark
+router.delete("/question-bank/:id/bookmark", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const [stu] = await db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)).limit(1);
+    if (!stu) { res.status(403).json({ error: "Student record not found" }); return; }
+    await db.delete(questionBookmarks).where(
+      and(eq(questionBookmarks.studentId, stu.id), eq(questionBookmarks.questionId, req.params.id))
+    );
+    res.json({ ok: true, success: true, bookmarked: false });
+  } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
 
 export default router;

@@ -3,12 +3,13 @@ import { useAuth, useUser } from "@clerk/react";
 import {
   LayoutDashboard, Bell, BookOpen, ClipboardList, BarChart2,
   CalendarCheck, CreditCard, LogOut, Menu, Download, AlertCircle,
-  Video, MessageCircle, ExternalLink, Send, CheckCircle2,
+  Video, MessageCircle, ExternalLink, Send, CheckCircle2, Library,
+  Search, BookMarked, ChevronLeft, ChevronRight, Eye, EyeOff,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { useFetch, apiMutation, trackEvent } from "./portalUtils";
 
-type Section = "overview" | "notices" | "materials" | "assignments" | "tests" | "recordings" | "doubts" | "attendance" | "fees";
+type Section = "overview" | "notices" | "materials" | "assignments" | "tests" | "recordings" | "doubts" | "attendance" | "fees" | "question-bank";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -16,6 +17,7 @@ const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
   { key: "materials", label: "Study Materials", Icon: BookOpen },
   { key: "assignments", label: "Assignments", Icon: ClipboardList },
   { key: "tests", label: "Mock Tests", Icon: BarChart2 },
+  { key: "question-bank", label: "Question Bank", Icon: Library },
   { key: "recordings", label: "Recordings", Icon: Video },
   { key: "doubts", label: "Ask a Doubt", Icon: MessageCircle },
   { key: "attendance", label: "Attendance", Icon: CalendarCheck },
@@ -588,6 +590,254 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
   );
 }
 
+// ── Question Bank Section ──────────────────────────────────────────────────
+type QBQuestion = {
+  id: string; subject: string; topic: string | null; year: number | null;
+  difficulty: "easy" | "medium" | "hard"; questionType: "mcq" | "short" | "long" | "numerical";
+  questionText: string; options: Record<string, string> | null; correctAnswer: string;
+  solution: string | null; imageUrl: string | null; solutionImageUrl: string | null;
+  marks: number | null;
+};
+
+const DIFF_COLORS: Record<string, string> = { easy: "bg-emerald-100 text-emerald-700", medium: "bg-amber-100 text-amber-700", hard: "bg-red-100 text-red-700" };
+const SUBJECTS_QB = ["All", "Physics", "Chemistry", "Mathematics", "Biology"];
+const DIFF_OPTS = ["", "easy", "medium", "hard"];
+
+function QuestionBankSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const [subject, setSubject] = useState("All");
+  const [difficulty, setDifficulty] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [bookmarksOnly, setBookmarksOnly] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [bookmarks, setBookmarks] = useState<Record<string, boolean>>({});
+  const [qbData, setQbData] = useState<{ items: QBQuestion[]; total: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const PAGE_SIZE = 20;
+
+  const fetchQB = useCallback(async (pg = 1) => {
+    setLoading(true); setError(null);
+    try {
+      const token = await getToken();
+      const sp = new URLSearchParams({ pageSize: String(PAGE_SIZE), page: String(pg) });
+      if (subject !== "All") sp.set("subject", subject);
+      if (difficulty) sp.set("difficulty", difficulty);
+      if (search.trim()) sp.set("search", search.trim());
+      const resp = await fetch(`${BASE}/api/v1/question-bank?${sp}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error("Failed to load questions");
+      const data = await resp.json();
+      setQbData({ items: data.items ?? [], total: data.total ?? 0 });
+      setBookmarks(prev => {
+        const next = { ...prev };
+        for (const id of (data.bookmarkedIds ?? [])) next[id] = true;
+        return next;
+      });
+    } catch (e: unknown) {
+      setError((e as Error).message ?? "Error");
+    } finally {
+      setLoading(false);
+    }
+  }, [subject, difficulty, search, getToken, BASE]);
+
+  useEffect(() => { setPage(1); fetchQB(1); }, [subject, difficulty, search]);
+  useEffect(() => { if (page > 1) fetchQB(page); }, [page]);
+
+  const toggleBookmark = async (id: string) => {
+    const next = !bookmarks[id];
+    setBookmarks(prev => ({ ...prev, [id]: next }));
+    try {
+      const token = await getToken();
+      const resp = await fetch(`${BASE}/api/v1/question-bank/${id}/bookmark`, {
+        method: next ? "POST" : "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) setBookmarks(prev => ({ ...prev, [id]: !next }));
+    } catch { setBookmarks(prev => ({ ...prev, [id]: !next })); }
+  };
+
+  const items = qbData?.items ?? [];
+  const filtered = bookmarksOnly ? items.filter(q => bookmarks[q.id]) : items;
+  const totalPages = Math.ceil((qbData?.total ?? 0) / PAGE_SIZE);
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--color-navy)] mb-1">Question Bank</h2>
+      <p className="text-slate-500 text-sm mb-5">Practice JEE / NEET questions, reveal solutions, bookmark favourites.</p>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {/* Subject chips */}
+        {SUBJECTS_QB.map(s => (
+          <button key={s} onClick={() => setSubject(s)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subject === s ? "bg-[var(--color-navy)] text-white border-[var(--color-navy)]" : "bg-white text-slate-600 border-slate-200 hover:border-[var(--color-navy)]"}`}>
+            {s}
+          </button>
+        ))}
+        <div className="w-px bg-slate-200 self-stretch mx-1" />
+        {/* Difficulty */}
+        <select value={difficulty} onChange={e => setDifficulty(e.target.value)}
+          className="px-3 py-1 text-xs border border-slate-200 rounded-full bg-white text-slate-600 focus:outline-none focus:border-[var(--color-teal)]">
+          <option value="">All Difficulties</option>
+          {DIFF_OPTS.slice(1).map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+        </select>
+        {/* Bookmarks toggle */}
+        <button onClick={() => setBookmarksOnly(b => !b)}
+          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${bookmarksOnly ? "bg-amber-500 text-white border-amber-500" : "bg-white text-slate-600 border-slate-200 hover:border-amber-400"}`}>
+          <BookMarked size={12} /> Bookmarks
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="flex gap-2 mb-5">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") setSearch(searchInput); }}
+            placeholder="Search questions… (press Enter)" type="text"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-[var(--color-teal)]" />
+        </div>
+        {search && (
+          <button onClick={() => { setSearch(""); setSearchInput(""); }}
+            className="px-3 py-2 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="text-slate-400 text-sm py-8 text-center">Loading questions…</div>
+      ) : error ? (
+        <div className="text-red-500 text-sm py-4">{error}</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-slate-400 text-sm py-8 text-center">
+          {bookmarksOnly ? "No bookmarks yet — star questions to save them." : "No questions found for these filters."}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(q => {
+            const isOpen = openId === q.id;
+            const userPick = picked[q.id];
+            const isRevealed = revealed[q.id];
+            const isBookmarked = !!bookmarks[q.id];
+            const isMcq = q.questionType === "mcq" && q.options;
+            const correct = isMcq && userPick === q.correctAnswer;
+
+            return (
+              <div key={q.id} className="card border border-slate-200 p-0 overflow-hidden">
+                <button onClick={() => setOpenId(isOpen ? null : q.id)}
+                  className="w-full text-left p-4 flex gap-3 items-start hover:bg-slate-50 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <span className="text-xs font-bold text-[var(--color-teal)] bg-teal-50 px-2 py-0.5 rounded">{q.subject}</span>
+                      {q.topic && <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{q.topic}</span>}
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded capitalize ${DIFF_COLORS[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+                      {q.year && <span className="text-xs text-slate-400">PYQ {q.year}</span>}
+                      <span className="text-xs text-slate-400 uppercase">{q.questionType}</span>
+                    </div>
+                    <p className={`text-sm text-slate-800 font-medium leading-snug ${isOpen ? "" : "line-clamp-2"}`}>{q.questionText}</p>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); toggleBookmark(q.id); }}
+                    className={`shrink-0 mt-0.5 p-1 rounded transition-colors ${isBookmarked ? "text-amber-500" : "text-slate-300 hover:text-amber-400"}`}>
+                    <BookMarked size={16} fill={isBookmarked ? "currentColor" : "none"} />
+                  </button>
+                </button>
+
+                {isOpen && (
+                  <div className="px-4 pb-4 border-t border-slate-100">
+                    {q.imageUrl && (
+                      <div className="mt-3 mb-3">
+                        <img src={q.imageUrl} alt="Question diagram" className="max-w-[300px] rounded border border-slate-200" />
+                      </div>
+                    )}
+
+                    {isMcq && (
+                      <div className="mt-3 space-y-2">
+                        {(["A", "B", "C", "D"] as const).map(opt => {
+                          const text = q.options?.[opt];
+                          if (!text) return null;
+                          const showCorrect = isRevealed && opt === q.correctAnswer;
+                          const showWrong = isRevealed && userPick === opt && opt !== q.correctAnswer;
+                          return (
+                            <button key={opt} disabled={isRevealed}
+                              onClick={() => setPicked(p => ({ ...p, [q.id]: opt }))}
+                              className={`w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-lg border text-sm transition-colors
+                                ${showCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-800" :
+                                  showWrong ? "border-red-300 bg-red-50 text-red-700" :
+                                  userPick === opt ? "border-[var(--color-navy)] bg-blue-50 text-[var(--color-navy)]" :
+                                  "border-slate-200 hover:border-slate-300"}`}>
+                              <span className="font-bold w-5 shrink-0">{opt}.</span>
+                              <span className="flex-1">{text}</span>
+                              {showCorrect && <span className="text-emerald-600 font-bold text-xs">✓</span>}
+                              {showWrong && <span className="text-red-500 font-bold text-xs">✗</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex gap-2">
+                      {!isRevealed ? (
+                        <button disabled={isMcq ? !userPick : false}
+                          onClick={() => setRevealed(r => ({ ...r, [q.id]: true }))}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                            ${!isMcq || userPick ? "bg-[var(--color-gold)] text-white hover:opacity-90" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
+                          <Eye size={14} /> Reveal Solution
+                        </button>
+                      ) : (
+                        <button onClick={() => { setRevealed(r => ({ ...r, [q.id]: false })); setPicked(p => { const n = { ...p }; delete n[q.id]; return n; }); }}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">
+                          <EyeOff size={14} /> Try Again
+                        </button>
+                      )}
+                    </div>
+
+                    {isRevealed && (
+                      <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                        <p className="text-xs font-bold text-[var(--color-navy)] mb-1">
+                          {isMcq ? (correct ? "Correct! 🎉" : `Correct Answer: ${q.correctAnswer}`) : `Answer: ${q.correctAnswer}`}
+                        </p>
+                        {q.solution ? (
+                          <p className="text-sm text-slate-700 leading-relaxed">{q.solution}</p>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">No detailed solution provided.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!bookmarksOnly && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+            className="flex items-center gap-1 px-3 py-2 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">
+            <ChevronLeft size={14} /> Prev
+          </button>
+          <span className="text-sm text-slate-500">Page {page} of {totalPages} · {qbData?.total ?? 0} questions</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+            className="flex items-center gap-1 px-3 py-2 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">
+            Next <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StudentDashboard() {
   const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
@@ -612,6 +862,7 @@ export default function StudentDashboard() {
       case "doubts": return <DoubtsSection getToken={tokenFn} />;
       case "attendance": return <AttendanceSection getToken={tokenFn} />;
       case "fees": return <FeesSection getToken={tokenFn} />;
+      case "question-bank": return <QuestionBankSection getToken={tokenFn} />;
     }
   };
 
