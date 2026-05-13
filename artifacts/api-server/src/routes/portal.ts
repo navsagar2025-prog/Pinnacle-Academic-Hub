@@ -7,7 +7,7 @@ import {
   attendance, studentTestResults, schedules, mockTests, mockTestAttempts,
   classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
-  socialTeacherAccess, socialPosts, blogPosts,
+  socialTeacherAccess, socialPosts, socialAccounts, blogPosts,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
 import busboy from "busboy";
@@ -756,8 +756,11 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
         const ws = createWriteStream(savePath);
         file.pipe(ws);
         ws.on("finish", () => {
-          const base = process.env.WEBSITE_BASE_URL ?? "";
-          savedUrl = `${base}/api/v1/social/media/${filename}`;
+          // Must be an absolute HTTPS URL — social platforms fetch it directly.
+          // WEBSITE_BASE_URL takes priority; fall back to request origin (strips /api prefix).
+          const base = process.env.WEBSITE_BASE_URL
+            ?? `${req.protocol}://${req.get("host")}`;
+          savedUrl = `${base.replace(/\/$/, "")}/api/v1/social/media/${filename}`;
         });
         ws.on("error", reject);
       });
@@ -855,6 +858,18 @@ router.post("/portal/teacher/social/posts", async (req, res) => {
       res.status(403).json({ error: `You do not have access to post on: ${disallowed.join(", ")}` }); return;
     }
 
+    // Validate that every targeted platform has a connected account (status="connected").
+    // Prevents teacher submissions that would always fail at publish time.
+    const connectedAccounts = await db
+      .select({ platform: socialAccounts.platform })
+      .from(socialAccounts)
+      .where(eq(socialAccounts.status, "connected"));
+    const connectedPlatforms = new Set(connectedAccounts.map(a => a.platform));
+    const disconnected = (platformTargets as string[]).filter(p => !connectedPlatforms.has(p));
+    if (disconnected.length > 0) {
+      res.status(400).json({ error: `The following platforms are not connected yet: ${disconnected.join(", ")}. Ask your admin to connect them first.` }); return;
+    }
+
     const [row] = await db.insert(socialPosts).values({
       content, mediaUrls: mediaUrls || [], platformTargets,
       status: "pending",
@@ -869,17 +884,9 @@ router.post("/portal/teacher/social/posts", async (req, res) => {
   }
 });
 
-// Serve uploaded social media files
-router.get("/social/media/:filename", (req: Request, res: Response) => {
-  const { filename } = req.params;
-  if (!/^[\w-]+\.\w+$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
-  const filePath = pathJoin(process.cwd(), "uploads", "social", filename);
-  if (!existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }
-  const ext = extname(filename).slice(1).toLowerCase();
-  const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp4: "video/mp4", mov: "video/quicktime" };
-  res.setHeader("Content-Type", mime[ext] ?? "application/octet-stream");
-  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-  createReadStream(filePath).pipe(res);
-});
+// NOTE: /social/media/:filename is intentionally NOT registered here.
+// It is a PUBLIC unauthenticated route registered directly in routes/index.ts
+// so that social platforms (Instagram, Facebook, etc.) can fetch uploaded media
+// without needing a Clerk session cookie or Bearer token.
 
 export default router;

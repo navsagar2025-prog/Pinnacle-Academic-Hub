@@ -1,4 +1,6 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { createReadStream, existsSync } from "fs";
+import { join as pathJoin, extname } from "path";
 import healthRouter from "./health";
 import enquiriesRouter from "./enquiries";
 import contactRouter from "./contact";
@@ -24,5 +26,22 @@ router.use("/v1", ga4oauthRouter);
 router.use("/v1", adminRouter);
 router.use("/v1", admin2Router);
 router.use("/v1", portalRouter);
+
+// ── Public social media file serve ──────────────────────────────────────────
+// This MUST be unauthenticated so Instagram, Facebook, Twitter, and LinkedIn
+// can fetch uploaded images/videos when publishing posts that reference a URL.
+// Registered after the authenticated routers so the /v1 prefix is still correct.
+router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
+  const { filename } = req.params;
+  // Strict filename validation: UUID + extension only (prevents path traversal)
+  if (!/^[\w-]+\.\w+$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
+  const filePath = pathJoin(process.cwd(), "uploads", "social", filename);
+  if (!existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }
+  const ext = extname(filename).slice(1).toLowerCase();
+  const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp4: "video/mp4", mov: "video/quicktime" };
+  res.setHeader("Content-Type", mime[ext] ?? "application/octet-stream");
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  createReadStream(filePath).pipe(res);
+});
 
 export default router;
