@@ -983,19 +983,37 @@ function BatchesSection({ getToken }: { getToken: () => Promise<string | null> }
 
 // ── Fee Records Section ───────────────────────────────────────────────────────
 type FeeRow = { id: string; period: string; amount: number; paidAmount: number; dueDate: string; paidDate: string | null; status: string; paymentMethod: string | null; transactionRef: string | null; notes: string | null; studentId: string | null; rollNumber: string | null; studentName: string | null };
+type FeeStudentOption = { id: string; rollNumber: string; userName: string | null };
 const FEE_STATUSES = ["due", "partial", "paid", "overdue", "waived"];
 const FEE_COLORS: Record<string, string> = { paid: "bg-green-100 text-green-700", partial: "bg-yellow-100 text-yellow-700", due: "bg-red-100 text-red-600", overdue: "bg-red-200 text-red-800", waived: "bg-slate-100 text-slate-600" };
+const EMPTY_CREATE = { studentId: "", period: "", amount: "", dueDate: "" };
 
 function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
   const { data, loading, reload } = useFetch<FeeRow[]>("/admin/fee-records", getToken);
   const [modal, setModal] = useState<FeeRow | null>(null);
   const [form, setForm] = useState({ status: "due", paidAmount: "", paidDate: "", paymentMethod: "", transactionRef: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE);
+  const [creating, setCreating] = useState(false);
+  const [students, setStudents] = useState<FeeStudentOption[]>([]);
+  const [filterStudentId, setFilterStudentId] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/students`, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (json.ok) setStudents(json.data);
+    })();
+  }, [getToken]);
 
   function openEdit(item: FeeRow) {
     setForm({ status: item.status, paidAmount: String(item.paidAmount), paidDate: item.paidDate ? item.paidDate.split("T")[0] : "", paymentMethod: item.paymentMethod ?? "", transactionRef: item.transactionRef ?? "", notes: item.notes ?? "" });
     setModal(item);
   }
+
+  function openCreate() { setCreateForm(EMPTY_CREATE); setShowCreate(true); }
 
   async function save() {
     if (!modal) return;
@@ -1004,25 +1022,44 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
     setSaving(false); setModal(null); reload();
   }
 
+  async function create() {
+    if (!createForm.studentId || !createForm.period || !createForm.amount || !createForm.dueDate) return;
+    setCreating(true);
+    await apiCall("POST", "/admin/fee-records", { studentId: createForm.studentId, period: createForm.period, amount: Number(createForm.amount), dueDate: createForm.dueDate }, getToken);
+    setCreating(false); setShowCreate(false); reload();
+  }
+
+  const filtered = filterStudentId ? (data ?? []).filter(f => f.studentId === filterStudentId) : (data ?? []);
   const overdueCnt = (data ?? []).filter(f => f.status === "overdue" || f.status === "due").length;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-[var(--color-navy)]">Fee Records</h2>
           {overdueCnt > 0 && <p className="text-xs text-red-500 mt-0.5">{overdueCnt} records need attention</p>}
         </div>
-        <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
+        <div className="flex items-center gap-2">
+          <button onClick={reload} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)]"><RefreshCw size={14} /> Refresh</button>
+          <button onClick={openCreate} className="btn-primary text-sm px-4 py-2 flex items-center gap-2"><Plus size={14} /> Add Fee Record</button>
+        </div>
       </div>
+      {students.length > 0 && (
+        <div className="mb-4">
+          <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 w-full max-w-xs" value={filterStudentId} onChange={e => setFilterStudentId(e.target.value)}>
+            <option value="">All students</option>
+            {students.map(s => <option key={s.id} value={s.id}>{s.rollNumber} — {s.userName ?? "Unknown"}</option>)}
+          </select>
+        </div>
+      )}
       {loading ? <SkeletonList rows={4} /> : (
         <div className="space-y-2">
-          {(data ?? []).map(f => (
+          {filtered.map(f => (
             <div key={f.id} className="card border border-slate-200 flex items-start gap-3">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[var(--color-navy)] text-sm">{f.studentName ?? "Unknown"} — {f.period}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Roll: {f.rollNumber ?? "—"} · ₹{f.amount.toLocaleString("en-IN")} total · ₹{f.paidAmount.toLocaleString("en-IN")} paid</p>
-                <p className="text-xs text-slate-400 mt-0.5">Due: {new Date(f.dueDate).toLocaleDateString("en-IN")}{f.paidDate ? ` · Paid: ${new Date(f.paidDate).toLocaleDateString("en-IN")}` : ""}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Roll: {f.rollNumber ?? "—"} · ₹{f.amount.toLocaleString("en-IN")} total · ₹{f.paidAmount.toLocaleString("en-IN")} paid · Outstanding: ₹{(f.amount - f.paidAmount).toLocaleString("en-IN")}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Due: {new Date(f.dueDate).toLocaleDateString("en-IN")}{f.paidDate ? ` · Paid: ${new Date(f.paidDate).toLocaleDateString("en-IN")}` : ""}{f.paymentMethod ? ` · ${f.paymentMethod}` : ""}{f.transactionRef ? ` · Ref: ${f.transactionRef}` : ""}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${FEE_COLORS[f.status] ?? "bg-slate-100 text-slate-600"}`}>{f.status}</span>
@@ -1030,9 +1067,48 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
               </div>
             </div>
           ))}
-          {(data ?? []).length === 0 && <p className="text-slate-400 text-sm">No fee records found.</p>}
+          {filtered.length === 0 && <p className="text-slate-400 text-sm">{filterStudentId ? "No records for this student." : "No fee records found."}</p>}
         </div>
       )}
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="font-bold text-[var(--color-navy)]">Add Fee Installment</h3>
+              <button onClick={() => setShowCreate(false)}><X size={18} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Student</label>
+                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={createForm.studentId} onChange={e => setCreateForm(f => ({ ...f, studentId: e.target.value }))}>
+                  <option value="">Select student…</option>
+                  {students.map(s => <option key={s.id} value={s.id}>{s.rollNumber} — {s.userName ?? "Unknown"}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Period (e.g. "Term 1 2025")</label>
+                <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Term 1 2025" value={createForm.period} onChange={e => setCreateForm(f => ({ ...f, period: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Amount (₹)</label>
+                  <input type="number" min="0" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0" value={createForm.amount} onChange={e => setCreateForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Due Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={createForm.dueDate} onChange={e => setCreateForm(f => ({ ...f, dueDate: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
+              <button onClick={create} disabled={creating || !createForm.studentId || !createForm.period || !createForm.amount || !createForm.dueDate} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{creating ? "Adding…" : "Add Installment"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
@@ -1040,7 +1116,7 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
             <div className="px-5 py-3 bg-slate-50 text-sm"><p className="font-medium text-[var(--color-navy)]">{modal.studentName} · {modal.period}</p><p className="text-xs text-slate-500">Total: ₹{modal.amount.toLocaleString("en-IN")} · Due: {new Date(modal.dueDate).toLocaleDateString("en-IN")}</p></div>
             <div className="px-5 py-4 space-y-3">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Status</label><select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>{FEE_STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
-              <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount Paid (₹)</label><input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount Paid (₹)</label><input type="number" min="0" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Paid</label><input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.paidDate} onChange={e => setForm(f => ({ ...f, paidDate: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Payment Method</label><input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Cash / UPI / Bank" value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))} /></div>
