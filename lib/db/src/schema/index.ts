@@ -976,6 +976,7 @@ export const socialPosts = pgTable("social_posts", {
   postedByName: text("posted_by_name"),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
   rejectionNote: text("rejection_note"),
+  teacherSeenAt: timestamp("teacher_seen_at"), // set when teacher acknowledges a rejection
   linkedBlogId: uuid("linked_blog_id"),
   linkedNoticeId: uuid("linked_notice_id"),
   publishedUrls: jsonb("published_urls").$type<Record<string, string>>().default({}),

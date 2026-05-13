@@ -720,6 +720,20 @@ function PendingTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
                 ))}
               </div>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{post.content}</p>
+              {post.mediaUrls && post.mediaUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {post.mediaUrls.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={url}
+                        alt={`Media ${i + 1}`}
+                        className="h-16 w-16 object-cover rounded-lg border border-amber-200 hover:opacity-90 transition-opacity"
+                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
               <p className="text-xs text-slate-400 mt-2">
                 Submitted by {post.postedByName ?? "Unknown"} · {new Date(post.createdAt).toLocaleString("en-IN")}
               </p>

@@ -790,8 +790,8 @@ router.get("/portal/teacher/social/blog-posts", async (_req, res) => {
   }
 });
 
-// GET /portal/teacher/social/unread-rejections — returns rejected posts for the current teacher
-// Used by the dashboard root to show a persistent notification badge + Overview alert.
+// GET /portal/teacher/social/unread-rejections — rejected posts NOT yet seen by teacher
+// Filters by teacher_seen_at IS NULL so the badge clears after acknowledgement.
 router.get("/portal/teacher/social/unread-rejections", async (req, res) => {
   const { userId: clerkUserId } = getAuth(req);
   try {
@@ -800,10 +800,34 @@ router.get("/portal/teacher/social/unread-rejections", async (req, res) => {
     const rows = await db
       .select({ id: socialPosts.id, content: socialPosts.content, rejectionNote: socialPosts.rejectionNote, createdAt: socialPosts.createdAt })
       .from(socialPosts)
-      .where(and(eq(socialPosts.postedByUserId, user.id), eq(socialPosts.status, "rejected")))
+      .where(and(
+        eq(socialPosts.postedByUserId, user.id),
+        eq(socialPosts.status, "rejected"),
+        isNull(socialPosts.teacherSeenAt),
+      ))
       .orderBy(desc(socialPosts.createdAt))
       .limit(10);
     res.json({ ok: true, data: { count: rows.length, posts: rows } });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// POST /portal/teacher/social/rejections/mark-seen — clear the unread badge
+// Sets teacher_seen_at = NOW() on all unseen rejected posts for this teacher.
+router.post("/portal/teacher/social/rejections/mark-seen", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.json({ ok: true }); return; }
+    await db.update(socialPosts)
+      .set({ teacherSeenAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(socialPosts.postedByUserId, user.id),
+        eq(socialPosts.status, "rejected"),
+        isNull(socialPosts.teacherSeenAt),
+      ));
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed" });
   }

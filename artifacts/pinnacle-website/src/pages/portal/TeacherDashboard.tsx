@@ -513,9 +513,24 @@ export default function TeacherDashboard() {
 
   // Fetch unread rejected posts at root level so the badge and Overview alert
   // are visible regardless of which section the teacher is currently viewing.
-  const { data: rejectionsData } = useFetch<{ ok: boolean; data: RejectionSummary }>("/portal/teacher/social/unread-rejections", tokenFn);
+  const { data: rejectionsData, reload: reloadRejections } = useFetch<{ ok: boolean; data: RejectionSummary }>("/portal/teacher/social/unread-rejections", tokenFn);
   const rejections = rejectionsData?.data ?? null;
   const rejectionCount = rejections?.count ?? 0;
+
+  // When teacher opens the social-posts section, mark all unread rejections as seen
+  // so the badge clears and the notifications are acknowledged.
+  useEffect(() => {
+    if (section === "social-posts" && rejectionCount > 0) {
+      getToken().then(token => {
+        if (!token) return;
+        const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+        fetch(`${base}/api/v1/portal/teacher/social/rejections/mark-seen`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        }).then(() => reloadRejections()).catch(() => { /* non-critical */ });
+      });
+    }
+  }, [section]);
 
   function goToSocial() { setSection("social-posts"); setSidebarOpen(false); }
 

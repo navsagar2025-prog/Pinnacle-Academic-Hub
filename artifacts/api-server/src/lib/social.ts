@@ -248,20 +248,22 @@ type OAuthStateEntry = {
   platform: string;
   expiresAt: number;
   codeVerifier?: string; // PKCE — only for Twitter
+  adminClerkUserId?: string; // Bound to the initiating admin for identity continuity
 };
 
 const _oauthStates = new Map<string, OAuthStateEntry>();
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-/** Create a random state token, persist it, and return it. */
-export function createOAuthState(platform: string, codeVerifier?: string): string {
+/** Create a random state token, persist it, and return it.
+ *  Pass adminClerkUserId to bind the flow to the initiating admin. */
+export function createOAuthState(platform: string, codeVerifier?: string, adminClerkUserId?: string): string {
   const now = Date.now();
   // Purge expired entries
   for (const [k, v] of _oauthStates.entries()) {
     if (v.expiresAt < now) _oauthStates.delete(k);
   }
   const state = crypto.randomBytes(32).toString("hex");
-  _oauthStates.set(state, { platform, expiresAt: now + OAUTH_STATE_TTL_MS, codeVerifier });
+  _oauthStates.set(state, { platform, expiresAt: now + OAUTH_STATE_TTL_MS, codeVerifier, adminClerkUserId });
   return state;
 }
 

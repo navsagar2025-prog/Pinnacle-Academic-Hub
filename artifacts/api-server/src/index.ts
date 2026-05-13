@@ -101,6 +101,10 @@ async function applyStartupMigrations(): Promise<void> {
   await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS social_teacher_access_user_uq ON social_teacher_access (user_id)
   `);
+  // Additive column: teacher acknowledgement timestamp for rejection read-state
+  await db.execute(sql`
+    ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS teacher_seen_at TIMESTAMPTZ
+  `);
 
   logger.info("Startup migrations applied");
 }

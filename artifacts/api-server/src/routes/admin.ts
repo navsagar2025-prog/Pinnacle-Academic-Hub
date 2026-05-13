@@ -43,7 +43,19 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
     return;
   }
 
-  const { platform, codeVerifier } = stateEntry;
+  const { platform, codeVerifier, adminClerkUserId } = stateEntry;
+
+  // Identity continuity check — verify the callback session matches the initiating admin.
+  // The callback is public (no requireAuth) but clerkMiddleware runs, so userId may be available
+  // if the admin's browser session is still active.
+  if (adminClerkUserId) {
+    const { userId: callbackUserId } = getAuth(req);
+    if (callbackUserId && callbackUserId !== adminClerkUserId) {
+      logger.warn({ adminClerkUserId, callbackUserId }, "OAuth callback user mismatch — possible account-linking attack");
+      closeWithMsg({ type: "social_oauth_error", error: "Session mismatch. Please ensure you are logged in as the initiating admin." });
+      return;
+    }
+  }
 
   try {
     const result = await exchangeOAuthCode(platform, code, codeVerifier);
@@ -1700,8 +1712,10 @@ router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
   // Generate PKCE verifier for Twitter (S256); other platforms don't use PKCE here
   const codeVerifier = platform === "twitter" ? generateCodeVerifier() : undefined;
 
+  // Bind OAuth state to the initiating admin's Clerk user ID for identity continuity
+  const { userId: adminClerkUserId } = getAuth(req);
   // Persist state server-side — validated on callback to prevent CSRF
-  const state = createOAuthState(platform, codeVerifier);
+  const state = createOAuthState(platform, codeVerifier, adminClerkUserId ?? undefined);
 
   const url = buildOAuthUrl(platform, state, codeVerifier);
   if (!url) {
