@@ -6,10 +6,10 @@ const SECTIONS = [
   { title: "2. How We Use Your Information", body: "We use your information to process enrolments and course registrations, send academic updates, notices, and fee reminders, improve our teaching and services, and communicate about admissions and events. We do not sell or share your personal information with third parties for marketing purposes." },
   { title: "3. Information Security", body: "We implement industry-standard security measures to protect your personal information. Student data is stored securely on encrypted servers. Access is restricted to authorised Pinnacle staff only." },
   { title: "4. Cookies", body: "Our website uses cookies to enhance your browsing experience and enable portal login functionality. You may disable cookies in your browser settings, though some features may not function correctly without them." },
-  { title: "5. Data Retention", body: "We retain student records for a minimum of 5 years after the end of your enrolment for academic and legal purposes. You may request deletion of your data by contacting us at care@paconline.in." },
+  { title: "5. Data Retention", body: "We retain student records for a minimum of 5 years after the end of your enrolment for academic and legal purposes. You may request deletion of your data by contacting us at team@paconline.in." },
   { title: "6. Children's Privacy", body: "Our services are intended for students aged 11 and above. For students under 18, parental consent is required for enrolment. We do not knowingly collect data from children under 11 without verified parental consent." },
-  { title: "7. Your Rights", body: "You have the right to access, update, or delete your personal data. You may also opt out of marketing communications at any time. To exercise these rights, contact us at care@paconline.in or +91 99718 62138." },
-  { title: "8. Contact Us", body: "For privacy-related queries, contact: KCK Corporate Services Pvt. Ltd., Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C, Greater Noida, UP 201009 · care@paconline.in · +91 99718 62138" },
+  { title: "7. Your Rights", body: "You have the right to access, update, or delete your personal data. You may also opt out of marketing communications at any time. To exercise these rights, contact us at team@paconline.in or +91 99718 62138." },
+  { title: "8. Contact Us", body: "For privacy-related queries, contact: KCK Corporate Services Pvt. Ltd., Shop No. 1 to 5, Shop Mart, Plot No. GH-03, Gaur City 2 Rd, Sec. 16C, Greater Noida, UP 201009 · team@paconline.in · +91 99718 62138" },
 ];
 
 export default function PrivacyPolicyPage() {
