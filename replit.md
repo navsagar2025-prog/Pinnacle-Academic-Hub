@@ -48,6 +48,7 @@ _Populate as you build — sharp edges, "always run X before Y" rules._
 - **Fallback:** Replit-hosted Postgres in the `DATABASE_URL` secret. `lib/db/src/index.ts` and `lib/db/drizzle.config.ts` both resolve `SUPABASE_DATABASE_URL ?? DATABASE_URL`, so Supabase wins whenever it is set.
 - **Rollback:** delete the `SUPABASE_DATABASE_URL` secret (env-secrets skill) and restart the `artifacts/api-server: API Server` workflow. The app will fall back to the Replit DB. Keep the Replit `DATABASE_URL` set for ~14 days after the cutover as a safety net.
 - **Re-running data migration:** dump with `pg_dump "$DATABASE_URL" --data-only --no-owner --no-privileges --exclude-schema=drizzle -f dump.sql`, then restore through the session pooler wrapped in `BEGIN; SET session_replication_role='replica'; \i dump.sql; SET session_replication_role='origin'; COMMIT;` (Supabase's `postgres` role can't `DISABLE TRIGGER`, so use `session_replication_role` to bypass FK checks).
+- **Cutover log (May 13, 2026):** Initial Replit → Supabase cutover. Row counts verified parity across all 51 public tables (only delta: `gallery_items` had 51 pre-seeded rows in Supabase vs 0 in Replit — preserved, not lost). Owned-sequence audit returned 0 rows (all PKs are `uuid defaultRandom`), so no `setval()` resync was needed. `artifacts/api-server` restarted clean (`Startup migrations applied`, listening on 8080); `artifacts/pinnacle-website` restarted clean. `pinnacle-mobile` and `mockup-sandbox` don't open DB connections.
 
 ## Pointers
 
