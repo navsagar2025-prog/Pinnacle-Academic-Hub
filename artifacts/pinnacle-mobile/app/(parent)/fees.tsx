@@ -1,186 +1,263 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import PaymentSheet, { type PaymentResult } from "@/components/PaymentSheet";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { WebView } from "react-native-webview";
 import ScreenContainer from "@/components/ScreenContainer";
 import SectionHeader from "@/components/SectionHeader";
 import { useColors } from "@/hooks/useColors";
-import { useFeePayments } from "@/lib/feeStore";
-import { lightHaptic, mediumHaptic } from "@/lib/haptics";
-
-const NEXT_DUE = {
-  amount: 12500,
-  due: "May 10, 2025",
-  forMonth: "May 2025",
-  course: "JEE 2026 Batch",
-};
-
-const baseHistory = [
-  { month: "April 2025", amount: 12500, date: "2 Apr", mode: "Online · UPI" },
-  { month: "March 2025", amount: 12500, date: "1 Mar", mode: "Online · Card" },
-  { month: "February 2025", amount: 12500, date: "3 Feb", mode: "Cash" },
-  { month: "January 2025", amount: 12500, date: "5 Jan", mode: "Online · UPI" },
-  { month: "December 2024", amount: 15000, date: "4 Dec", mode: "Online · Net Banking" },
-];
+import { mediumHaptic } from "@/lib/haptics";
+import { useRefresh } from "@/lib/useRefresh";
+import {
+  fetchFeeReceiptHtml,
+  fetchFees,
+  hasWebsiteBase,
+  type FeeRecord,
+  type FeeSummary,
+} from "@/lib/api";
 
 const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
+const fmtDate = (iso: string | null) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "—";
+  }
+};
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  paid: { bg: "#D1FAE5", text: "#065F46" },
+  partial: { bg: "#FEF3C7", text: "#92400E" },
+  due: { bg: "#FEE2E2", text: "#991B1B" },
+  overdue: { bg: "#FCA5A5", text: "#7F1D1D" },
+  waived: { bg: "#F3F4F6", text: "#6B7280" },
+};
+
+const STATUS_ICONS: Record<string, string> = {
+  paid: "check-circle",
+  partial: "clock",
+  due: "alert-circle",
+  overdue: "alert-triangle",
+  waived: "minus-circle",
+};
 
 export default function ParentFees() {
   const colors = useColors();
-  const { payments, addPayment } = useFeePayments();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [records, setRecords] = useState<FeeRecord[]>([]);
+  const [summary, setSummary] = useState<FeeSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
-  const isPaidForMay = useMemo(
-    () => payments.some((p) => p.forMonth === NEXT_DUE.forMonth),
-    [payments],
-  );
+  const load = useCallback(async () => {
+    if (!hasWebsiteBase()) { setLoading(false); return; }
+    const result = await fetchFees();
+    if (result) {
+      setRecords(result.data);
+      setSummary(result.summary);
+    }
+    setLoading(false);
+  }, []);
 
-  const allHistory = useMemo(() => {
-    const userPaid = payments.map((p) => {
-      const d = new Date(p.paidAt);
-      return {
-        month: p.forMonth,
-        amount: p.amount,
-        date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-        mode: p.method,
-      };
-    });
-    return [...userPaid, ...baseHistory];
-  }, [payments]);
+  useEffect(() => { load(); }, [load]);
+  const { refreshing, onRefresh } = useRefresh(load);
 
-  const totals = useMemo(() => {
-    const paidExtra = payments.reduce((s, p) => s + p.amount, 0);
-    return {
-      totalPaid: 62500 + paidExtra,
-      due: isPaidForMay ? 0 : 12500,
-      total: 150000,
-    };
-  }, [payments, isPaidForMay]);
-
-  const openPay = () => {
-    if (isPaidForMay) {
-      lightHaptic();
-      Alert.alert("Already Paid", `${NEXT_DUE.forMonth} fee has been paid. Thank you!`);
+  const openReceipt = async (record: FeeRecord) => {
+    mediumHaptic();
+    setReceiptLoading(true);
+    const html = await fetchFeeReceiptHtml(record.id);
+    setReceiptLoading(false);
+    if (!html) {
+      Alert.alert("Receipt", "Could not load receipt. Please try again.");
       return;
     }
-    mediumHaptic();
-    setSheetOpen(true);
+    setReceiptHtml(html);
   };
 
-  const handleSuccess = async (r: PaymentResult) => {
-    await addPayment({
-      txnId: r.txnId,
-      amount: r.amount,
-      method: r.methodLabel,
-      paidAt: r.paidAt,
-      forMonth: NEXT_DUE.forMonth,
-    });
-    setSheetOpen(false);
-    setTimeout(
-      () =>
-        Alert.alert(
-          "Payment Successful",
-          `${fmtINR(r.amount)} paid for ${NEXT_DUE.forMonth}.\nReference: ${r.txnId.toUpperCase()}`,
-        ),
-      450,
+  const nextDueRecord = records
+    .filter(r => r.status === "due" || r.status === "overdue")
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0] ?? null;
+
+  if (loading) {
+    return (
+      <ScreenContainer>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 }}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </ScreenContainer>
     );
-  };
+  }
+
+  if (!hasWebsiteBase()) {
+    return (
+      <ScreenContainer>
+        <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Fee data unavailable in this environment.</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   return (
-    <ScreenContainer>
-      <View
-        style={[
-          styles.nextDue,
-          { backgroundColor: colors.primary, borderRadius: colors.radius, marginTop: 16 },
-        ]}
+    <>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        <Text style={[styles.dueLabel, { color: "rgba(255,255,255,0.7)" }]}>Next Fee Due</Text>
-        <Text style={[styles.dueAmount, { color: "#FFFFFF" }]}>{fmtINR(NEXT_DUE.amount)}</Text>
-        <Text style={[styles.dueDate, { color: "rgba(255,255,255,0.8)" }]}>Due: {NEXT_DUE.due}</Text>
-        <TouchableOpacity
-          onPress={openPay}
-          activeOpacity={0.85}
-          style={[
-            styles.payBtn,
-            {
-              backgroundColor: isPaidForMay ? "rgba(255,255,255,0.15)" : colors.gold,
-              borderRadius: colors.radius - 4,
-            },
-          ]}
-        >
-          <Feather name={isPaidForMay ? "check-circle" : "credit-card"} size={16} color="#FFFFFF" />
-          <Text style={styles.payLabel}>{isPaidForMay ? "Paid" : "Pay Now"}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.summaryRow, { marginTop: 16, marginBottom: 20 }]}>
-        {[
-          { label: "Total Paid", value: fmtINR(totals.totalPaid), color: colors.success },
-          { label: "Due Amount", value: fmtINR(totals.due), color: totals.due === 0 ? colors.success : colors.warning },
-          { label: "Total Fees", value: fmtINR(totals.total), color: colors.primary },
-        ].map((s, i) => (
-          <View
-            key={i}
-            style={[
-              styles.summaryCard,
-              { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
-            ]}
-          >
-            <Text style={[styles.summaryValue, { color: s.color }]}>{s.value}</Text>
-            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <SectionHeader title="Payment History" />
-      {allHistory.map((f, i) => (
-        <View
-          key={i + f.month + f.date}
-          style={[
-            styles.feeRow,
-            { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
-          ]}
-        >
-          <View style={[styles.checkIcon, { backgroundColor: colors.success + "18", borderRadius: 16 }]}>
-            <Feather name="check-circle" size={18} color={colors.success} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.month, { color: colors.foreground }]}>{f.month}</Text>
-            <Text style={[styles.feeDate, { color: colors.mutedForeground }]} numberOfLines={1}>
-              Paid on {f.date} · {f.mode}
+        {nextDueRecord ? (
+          <View style={[styles.nextDue, { backgroundColor: colors.primary, borderRadius: colors.radius }]}>
+            <Text style={[styles.dueLabel, { color: "rgba(255,255,255,0.7)" }]}>Next Fee Due</Text>
+            <Text style={[styles.dueAmount, { color: "#FFFFFF" }]}>
+              {fmtINR(nextDueRecord.amount - nextDueRecord.paidAmount)}
+            </Text>
+            <Text style={[styles.duePeriod, { color: "rgba(255,255,255,0.8)" }]}>{nextDueRecord.period}</Text>
+            <Text style={[styles.dueDate, { color: "rgba(255,255,255,0.7)" }]}>
+              Due: {fmtDate(nextDueRecord.dueDate)}
             </Text>
           </View>
-          <Text style={[styles.feeAmt, { color: colors.foreground }]}>{fmtINR(f.amount)}</Text>
-        </View>
-      ))}
+        ) : (
+          <View style={[styles.allClearCard, { backgroundColor: colors.success + "18", borderRadius: colors.radius, borderColor: colors.success + "40", borderWidth: 1 }]}>
+            <Feather name="check-circle" size={22} color={colors.success} />
+            <Text style={[styles.allClearText, { color: colors.success }]}>All fees paid — no outstanding dues</Text>
+          </View>
+        )}
 
-      <PaymentSheet
-        visible={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onSuccess={handleSuccess}
-        amount={NEXT_DUE.amount}
-        description={`${NEXT_DUE.forMonth} fee · ${NEXT_DUE.course}`}
-        payerName="Suresh Mehta"
-        payerEmail="suresh.mehta@example.com"
-      />
-    </ScreenContainer>
+        {summary && (
+          <View style={[styles.summaryRow, { marginTop: 12, marginBottom: 4 }]}>
+            {[
+              { label: "Total Fees", value: fmtINR(summary.totalFee), color: colors.primary },
+              { label: "Total Paid", value: fmtINR(summary.totalPaid), color: colors.success },
+              { label: "Outstanding", value: fmtINR(summary.totalDue), color: summary.totalDue > 0 ? "#EF4444" : colors.success },
+            ].map((s, i) => (
+              <View key={i} style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <Text style={[styles.summaryValue, { color: s.color }]}>{s.value}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Payment History" />
+          {records.length === 0 ? (
+            <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+              <Feather name="credit-card" size={28} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No fee records yet.</Text>
+            </View>
+          ) : (
+            records.map(f => {
+              const sc = STATUS_COLORS[f.status] ?? STATUS_COLORS.due;
+              const icon = STATUS_ICONS[f.status] ?? "circle";
+              const isPaid = f.status === "paid";
+              return (
+                <View
+                  key={f.id}
+                  style={[styles.feeRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}
+                >
+                  <View style={[styles.iconBox, { backgroundColor: sc.bg, borderRadius: 20 }]}>
+                    <Feather name={icon as any} size={16} color={sc.text} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.period, { color: colors.foreground }]}>{f.period}</Text>
+                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                      Due: {fmtDate(f.dueDate)}{f.paidDate ? ` · Paid: ${fmtDate(f.paidDate)}` : ""}
+                    </Text>
+                    {f.paymentMethod && (
+                      <Text style={[styles.meta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {f.paymentMethod}{f.transactionRef ? ` · ${f.transactionRef}` : ""}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.feeRight}>
+                    <Text style={[styles.amount, { color: colors.foreground }]}>{fmtINR(f.amount)}</Text>
+                    {f.paidAmount > 0 && f.paidAmount < f.amount && (
+                      <Text style={[styles.paidAmt, { color: colors.success }]}>₹{f.paidAmount.toLocaleString("en-IN")} paid</Text>
+                    )}
+                    <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                      <Text style={[styles.badgeText, { color: sc.text }]}>{f.status}</Text>
+                    </View>
+                    {isPaid && (
+                      <TouchableOpacity
+                        onPress={() => openReceipt(f)}
+                        style={[styles.receiptBtn, { borderColor: colors.border }]}
+                        activeOpacity={0.7}
+                      >
+                        {receiptLoading ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                          <Feather name="file-text" size={13} color={colors.primary} />
+                        )}
+                        <Text style={[styles.receiptBtnText, { color: colors.primary }]}>Receipt</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+
+      <Modal visible={receiptHtml !== null} animationType="slide" onRequestClose={() => setReceiptHtml(null)}>
+        <View style={{ flex: 1, backgroundColor: "#fff" }}>
+          <View style={styles.receiptHeader}>
+            <Text style={styles.receiptTitle}>Fee Receipt</Text>
+            <TouchableOpacity onPress={() => setReceiptHtml(null)} style={styles.closeBtn}>
+              <Feather name="x" size={20} color="#374151" />
+            </TouchableOpacity>
+          </View>
+          {receiptHtml && (
+            <WebView
+              source={{ html: receiptHtml }}
+              style={{ flex: 1 }}
+              originWhitelist={["*"]}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  nextDue: { padding: 20, gap: 6 },
-  dueLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  nextDue: { padding: 20, gap: 4 },
+  dueLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   dueAmount: { fontSize: 32, fontWeight: "800" },
-  dueDate: { fontSize: 13 },
-  payBtn: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 10, marginTop: 8 },
-  payLabel: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
+  duePeriod: { fontSize: 13 },
+  dueDate: { fontSize: 12 },
+  allClearCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  allClearText: { fontSize: 14, fontWeight: "600" },
   summaryRow: { flexDirection: "row", gap: 8 },
-  summaryCard: { flex: 1, borderWidth: 1, padding: 12, alignItems: "center", gap: 4 },
-  summaryValue: { fontSize: 16, fontWeight: "700" },
+  summaryCard: { flex: 1, borderWidth: 1, padding: 10, alignItems: "center", gap: 3 },
+  summaryValue: { fontSize: 14, fontWeight: "700" },
   summaryLabel: { fontSize: 10, textAlign: "center", fontWeight: "500" },
-  feeRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
-  checkIcon: { width: 36, height: 36, justifyContent: "center", alignItems: "center" },
-  month: { fontSize: 13, fontWeight: "600" },
-  feeDate: { fontSize: 11, marginTop: 2 },
-  feeAmt: { fontSize: 15, fontWeight: "700" },
+  feeRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
+  iconBox: { width: 32, height: 32, justifyContent: "center", alignItems: "center", marginTop: 2 },
+  period: { fontSize: 13, fontWeight: "600" },
+  meta: { fontSize: 11, marginTop: 2 },
+  feeRight: { alignItems: "flex-end", gap: 4, minWidth: 72 },
+  amount: { fontSize: 14, fontWeight: "700" },
+  paidAmt: { fontSize: 10 },
+  badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
+  badgeText: { fontSize: 10, fontWeight: "700" },
+  receiptBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginTop: 2 },
+  receiptBtnText: { fontSize: 11, fontWeight: "600" },
+  emptyBox: { borderWidth: 1, padding: 32, alignItems: "center", gap: 12, marginTop: 8 },
+  emptyText: { fontSize: 13, textAlign: "center" },
+  receiptHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  receiptTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  closeBtn: { padding: 4 },
 });

@@ -397,3 +397,47 @@ export function formatRelativeTime(iso: string | null): string {
     return "";
   }
 }
+
+// ---------- Fees ----------
+export type FeeRecord = {
+  id: string;
+  period: string;
+  amount: number;
+  paidAmount: number;
+  dueDate: string;
+  paidDate: string | null;
+  status: "due" | "partial" | "paid" | "overdue" | "waived";
+  paymentMethod: string | null;
+  transactionRef: string | null;
+  notes: string | null;
+};
+
+export type FeeSummary = {
+  totalFee: number;
+  totalPaid: number;
+  totalDue: number;
+  nextDue: string | null;
+};
+
+export async function fetchFees(): Promise<{ data: FeeRecord[]; summary: FeeSummary } | null> {
+  const result = await getJson<{ ok: boolean; data: FeeRecord[]; summary: FeeSummary }>(
+    `/api/v1/portal/fees`,
+  );
+  if (!result?.ok) return null;
+  return { data: result.data ?? [], summary: result.summary };
+}
+
+export async function fetchFeeReceiptHtml(id: string): Promise<string | null> {
+  if (!WEBSITE_BASE) return null;
+  try {
+    const headers = await buildHeaders();
+    const res = await fetch(`${WEBSITE_BASE}/api/v1/portal/fees/receipt/${id}`, {
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    return res.text();
+  } catch {
+    return null;
+  }
+}
