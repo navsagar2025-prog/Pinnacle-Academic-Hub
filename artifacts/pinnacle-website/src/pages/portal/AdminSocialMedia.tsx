@@ -203,6 +203,11 @@ function AccountsTab({ getToken, accounts, reload }: {
     if (a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date()) return true;
     return false;
   });
+  // Accounts that are explicitly disconnected or have no token stored (status != "connected")
+  // and are not already flagged as expired — they cannot post without reconnection.
+  const disconnectedAccounts = accounts.filter(a =>
+    a.status !== "connected" && !expiredAccounts.includes(a)
+  );
 
   return (
     <div className="space-y-4">
@@ -210,7 +215,17 @@ function AccountsTab({ getToken, accounts, reload }: {
         <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <AlertTriangle size={16} className="shrink-0 text-amber-500" />
           <span>
-            {expiredAccounts.map(a => PLATFORMS.find(p => p.id === a.platform)?.label).join(", ")} token{expiredAccounts.length > 1 ? "s have" : " has"} expired. Reconnect to restore posting.
+            <strong>{expiredAccounts.map(a => PLATFORMS.find(p => p.id === a.platform)?.label).join(", ")}</strong>
+            {" "}token{expiredAccounts.length > 1 ? "s have" : " has"} expired. Reconnect to restore posting.
+          </span>
+        </div>
+      )}
+      {disconnectedAccounts.length > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          <AlertTriangle size={16} className="shrink-0 text-red-500" />
+          <span>
+            <strong>{disconnectedAccounts.map(a => PLATFORMS.find(p => p.id === a.platform)?.label).join(", ")}</strong>
+            {" "}{disconnectedAccounts.length > 1 ? "are" : "is"} disconnected or missing a token. Connect {disconnectedAccounts.length > 1 ? "these accounts" : "this account"} to enable posting.
           </span>
         </div>
       )}
