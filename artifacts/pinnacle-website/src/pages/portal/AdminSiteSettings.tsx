@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail, Send, Eye, EyeOff, FileText, ExternalLink } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail, Send, Eye, EyeOff, FileText, ExternalLink, FlaskConical, CheckCheck } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 import { useLocation } from "wouter";
 
@@ -145,6 +145,97 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
 
       {/* Prospectus PDF Section */}
       <AdminProspectus getToken={getToken} />
+
+      {/* Developer Tools — Load Demo Data */}
+      <AdminDemoData getToken={getToken} />
+    </div>
+  );
+}
+
+// ─── Demo Data Loader ─────────────────────────────────────────────────────────
+type SeedResult = { created: string[] };
+
+export function AdminDemoData({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<SeedResult | null>(null);
+  const [skipped, setSkipped] = useState(false);
+
+  const run = async () => {
+    if (!confirm(
+      "Load demo data?\n\nThis will create:\n• Demo student (Aryan Sharma), parent (Ramesh Sharma), teacher (Priya Mehta)\n• 2 courses + batches, enrolments\n• 30-day attendance, 3 study materials, 2 recordings\n• 20 question bank questions, 1 mock test + attempt\n• 3 assignments, 3 notices, 2 doubts, 2 fee records, 1 enquiry\n\nThis is idempotent — safe to call multiple times. Continue?"
+    )) return;
+    setLoading(true);
+    setResult(null);
+    setSkipped(false);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/seed-demo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      if (!res.ok) { toast("error", json.error ?? "Seed failed"); return; }
+      if (json.skipped) {
+        setSkipped(true);
+        toast("info", "Demo data already exists — no changes made.");
+      } else {
+        setResult({ created: json.created ?? [] });
+        toast("success", `Demo data loaded — ${(json.created ?? []).length} items created!`);
+      }
+    } catch { toast("error", "Network error"); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <FlaskConical size={18} className="text-amber-600" />
+        <h2 className="text-xl font-bold text-[var(--color-navy)]">Developer Tools</h2>
+        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Dev only</span>
+      </div>
+
+      <div className="card border border-amber-200 bg-amber-50 p-5 space-y-4">
+        <div>
+          <p className="font-semibold text-amber-900 text-sm mb-1">Load Demo Data</p>
+          <p className="text-amber-800 text-xs leading-relaxed">
+            Seeds a complete set of realistic demo records — student, parent, teacher, courses, batches, attendance, study materials, class recordings, question bank questions, mock test, assignments, notices, doubts, fee records, and an enquiry.
+            The script is <strong>idempotent</strong>: if demo records already exist it does nothing.
+          </p>
+        </div>
+
+        <button
+          onClick={run}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <FlaskConical size={14} />}
+          {loading ? "Seeding…" : "Load Demo Data"}
+        </button>
+
+        {skipped && (
+          <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-100 rounded-lg px-3 py-2">
+            <CheckCheck size={15} className="text-slate-400 shrink-0" />
+            Demo data already exists — no changes were made.
+          </div>
+        )}
+
+        {result && result.created.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+              <CheckCircle2 size={13} /> {result.created.length} items created successfully
+            </p>
+            <ul className="text-xs text-slate-600 space-y-0.5 bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
+              {result.created.map((item, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

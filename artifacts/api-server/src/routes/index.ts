@@ -13,6 +13,7 @@ import admin2Router from "./admin2";
 import ga4oauthRouter from "./ga4oauth";
 import portalRouter from "./portal";
 import questionBankRouter from "./questionBank";
+import seedDemoRouter from "./seedDemo";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use("/v1", adminRouter);
 router.use("/v1", admin2Router);
 router.use("/v1", portalRouter);
 router.use("/v1", questionBankRouter);
+router.use("/v1", seedDemoRouter);
 
 export default router;
