@@ -112,7 +112,9 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   created.push("Batch: NEET Evening Batch B (Room 202, Mon–Sat 4–6 PM)");
 
   // ── Student + parent records ───────────────────────────────────────────────
-  // Primary enrollment: JEE batch
+  // Enroll demo student in BOTH batches.
+  // students.user_id has no unique constraint, so the same user can have one row per batch.
+  // Each row gets a distinct roll number so the unique constraint is satisfied.
   const studentRow = await db.execute(sql`
     INSERT INTO students (id, user_id, batch_id, roll_number, guardian_name, guardian_phone, fee_plan, enrolled_at, is_active, created_at, updated_at)
     VALUES (gen_random_uuid(), ${studentUserId}, ${jeeBatchId}, 'DEMO-001', 'Ramesh Sharma', '+91-9876543211', 'annual', NOW(), true, NOW(), NOW())
@@ -120,6 +122,15 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   `);
   const studentId = studentRow.rows[0].id as string;
   created.push("Student: Aryan Sharma enrolled in JEE Mains batch (roll DEMO-001)");
+
+  // Second enrollment — NEET batch (same user, separate student record)
+  const studentNeetRow = await db.execute(sql`
+    INSERT INTO students (id, user_id, batch_id, roll_number, guardian_name, guardian_phone, fee_plan, enrolled_at, is_active, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${studentUserId}, ${neetBatchId}, 'DEMO-002', 'Ramesh Sharma', '+91-9876543211', 'annual', NOW(), true, NOW(), NOW())
+    RETURNING id
+  `);
+  const studentNeetId = studentNeetRow.rows[0].id as string;
+  created.push("Student: Aryan Sharma also enrolled in NEET batch (roll DEMO-002)");
 
   await db.execute(sql`
     INSERT INTO parents (id, user_id, student_id, relation, created_at, updated_at)
@@ -186,7 +197,7 @@ export async function seedDemo(): Promise<SeedDemoResult> {
     { title: 'Organic Chemistry — Reaction Summary', subject: 'Chemistry',   type: 'formula',  url: 'https://example.com/demo/org-chem-reactions.pdf',    size: '1.8 MB' },
     { title: 'Cell Biology — Diagram Compendium',    subject: 'Biology',     type: 'notes',    url: 'https://example.com/demo/cell-bio-diagrams.pdf',     size: '4.2 MB' },
     { title: 'Integration Practice Worksheet',       subject: 'Mathematics', type: 'exercise', url: 'https://example.com/demo/integration-practice.pdf',  size: '3.1 MB' },
-    { title: 'Previous Year JEE Questions — PCM',   subject: 'Mixed',       type: 'pyq',      url: 'https://example.com/demo/jee-pyq-2020-2025.pdf',     size: '8.7 MB' },
+    { title: 'Previous Year JEE Questions — PCM',   subject: 'Mixed',       type: 'paper',    url: 'https://example.com/demo/jee-pyq-2020-2025.pdf',     size: '8.7 MB' },
   ];
   for (const m of materials) {
     await db.execute(sql`
@@ -525,7 +536,8 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   `);
   created.push("2 doubts (Physics: circular motion — open; Chemistry: inductive/mesomeric — resolved with teacher answer)");
 
-  // ── Fee records — JEE batch (paid) + NEET context (upcoming) ─────────────
+  // ── Fee records — one per enrollment (JEE + NEET) ─────────────────────────
+  // JEE enrollment: Q1 paid, Q2 upcoming
   await db.execute(sql`
     INSERT INTO fee_records (id, student_id, period, amount, paid_amount, due_date, paid_date, status, payment_method, transaction_ref, notes, created_at, updated_at)
     VALUES (gen_random_uuid(), ${studentId}, 'April–June 2026 (JEE Mains)', 11250, 11250, NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days', 'paid', 'online', 'REC-DEMO-001', 'Q1 2026 JEE tuition fee — paid in full. Receipt issued.', NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days')
@@ -535,7 +547,17 @@ export async function seedDemo(): Promise<SeedDemoResult> {
     INSERT INTO fee_records (id, student_id, period, amount, paid_amount, due_date, status, notes, created_at, updated_at)
     VALUES (gen_random_uuid(), ${studentId}, 'July–September 2026 (JEE Mains)', 11250, 0, ${nextDue.toISOString()}, 'due', 'Q2 2026 JEE tuition fee — due in 30 days. Pay via UPI or cash at office.', NOW(), NOW())
   `);
-  created.push("2 fee records — Q1 JEE paid (REC-DEMO-001, ₹11,250), Q2 JEE upcoming (₹11,250 due in 30 days)");
+  // NEET enrollment: Q1 paid, Q2 upcoming
+  await db.execute(sql`
+    INSERT INTO fee_records (id, student_id, period, amount, paid_amount, due_date, paid_date, status, payment_method, transaction_ref, notes, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${studentNeetId}, 'April–June 2026 (NEET UG)', 10500, 10500, NOW() - INTERVAL '12 days', NOW() - INTERVAL '10 days', 'paid', 'cash', 'REC-DEMO-002', 'Q1 2026 NEET tuition fee — paid in full at office counter.', NOW() - INTERVAL '12 days', NOW() - INTERVAL '10 days')
+  `);
+  const nextDueNeet = new Date(); nextDueNeet.setDate(nextDueNeet.getDate() + 28);
+  await db.execute(sql`
+    INSERT INTO fee_records (id, student_id, period, amount, paid_amount, due_date, status, notes, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${studentNeetId}, 'July–September 2026 (NEET UG)', 10500, 0, ${nextDueNeet.toISOString()}, 'due', 'Q2 2026 NEET tuition fee — due in 28 days.', NOW(), NOW())
+  `);
+  created.push("4 fee records — JEE: Q1 paid REC-DEMO-001 + Q2 due; NEET: Q1 paid REC-DEMO-002 + Q2 due");
 
   // ── Enquiry ───────────────────────────────────────────────────────────────
   await db.execute(sql`
