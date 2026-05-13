@@ -641,6 +641,12 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
             );
           })}
         </div>
+        {selectedPlatforms.includes("instagram") && mediaUrls.length === 0 && (
+          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+            <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+            Instagram requires at least one image or video — add media below or deselect Instagram.
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -749,35 +755,41 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 pt-2">
-        {isAdmin && !scheduleMode && (
-          <button
-            onClick={() => submit(true)}
-            disabled={saving || !content.trim() || !selectedPlatforms.length}
-            className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
-          >
-            <Send size={14} /> Publish Now
-          </button>
-        )}
-        {isAdmin && scheduleMode && (
-          <button
-            onClick={() => submit(false)}
-            disabled={saving || !content.trim() || !selectedPlatforms.length || !scheduledAt}
-            className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
-          >
-            <Calendar size={14} /> Schedule Post
-          </button>
-        )}
-        {!isAdmin && (
-          <button
-            onClick={() => submit(false)}
-            disabled={saving || !content.trim() || !selectedPlatforms.length}
-            className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
-          >
-            <Send size={14} /> Submit for Approval
-          </button>
-        )}
-      </div>
+      {(() => {
+        const instagramNeedsMedia = selectedPlatforms.includes("instagram") && mediaUrls.length === 0;
+        const baseDisabled = saving || !content.trim() || !selectedPlatforms.length || instagramNeedsMedia;
+        return (
+          <div className="flex gap-3 pt-2">
+            {isAdmin && !scheduleMode && (
+              <button
+                onClick={() => submit(true)}
+                disabled={baseDisabled}
+                className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                <Send size={14} /> Publish Now
+              </button>
+            )}
+            {isAdmin && scheduleMode && (
+              <button
+                onClick={() => submit(false)}
+                disabled={baseDisabled || !scheduledAt}
+                className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                <Calendar size={14} /> Schedule Post
+              </button>
+            )}
+            {!isAdmin && (
+              <button
+                onClick={() => submit(false)}
+                disabled={baseDisabled}
+                className="btn-primary px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                <Send size={14} /> Submit for Approval
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {!isAdmin && (
         <p className="text-xs text-slate-400">Your post will be reviewed by an admin before publishing.</p>

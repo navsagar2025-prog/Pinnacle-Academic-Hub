@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth, useUser, useClerk } from "@clerk/react";
-import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle, Share2, Send, Check, X, Clock, XCircle, CheckCircle, Link2, Upload } from "lucide-react";
+import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle, AlertTriangle, Share2, Send, Check, X, Clock, XCircle, CheckCircle, Link2, Upload } from "lucide-react";
 import { useFetch, useToast, ToastProvider } from "./portalUtils";
 
 type Section = "overview" | "schedule" | "batches" | "notices" | "social-posts";
@@ -394,6 +394,12 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
                 Some platforms are not yet connected by your admin and cannot be selected.
               </p>
             )}
+            {selectedPlatforms.includes("instagram") && mediaUrls.length === 0 && (
+              <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+                Instagram requires at least one image or video — add media below or deselect Instagram.
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -461,7 +467,8 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
           </div>
 
           <div className="pt-2">
-            <button onClick={submitPost} disabled={saving || !content.trim() || !selectedPlatforms.length}
+            <button onClick={submitPost}
+              disabled={saving || !content.trim() || !selectedPlatforms.length || (selectedPlatforms.includes("instagram") && mediaUrls.length === 0)}
               className="flex items-center gap-2 px-5 py-2 rounded-lg bg-purple-700 text-white text-sm font-medium hover:bg-purple-800 transition-colors disabled:opacity-50">
               <Send size={14} /> {saving ? "Submitting…" : "Submit for Approval"}
             </button>
