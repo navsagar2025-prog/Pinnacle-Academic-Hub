@@ -10,7 +10,7 @@ import {
   socialTeacherAccess, socialPosts, socialAccounts, blogPosts,
   questionBank, questionBookmarks,
 } from "@workspace/db/schema";
-import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, or, isNull, gte, desc, asc, inArray, sql, arrayContains } from "drizzle-orm";
 import busboy from "busboy";
 import { createWriteStream, createReadStream, existsSync, mkdirSync } from "fs";
 import { join as pathJoin, extname } from "path";
@@ -271,6 +271,84 @@ router.post("/portal/student/doubts", async (req, res) => {
     }).returning();
     res.json({ ok: true, data: row });
   } catch (e) { res.status(500).json({ error: "Failed to submit doubt" }); }
+});
+
+// ── Student: Question Bank ────────────────────────────────────────────────────
+router.get("/portal/student/question-bank", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const {
+      subject, topic, difficulty, questionType, examTarget,
+      search, page = "1", pageSize = "20", limit,
+    } = req.query as Record<string, string>;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const pageLimit = Math.min(100, parseInt(limit ?? pageSize) || 20);
+    const offset = (pageNum - 1) * pageLimit;
+
+    const conditions = [
+      isNull(questionBank.deletedAt),
+      eq(questionBank.isPublished, true),
+      eq(questionBank.reviewStatus, "approved"),
+    ];
+
+    if (subject) conditions.push(eq(questionBank.subject, subject));
+    if (topic) conditions.push(eq(questionBank.topic, topic));
+    if (difficulty) conditions.push(eq(questionBank.difficulty, difficulty as "easy" | "medium" | "hard"));
+    if (questionType) conditions.push(eq(questionBank.questionType, questionType as "mcq" | "short" | "long" | "numerical"));
+    if (examTarget) conditions.push(arrayContains(questionBank.examTarget, [examTarget]));
+
+    let searchCondition = undefined;
+    if (search?.trim()) {
+      const tsq = search.trim().split(/\s+/).map((w: string) => w + ":*").join(" & ");
+      searchCondition = sql`${questionBank.searchVector} @@ to_tsquery('english', ${tsq})`;
+    }
+
+    const whereClause = searchCondition ? and(...conditions, searchCondition) : and(...conditions);
+
+    const rows = await db.select({
+      id: questionBank.id,
+      subject: questionBank.subject,
+      topic: questionBank.topic,
+      difficulty: questionBank.difficulty,
+      questionType: questionBank.questionType,
+      questionText: questionBank.questionText,
+      options: questionBank.options,
+      correctAnswer: questionBank.correctAnswer,
+      solution: questionBank.solution,
+      imageUrl: questionBank.imageUrl,
+      marks: questionBank.marks,
+      examTarget: questionBank.examTarget,
+    }).from(questionBank)
+      .where(whereClause)
+      .orderBy(desc(questionBank.createdAt))
+      .limit(pageLimit)
+      .offset(offset);
+
+    // Fetch bookmarks for this student if logged in
+    let bookmarkedIds: string[] = [];
+    if (clerkUserId) {
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+      if (user) {
+        const [student] = await db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)).limit(1);
+        if (student && rows.length > 0) {
+          const qIds = rows.map(r => r.id);
+          const bmarks = await db.select({ questionId: questionBookmarks.questionId })
+            .from(questionBookmarks)
+            .where(and(
+              eq(questionBookmarks.studentId, student.id),
+              sql`${questionBookmarks.questionId} = ANY(ARRAY[${sql.join(qIds.map(id => sql`${id}::uuid`), sql`, `)}])`,
+            ));
+          bookmarkedIds = bmarks.map(b => b.questionId);
+        }
+      }
+    }
+
+    res.json({ ok: true, items: rows, bookmarkedIds, page: pageNum, pageSize: pageLimit });
+  } catch (e) {
+    console.error("GET /portal/student/question-bank error:", e);
+    res.status(500).json({ error: "Failed to fetch question bank" });
+  }
 });
 
 // ── Student: mock test submission ─────────────────────────────────────────────

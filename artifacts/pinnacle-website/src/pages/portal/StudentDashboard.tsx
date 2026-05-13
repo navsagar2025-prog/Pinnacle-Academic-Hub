@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Bell, BookOpen, ClipboardList, BarChart2,
   CalendarCheck, CreditCard, LogOut, Menu, Download, AlertCircle,
   Video, MessageCircle, ExternalLink, Send, CheckCircle2, Library,
-  Search, BookMarked, ChevronLeft, ChevronRight, Eye, EyeOff,
+  Search, Filter, BookMarked, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  Bookmark, BookmarkCheck, Eye, EyeOff, X as XIcon,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { useFetch, apiMutation, trackEvent } from "./portalUtils";
@@ -443,6 +444,284 @@ function DoubtsSection({ getToken }: { getToken: () => Promise<string | null> })
           {(data?.data ?? []).length === 0 && <p className="text-slate-400 text-sm">You haven't submitted any doubts yet.</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Question Bank ──────────────────────────────────────────────────────────────
+type QBQ = {
+  id: string; subject: string; topic: string | null; difficulty: string;
+  questionType: string; questionText: string; options: Record<string, string> | null;
+  correctAnswer: string; solution: string | null; imageUrl: string | null;
+  marks: number; examTarget: string[] | null;
+};
+type QBResponse = { ok: boolean; items: QBQ[]; page: number; pageSize: number };
+
+const QB_SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology"];
+const QB_DIFFICULTIES = ["easy", "medium", "hard"];
+const QB_TYPES = ["mcq", "numerical", "short"];
+const QB_EXAM_TARGETS = ["JEE_MAIN", "JEE_ADVANCED", "NEET"];
+const DIFF_COLORS: Record<string, string> = {
+  easy: "bg-green-100 text-green-700", medium: "bg-yellow-100 text-yellow-700", hard: "bg-red-100 text-red-700",
+};
+const TYPE_COLORS: Record<string, string> = {
+  mcq: "bg-blue-100 text-blue-700", numerical: "bg-purple-100 text-purple-700", short: "bg-slate-100 text-slate-600",
+};
+
+function QuestionDrawer({ q, onClose, getToken }: { q: QBQ; onClose: () => void; getToken: () => Promise<string | null> }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const isMcq = q.questionType === "mcq" && q.options != null;
+
+  const toggleBookmark = async () => {
+    const next = !bookmarked;
+    setBookmarked(next);
+    try {
+      const token = await getToken();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      await fetch(`${base}/api/v1/question-bank/${q.id}/bookmark`, {
+        method: next ? "POST" : "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { setBookmarked(!next); }
+  };
+
+  const recordAttempt = async (answer: string, correct: boolean) => {
+    try {
+      const token = await getToken();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      await fetch(`${base}/api/v1/question-bank/${q.id}/attempt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submittedAnswer: answer, isCorrect: correct }),
+      });
+    } catch { /* silent */ }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <div className="bg-white h-full w-full max-w-lg overflow-y-auto shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white z-10 border-b border-slate-100 px-5 py-4 flex items-center justify-between shrink-0">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{q.subject}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${DIFF_COLORS[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_COLORS[q.questionType] ?? ""}`}>{q.questionType}</span>
+            {q.marks && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{q.marks} marks</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleBookmark} className={`p-1.5 rounded-lg transition-colors ${bookmarked ? "text-yellow-500" : "text-slate-400 hover:text-yellow-500"}`}>
+              {bookmarked ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+            </button>
+            <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"><XIcon size={18} /></button>
+          </div>
+        </div>
+
+        <div className="p-5 flex-1">
+          {q.topic && <p className="text-xs text-slate-500 mb-2">Topic: {q.topic}</p>}
+          {q.imageUrl && (
+            <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center p-2">
+              <img src={q.imageUrl} alt="Question diagram" className="max-w-full max-h-48 object-contain" />
+            </div>
+          )}
+          <p className="text-slate-800 text-sm font-medium leading-relaxed mb-4">{q.questionText}</p>
+
+          {isMcq && (
+            <div className="space-y-2 mb-4">
+              {(["A","B","C","D"] as const).map(opt => {
+                const text = q.options?.[opt];
+                if (!text) return null;
+                const isCorrect = revealed && opt === q.correctAnswer;
+                const isWrong = revealed && picked === opt && opt !== q.correctAnswer;
+                const isSelected = picked === opt;
+                return (
+                  <button key={opt} disabled={revealed}
+                    onClick={() => { setPicked(opt); }}
+                    className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border rounded-lg text-sm transition-colors ${
+                      isCorrect ? "border-green-400 bg-green-50 text-green-800" :
+                      isWrong ? "border-red-400 bg-red-50 text-red-800" :
+                      isSelected ? "border-[var(--color-navy)] bg-blue-50" :
+                      "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    }`}>
+                    <span className="font-bold text-xs w-5 shrink-0">{opt}.</span>
+                    <span className="flex-1">{text}</span>
+                    {isCorrect && <span className="text-green-600 text-xs font-semibold">✓</span>}
+                    {isWrong && <span className="text-red-600 text-xs font-semibold">✗</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!revealed ? (
+            <button
+              disabled={isMcq && !picked}
+              onClick={() => {
+                setRevealed(true);
+                if (isMcq && picked) recordAttempt(picked, picked === q.correctAnswer);
+              }}
+              className="flex items-center gap-2 bg-[var(--color-teal)] text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-40 hover:bg-opacity-90 transition-colors"
+            >
+              <Eye size={14} /> Reveal Answer & Solution
+            </button>
+          ) : (
+            <div className="mt-2 p-4 bg-[var(--color-navy)]/5 border border-[var(--color-navy)]/10 rounded-xl">
+              <p className="text-sm font-semibold text-[var(--color-navy)] mb-2">
+                {isMcq ? (picked === q.correctAnswer ? "Correct! 🎉" : `Correct Answer: ${q.correctAnswer}`) : `Answer: ${q.correctAnswer}`}
+              </p>
+              {q.solution && (
+                <>
+                  <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Solution</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{q.solution}</p>
+                </>
+              )}
+              <button onClick={() => { setRevealed(false); setPicked(null); }}
+                className="mt-3 text-xs text-[var(--color-teal)] font-semibold hover:underline">
+                ↻ Try Again
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionBankSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const [subject, setSubject] = useState("");
+  const [difficulty, setDifficulty] = useState("");
+  const [questionType, setQuestionType] = useState("");
+  const [examTarget, setExamTarget] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedQ, setSelectedQ] = useState<QBQ | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const buildPath = () => {
+    const params = new URLSearchParams({ page: String(page), pageSize: "20" });
+    if (subject) params.set("subject", subject);
+    if (difficulty) params.set("difficulty", difficulty);
+    if (questionType) params.set("questionType", questionType);
+    if (examTarget) params.set("examTarget", examTarget);
+    if (search.trim()) params.set("search", search.trim());
+    return `/portal/student/question-bank?${params}`;
+  };
+
+  const { data, loading } = useFetch<QBResponse>(buildPath(), getToken);
+
+  const applySearch = () => { setSearch(searchInput); setPage(1); };
+  const clearFilters = () => { setSubject(""); setDifficulty(""); setQuestionType(""); setExamTarget(""); setSearch(""); setSearchInput(""); setPage(1); };
+
+  const items = data?.items ?? [];
+  const hasFilters = subject || difficulty || questionType || examTarget || search;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-xl font-bold text-[var(--color-navy)]">Question Bank</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Practice JEE & NEET questions with solutions</p>
+        </div>
+        <button onClick={() => setShowFilters(f => !f)}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${showFilters || hasFilters ? "bg-[var(--color-navy)] text-white border-[var(--color-navy)]" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+          <Filter size={12} /> Filters {hasFilters ? "●" : ""}
+        </button>
+      </div>
+
+      {/* Subject tabs */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        {["", ...QB_SUBJECTS].map(s => (
+          <button key={s} onClick={() => { setSubject(s); setPage(1); }}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${subject === s ? "bg-[var(--color-navy)] text-white border-[var(--color-navy)]" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}>
+            {s || "All Subjects"}
+          </button>
+        ))}
+      </div>
+
+      {/* Search bar */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && applySearch()}
+          placeholder="Search questions…"
+          className="w-full border border-slate-200 rounded-lg pl-8 pr-24 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]" />
+        <button onClick={applySearch}
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-[var(--color-teal)] text-white text-xs font-semibold px-3 py-1 rounded-md">
+          Search
+        </button>
+      </div>
+
+      {/* Additional filters */}
+      {showFilters && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <select value={difficulty} onChange={e => { setDifficulty(e.target.value); setPage(1); }}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="">All Difficulties</option>
+            {QB_DIFFICULTIES.map(d => <option key={d} value={d} className="capitalize">{d}</option>)}
+          </select>
+          <select value={questionType} onChange={e => { setQuestionType(e.target.value); setPage(1); }}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="">All Types</option>
+            {QB_TYPES.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+          </select>
+          <select value={examTarget} onChange={e => { setExamTarget(e.target.value); setPage(1); }}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="">All Exams</option>
+            {QB_EXAM_TARGETS.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+          </select>
+          {hasFilters && (
+            <button onClick={clearFilters} className="col-span-full text-xs text-slate-500 hover:text-red-500 text-left px-1">
+              ✕ Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading && <div className="text-slate-400 text-sm py-8 text-center">Loading questions…</div>}
+
+      {!loading && (
+        <>
+          <div className="space-y-2">
+            {items.map(q => (
+              <button key={q.id} onClick={() => setSelectedQ(q)}
+                className="w-full text-left card border border-slate-200 hover:border-[var(--color-teal)] hover:shadow-sm transition-all p-4">
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{q.subject}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${DIFF_COLORS[q.difficulty] ?? ""}`}>{q.difficulty}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_COLORS[q.questionType] ?? ""}`}>{q.questionType.toUpperCase()}</span>
+                  {q.imageUrl && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">📷 Diagram</span>}
+                </div>
+                <p className="text-sm text-slate-800 line-clamp-2">{q.questionText}</p>
+                {q.topic && <p className="text-xs text-slate-400 mt-1">{q.topic}</p>}
+              </button>
+            ))}
+            {items.length === 0 && !loading && (
+              <div className="text-center py-12">
+                <FlaskConical className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-slate-400 text-sm">No questions found. Try different filters.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {items.length > 0 && (
+            <div className="flex items-center justify-center gap-3 mt-5">
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                className="text-xs text-slate-500 hover:text-[var(--color-navy)] disabled:opacity-30 px-3 py-1.5 border border-slate-200 rounded-lg">
+                ← Previous
+              </button>
+              <span className="text-xs text-slate-600">Page {page}</span>
+              <button disabled={items.length < 20} onClick={() => setPage(p => p + 1)}
+                className="text-xs text-slate-500 hover:text-[var(--color-navy)] disabled:opacity-30 px-3 py-1.5 border border-slate-200 rounded-lg">
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {selectedQ && <QuestionDrawer q={selectedQ} onClose={() => setSelectedQ(null)} getToken={getToken} />}
     </div>
   );
 }

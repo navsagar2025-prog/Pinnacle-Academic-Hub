@@ -12,6 +12,7 @@ import adminRouter from "./admin";
 import admin2Router from "./admin2";
 import ga4oauthRouter from "./ga4oauth";
 import portalRouter from "./portal";
+import questionBankRouter from "./questionBank";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
 router.use("/v1", adminRouter);
 router.use("/v1", admin2Router);
 router.use("/v1", portalRouter);
+router.use("/v1", questionBankRouter);
 
 export default router;
