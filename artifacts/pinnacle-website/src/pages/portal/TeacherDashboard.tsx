@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth, useUser, useClerk } from "@clerk/react";
-import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle, Share2, Send, Check, X, Clock, XCircle, CheckCircle, Link2 } from "lucide-react";
+import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle, Share2, Send, Check, X, Clock, XCircle, CheckCircle, Link2, Upload } from "lucide-react";
 import { useFetch, useToast, ToastProvider } from "./portalUtils";
 
 type Section = "overview" | "schedule" | "batches" | "notices" | "social-posts";
@@ -196,7 +196,7 @@ type SocialAccess = { isEnabled: boolean; platformsAllowed: string[] };
 type SocialPost = {
   id: string; content: string; mediaUrls: string[]; platformTargets: string[];
   status: string; scheduledAt: string | null; publishedAt: string | null;
-  postedByName: string; rejectedReason: string | null; createdAt: string;
+  postedByName: string; rejectionNote: string | null; createdAt: string;
 };
 
 function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | null> }) {
@@ -212,7 +212,9 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
   const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allowedPlatforms = access?.platformsAllowed ?? [];
 
@@ -229,13 +231,37 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
     setMediaUrlInput("");
   }
 
+  async function uploadFile(file: File) {
+    setUploading(true);
+    try {
+      const token = await getToken();
+      const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${BASE}/api/v1/portal/teacher/social/media-upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Upload failed");
+      setMediaUrls(prev => [...prev, json.url]);
+      addToast("File uploaded", "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Upload failed", "error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function submitPost() {
     if (!content.trim()) { addToast("Post content is required", "error"); return; }
     if (!selectedPlatforms.length) { addToast("Select at least one platform", "error"); return; }
     setSaving(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${import.meta.env.BASE_URL}api/portal/teacher/social/posts`, {
+      const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${BASE}/api/v1/portal/teacher/social/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content: content.trim(), platformTargets: selectedPlatforms, mediaUrls }),
@@ -264,8 +290,24 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
     );
   }
 
+  const rejectedPosts = posts.filter(p => p.status === "rejected");
+
   return (
     <div>
+      {rejectedPosts.length > 0 && (
+        <div className="mb-4 flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <XCircle size={16} className="shrink-0 mt-0.5 text-red-500" />
+          <div>
+            <p className="font-semibold">{rejectedPosts.length} post{rejectedPosts.length > 1 ? "s" : ""} rejected by admin</p>
+            {rejectedPosts[0].rejectionNote && (
+              <p className="text-xs mt-0.5 text-red-600">Latest: &ldquo;{rejectedPosts[0].rejectionNote}&rdquo;</p>
+            )}
+            <button onClick={() => setActiveTab("history")} className="text-xs mt-1 underline text-red-600 hover:text-red-800">
+              View History →
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Social Posts</h2>
@@ -310,18 +352,26 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
             <p className="text-xs text-slate-400 mt-1">{content.length} characters</p>
           </div>
 
-          {/* Media URLs */}
+          {/* Media — upload or paste URL */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-              <Link2 size={13} /> Media URLs (optional)
+              <Link2 size={13} /> Media (optional)
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <input className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-400 focus:border-purple-400 outline-none"
                 placeholder="Paste an image or video URL…"
                 value={mediaUrlInput} onChange={e => setMediaUrlInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }} />
               <button onClick={addMediaUrl} type="button"
                 className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Add</button>
+            </div>
+            <div>
+              <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/quicktime" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-purple-400 hover:text-purple-600 transition-colors disabled:opacity-50">
+                <Upload size={12} /> {uploading ? "Uploading…" : "Upload from device"}
+              </button>
             </div>
             {mediaUrls.length > 0 && (
               <ul className="mt-2 space-y-1">
@@ -334,7 +384,6 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
                 ))}
               </ul>
             )}
-            <p className="text-xs text-slate-400 mt-1">Paste a direct link to an image or video hosted online.</p>
           </div>
 
           <div className="pt-2">
@@ -375,9 +424,9 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
                       )}
                       <span className="text-xs text-slate-400 ml-auto">{new Date(post.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
                     </div>
-                    {post.status === "rejected" && post.rejectedReason && (
+                    {post.status === "rejected" && post.rejectionNote && (
                       <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">
-                        <strong>Reason:</strong> {post.rejectedReason}
+                        <strong>Reason:</strong> {post.rejectionNote}
                       </p>
                     )}
                     {post.status === "published" && post.publishedAt && (

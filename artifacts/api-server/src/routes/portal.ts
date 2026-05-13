@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { requireAuth, getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
@@ -10,6 +10,10 @@ import {
   socialTeacherAccess, socialPosts,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
+import busboy from "busboy";
+import { createWriteStream, createReadStream, existsSync, mkdirSync } from "fs";
+import { join as pathJoin, extname } from "path";
+import { randomUUID } from "crypto";
 
 const router = Router();
 router.use(requireAuth());
@@ -726,6 +730,51 @@ router.get("/portal/teacher/social/posts", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
+// Media upload for teacher posts. Accepts a multipart file (field: "file"),
+// stores it in the uploads directory, and returns a public URL.
+router.post("/portal/teacher/social/media-upload", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user || (user.role !== "teacher" && user.role !== "admin")) { res.status(403).json({ error: "Staff access required" }); return; }
+
+    const bb = busboy({ headers: req.headers, limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
+
+    let savedUrl: string | null = null;
+    let fileErr: string | null = null;
+
+    const uploadDir = pathJoin(process.cwd(), "uploads", "social");
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+    await new Promise<void>((resolve, reject) => {
+      bb.on("file", (_field, file, info) => {
+        const ext = info.filename.split(".").pop()?.toLowerCase() ?? "bin";
+        const allowed = ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mov"];
+        if (!allowed.includes(ext)) { fileErr = "Unsupported file type"; file.resume(); return; }
+        const filename = `${randomUUID()}.${ext}`;
+        const savePath = pathJoin(uploadDir, filename);
+        const ws = createWriteStream(savePath);
+        file.pipe(ws);
+        ws.on("finish", () => {
+          const base = process.env.WEBSITE_BASE_URL ?? "";
+          savedUrl = `${base}/api/v1/social/media/${filename}`;
+        });
+        ws.on("error", reject);
+      });
+      bb.on("finish", resolve);
+      bb.on("error", reject);
+      req.pipe(bb);
+    });
+
+    if (fileErr) { res.status(400).json({ error: fileErr }); return; }
+    if (!savedUrl) { res.status(400).json({ error: "No file received" }); return; }
+    res.json({ ok: true, url: savedUrl });
+  } catch (e) {
+    console.error("Teacher media upload error:", e);
+    res.status(500).json({ error: "Upload failed" });
+  }
+});
+
 // Submit a social post for admin approval. Enforces teacher access + platform allowlist.
 router.post("/portal/teacher/social/posts", async (req, res) => {
   const { userId: clerkUserId } = getAuth(req);
@@ -760,6 +809,19 @@ router.post("/portal/teacher/social/posts", async (req, res) => {
     console.error("POST /portal/teacher/social/posts error:", e);
     res.status(500).json({ error: "Failed to submit post" });
   }
+});
+
+// Serve uploaded social media files
+router.get("/social/media/:filename", (req: Request, res: Response) => {
+  const { filename } = req.params;
+  if (!/^[\w-]+\.\w+$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
+  const filePath = pathJoin(process.cwd(), "uploads", "social", filename);
+  if (!existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }
+  const ext = extname(filename).slice(1).toLowerCase();
+  const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp4: "video/mp4", mov: "video/quicktime" };
+  res.setHeader("Content-Type", mime[ext] ?? "application/octet-stream");
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  createReadStream(filePath).pipe(res);
 });
 
 export default router;

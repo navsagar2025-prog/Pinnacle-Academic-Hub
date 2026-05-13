@@ -13,6 +13,7 @@ import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzl
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
+import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms } from "../lib/social.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -1419,22 +1420,24 @@ router.post("/admin/social/accounts", async (req, res) => {
   if (!platform || !accountName || !accessToken) {
     res.status(400).json({ error: "platform, accountName, and accessToken are required" }); return;
   }
-  const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
-  if (!PLATFORMS.includes(platform)) { res.status(400).json({ error: "Invalid platform" }); return; }
+  const VALID_PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
+  if (!VALID_PLATFORMS.includes(platform)) { res.status(400).json({ error: "Invalid platform" }); return; }
   try {
     const { userId: clerkUserId } = getAuth(req);
     const [admin] = await db.select({ email: users.email }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    const encryptedAccess = encryptToken(accessToken);
+    const encryptedRefresh = refreshToken ? encryptToken(refreshToken) : null;
     const [row] = await db.insert(socialAccounts).values({
       platform, accountName, accountId: accountId || null,
-      accessToken, refreshToken: refreshToken || null,
+      accessToken: encryptedAccess, refreshToken: encryptedRefresh,
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
       pageId: pageId || null, status: "connected",
       connectedBy: admin?.email || null, connectedAt: new Date(),
     }).onConflictDoUpdate({
       target: socialAccounts.platform,
       set: {
-        accountName, accountId: accountId || null, accessToken,
-        refreshToken: refreshToken || null,
+        accountName, accountId: accountId || null,
+        accessToken: encryptedAccess, refreshToken: encryptedRefresh,
         tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
         pageId: pageId || null, status: "connected",
         connectedBy: admin?.email || null, connectedAt: new Date(), updatedAt: new Date(),
@@ -1494,18 +1497,40 @@ router.post("/admin/social/posts", async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
     const [user] = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
-    const status = publishNow ? "published" : scheduledAt ? "scheduled" : "pending";
+    const now = new Date();
+
+    // Determine initial status
+    let status = scheduledAt ? "scheduled" : publishNow ? "pending_publish" : "pending";
+    let publishedAt: Date | null = null;
+    let publishedUrls: Record<string, string> = {};
+    let errorMessage: string | null = null;
+
     const [row] = await db.insert(socialPosts).values({
       content, mediaUrls: mediaUrls || [], platformTargets, status,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-      publishedAt: publishNow ? new Date() : null,
+      publishedAt: null,
       postedByUserId: user?.id || null, postedByName: user?.name || null,
       linkedBlogId: linkedBlogId || null, linkedNoticeId: linkedNoticeId || null,
     }).returning();
+
+    // If publishNow, attempt real platform publishing immediately
     if (publishNow && row) {
-      logger.info({ postId: row.id, platforms: platformTargets }, "Social post marked published — configure SOCIAL_* env vars to enable live platform publishing");
+      const { publishedUrls: urls, errors } = await publishPostToPlatforms(
+        platformTargets as string[], content, mediaUrls || [],
+      );
+      const allFailed = Object.keys(errors).length === (platformTargets as string[]).length;
+      status = allFailed ? "failed" : "published";
+      publishedAt = allFailed ? null : now;
+      publishedUrls = urls;
+      errorMessage = Object.keys(errors).length
+        ? Object.entries(errors).map(([p, e]) => `${p}: ${e}`).join("; ")
+        : null;
+      await db.update(socialPosts).set({ status, publishedAt, publishedUrls, errorMessage, updatedAt: now } as never)
+        .where(eq(socialPosts.id, row.id));
+      logger.info({ postId: row.id, platforms: platformTargets, publishedUrls, errors }, "Admin publish-now executed");
     }
-    res.status(201).json({ ok: true, data: row });
+
+    res.status(201).json({ ok: true, data: { ...row, status, publishedAt, publishedUrls, errorMessage } });
   } catch (e) {
     console.error("POST /admin/social/posts error:", e);
     res.status(500).json({ error: "Failed to create post" });
@@ -1517,25 +1542,45 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    const now = new Date();
+    const updates: Record<string, unknown> = { updatedAt: now };
     if (content !== undefined) updates.content = content;
-    if (status !== undefined) {
-      updates.status = status;
-      if (status === "approved" || status === "published") {
-        updates.approvedByUserId = user?.id || null;
-        updates.publishedAt = new Date();
-        updates.status = "published";
-      }
-      if (status === "rejected" && rejectionNote !== undefined) updates.rejectionNote = rejectionNote;
-    }
     if (scheduledAt !== undefined) updates.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
     if (platformTargets !== undefined) updates.platformTargets = platformTargets;
     if (mediaUrls !== undefined) updates.mediaUrls = mediaUrls;
+
+    if (status !== undefined) {
+      if (status === "approved" || status === "published") {
+        // Fetch current post for content/targets if not overridden
+        const [existing] = await db.select().from(socialPosts).where(eq(socialPosts.id, req.params.id)).limit(1);
+        if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+        const targets = (platformTargets ?? existing.platformTargets) as string[];
+        const postContent = content ?? existing.content;
+        const postMedia = (mediaUrls ?? existing.mediaUrls) as string[];
+
+        const { publishedUrls, errors } = await publishPostToPlatforms(targets, postContent, postMedia);
+        const allFailed = Object.keys(errors).length === targets.length;
+
+        updates.status = allFailed ? "failed" : "published";
+        updates.publishedAt = allFailed ? null : now;
+        updates.publishedUrls = publishedUrls;
+        updates.errorMessage = Object.keys(errors).length
+          ? Object.entries(errors).map(([p, e]) => `${p}: ${e}`).join("; ")
+          : null;
+        updates.approvedByUserId = user?.id || null;
+        logger.info({ postId: req.params.id, publishedUrls, errors }, "Admin approve/publish executed");
+      } else if (status === "rejected") {
+        updates.status = "rejected";
+        if (rejectionNote !== undefined) updates.rejectionNote = rejectionNote;
+        // Notify teacher via in-portal flag (teacherNotified=false is default — teacher sees it in history)
+        logger.info({ postId: req.params.id, rejectionNote }, "Social post rejected");
+      } else {
+        updates.status = status;
+      }
+    }
+
     const [row] = await db.update(socialPosts).set(updates as never).where(eq(socialPosts.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    if (updates.status === "published") {
-      logger.info({ postId: row.id, platforms: row.platformTargets }, "Social post approved and published — configure SOCIAL_* env vars for live platform posting");
-    }
     res.json({ ok: true, data: row });
   } catch (e) {
     console.error("PATCH /admin/social/posts/:id error:", e);
@@ -1549,6 +1594,81 @@ router.delete("/admin/social/posts/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
+// ── Social Media: OAuth ──────────────────────────────────────────────────────
+
+// GET /admin/social/oauth/initiate/:platform
+// Returns the OAuth redirect URL (or error if client ID env var is not set).
+// The frontend opens a popup window with this URL.
+router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
+  const { platform } = req.params;
+  const state = `${platform}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const url = buildOAuthUrl(platform, state);
+  if (!url) {
+    res.status(400).json({
+      error: `OAuth not configured for ${platform}. Set the required SOCIAL_${platform.toUpperCase()}_APP_ID / CLIENT_ID env var.`,
+    });
+    return;
+  }
+  res.json({ ok: true, url, state });
+});
+
+// GET /admin/social/oauth/callback?code=...&state=...&platform=...
+// Platform redirects here after user approves. Exchanges code for token and
+// saves the account to the DB, then renders a self-closing page.
+router.get("/admin/social/oauth/callback", async (req, res) => {
+  const { code, state, error: oauthError } = req.query as Record<string, string>;
+
+  if (oauthError) {
+    res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:${JSON.stringify(oauthError)}}, "*");window.close();</script>`);
+    return;
+  }
+  if (!code || !state) {
+    res.status(400).send("<p>Missing code or state. Close this window and try again.</p>");
+    return;
+  }
+
+  const platform = state.split(":")[0];
+  if (!platform) { res.status(400).send("<p>Invalid state.</p>"); return; }
+
+  try {
+    const result = await exchangeOAuthCode(platform, code);
+    if (!result) {
+      res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:"Token exchange failed — check server env vars"}, "*");window.close();</script>`);
+      return;
+    }
+
+    const encAccess = encryptToken(result.accessToken);
+    const encRefresh = result.refreshToken ? encryptToken(result.refreshToken) : null;
+
+    await db.insert(socialAccounts).values({
+      platform,
+      accountName: result.accountName ?? `${platform} (OAuth)`,
+      accountId: result.accountId ?? null,
+      accessToken: encAccess,
+      refreshToken: encRefresh,
+      tokenExpiresAt: result.expiresAt ?? null,
+      status: "connected",
+      connectedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: socialAccounts.platform,
+      set: {
+        accessToken: encAccess,
+        refreshToken: encRefresh,
+        tokenExpiresAt: result.expiresAt ?? null,
+        status: "connected",
+        connectedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info({ platform }, "Social account connected via OAuth");
+    res.send(`<script>window.opener?.postMessage({type:"social_oauth_success",platform:${JSON.stringify(platform)}}, "*");window.close();</script>`);
+  } catch (e) {
+    logger.error({ e }, "OAuth callback error");
+    res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:"Server error during token exchange"}, "*");window.close();</script>`);
   }
 });
 

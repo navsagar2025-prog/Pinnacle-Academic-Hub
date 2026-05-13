@@ -36,6 +36,72 @@ async function applyStartupMigrations(): Promise<void> {
       WHERE action      = 'fee_confirmation_sent'
         AND entity_type = 'fee_record'
   `);
+
+  // Social media tables — idempotent creation for fresh deployments
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS social_accounts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      platform TEXT NOT NULL,
+      account_name TEXT NOT NULL,
+      account_id TEXT,
+      access_token TEXT,
+      refresh_token TEXT,
+      token_expires_at TIMESTAMPTZ,
+      page_id TEXT,
+      status TEXT NOT NULL DEFAULT 'connected',
+      connected_by TEXT,
+      connected_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS social_accounts_platform_uq ON social_accounts (platform)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS social_posts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      content TEXT NOT NULL,
+      media_urls JSONB DEFAULT '[]',
+      platform_targets JSONB NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'pending',
+      scheduled_at TIMESTAMPTZ,
+      published_at TIMESTAMPTZ,
+      posted_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      posted_by_name TEXT,
+      approved_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      rejection_note TEXT,
+      linked_blog_id UUID,
+      linked_notice_id UUID,
+      published_urls JSONB DEFAULT '{}',
+      error_message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS social_posts_status_idx ON social_posts (status)
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS social_posts_scheduled_at_idx ON social_posts (scheduled_at)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS social_teacher_access (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      platforms_allowed JSONB NOT NULL DEFAULT '[]',
+      is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      granted_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS social_teacher_access_user_uq ON social_teacher_access (user_id)
+  `);
+
   logger.info("Startup migrations applied");
 }
 

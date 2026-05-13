@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Share2, Plus, X, Check, AlertTriangle, RefreshCw,
   Clock, CheckCircle, XCircle, Send, Link2, Calendar,
   Trash2, Wifi, WifiOff, Settings, Users, FileText,
-  ChevronDown, ExternalLink, Eye, Image as ImageIcon,
+  ChevronDown, ExternalLink, Eye, Image as ImageIcon, Upload,
 } from "lucide-react";
 import { SkeletonList, useToast } from "./portalUtils";
 
@@ -157,6 +157,33 @@ function AccountsTab({ getToken, accounts, reload }: {
     }
   }
 
+  async function connectViaOAuth(platformId: string) {
+    try {
+      const json = await apiFetch(`/admin/social/oauth/initiate/${platformId}`, getToken);
+      if (!json.ok) { addToast(json.error ?? "OAuth not configured — use manual token entry", "error"); return; }
+      const popup = window.open(json.url, "social_oauth", "width=600,height=700,scrollbars=yes");
+      if (!popup) { addToast("Popup blocked — please allow popups for this site", "error"); return; }
+      function onMessage(e: MessageEvent) {
+        if (e.data?.type === "social_oauth_success") {
+          addToast(`${PLATFORMS.find(p => p.id === e.data.platform)?.label} connected via OAuth`, "success");
+          setConnecting(null);
+          reload();
+          window.removeEventListener("message", onMessage);
+        } else if (e.data?.type === "social_oauth_error") {
+          addToast(e.data.error ?? "OAuth failed", "error");
+          window.removeEventListener("message", onMessage);
+        }
+      }
+      window.addEventListener("message", onMessage);
+      // Clean up listener if popup is closed without messaging
+      const poll = setInterval(() => {
+        if (popup.closed) { clearInterval(poll); window.removeEventListener("message", onMessage); }
+      }, 500);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "OAuth failed", "error");
+    }
+  }
+
   async function disconnect(accountId: string, label: string) {
     if (!confirm(`Disconnect ${label}? This will prevent future posting to this platform.`)) return;
     setDisconnecting(accountId);
@@ -281,6 +308,22 @@ function AccountsTab({ getToken, accounts, reload }: {
                     <ExternalLink size={11} /> View Documentation
                   </a>
                 </div>
+
+                {/* OAuth connect (when server OAuth is configured) */}
+                <button
+                  type="button"
+                  onClick={() => connectViaOAuth(platform.id)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--color-navy)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <span className="text-base">{platform.emoji}</span>
+                  Connect {platform.label} via OAuth
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 border-t border-slate-200" />
+                  <span className="text-xs text-slate-400">or connect manually</span>
+                  <div className="flex-1 border-t border-slate-200" />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Account / Page Name *</label>
                   <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. Pinnacle Academic Classes" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} />
@@ -288,7 +331,7 @@ function AccountsTab({ getToken, accounts, reload }: {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{platform.tokenLabel} *</label>
                   <textarea rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono resize-none" placeholder="Paste token here…" value={form.accessToken} onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))} />
-                  <p className="text-xs text-slate-400 mt-1">Stored in the database — only admins can access it. The field is masked after saving.</p>
+                  <p className="text-xs text-slate-400 mt-1">Token is encrypted before storage — only used for platform API calls. The field is masked after saving.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -336,6 +379,30 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
   const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function uploadMedia(file: File) {
+    setUploading(true);
+    try {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${BASE}/api/v1/portal/teacher/social/media-upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Upload failed");
+      setMediaUrls(prev => [...prev, json.url]);
+      addToast("File uploaded", "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Upload failed", "error");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const connectedPlatforms = accounts.filter(a => a.status === "connected" && !(a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date()));
 
@@ -434,12 +501,12 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
         </div>
       </div>
 
-      {/* Media URLs */}
+      {/* Media — upload or paste URL */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-          <ImageIcon size={13} /> Media URLs (optional)
+          <ImageIcon size={13} /> Media (optional)
         </label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-2">
           <input
             className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-[var(--color-teal)] focus:border-[var(--color-teal)] outline-none"
             placeholder="Paste an image or video URL…"
@@ -463,7 +530,15 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
             if (!mediaUrls.includes(url)) setMediaUrls(prev => [...prev, url]);
             setMediaUrlInput("");
           }} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-            Add
+            Add URL
+          </button>
+        </div>
+        <div>
+          <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/quicktime" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-[var(--color-teal)] hover:text-[var(--color-teal)] transition-colors disabled:opacity-50">
+            <Upload size={12} /> {uploading ? "Uploading…" : "Upload from device"}
           </button>
         </div>
         {mediaUrls.length > 0 && (
@@ -477,7 +552,6 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
             ))}
           </ul>
         )}
-        <p className="text-xs text-slate-400 mt-1">Paste a direct link to an image or video hosted online.</p>
       </div>
 
       {/* Link to notice or blog */}
