@@ -86,6 +86,14 @@ export default function Footer() {
                 className="h-12 w-auto"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
+              <div>
+                <div className="text-white font-bold text-base font-[family-name:var(--font-playfair)] leading-tight">
+                  Pinnacle
+                </div>
+                <div className="text-[var(--color-gold)] text-xs font-semibold leading-tight">
+                  Academic Classes
+                </div>
+              </div>
             </div>
             <p className="text-white/70 text-sm leading-relaxed">
               Greater Noida's premier coaching institute for JEE, NEET, and board
