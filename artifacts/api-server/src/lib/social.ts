@@ -81,15 +81,26 @@ export type PublishResult =
  * account is connected in the DB. Set these for simple single-account
  * deployments that don't use the OAuth connection UI.
  *
- * Facebook:   FACEBOOK_PAGE_ACCESS_TOKEN + FACEBOOK_PAGE_ID
- * Instagram:  INSTAGRAM_PAGE_ACCESS_TOKEN + INSTAGRAM_USER_ID
- * Twitter/X:  TWITTER_BEARER_TOKEN  (must be an OAuth 2.0 *user-context* token
- *             obtained with tweet.write scope — not an app-only bearer token)
- * LinkedIn:   LINKEDIN_ACCESS_TOKEN + LINKEDIN_PERSON_URN (e.g. urn:li:person:xxx)
+ * Each platform accepts two env-var naming conventions — both are equivalent:
+ *
+ * Facebook:
+ *   FACEBOOK_ACCESS_TOKEN  (short alias per task spec)   + FACEBOOK_PAGE_ID
+ *   FACEBOOK_PAGE_ACCESS_TOKEN  (descriptive)            + FACEBOOK_PAGE_ID
+ *
+ * Instagram:
+ *   INSTAGRAM_PAGE_ACCESS_TOKEN + INSTAGRAM_USER_ID
+ *
+ * Twitter/X:
+ *   TWITTER_BEARER_TOKEN  — MUST be an OAuth 2.0 USER-CONTEXT access token
+ *   (obtained with tweet.write scope). App-only bearer tokens cannot post tweets.
+ *
+ * LinkedIn:
+ *   LINKEDIN_ACCESS_TOKEN + LINKEDIN_PERSON_URN  (e.g. urn:li:person:XXXX)
  */
 function getEnvCredentials(platform: string): { token: string; pageId?: string; accountId?: string } | null {
   if (platform === "facebook") {
-    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    // Accept both short alias (FACEBOOK_ACCESS_TOKEN) and descriptive name
+    const token = process.env.FACEBOOK_ACCESS_TOKEN ?? process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
     const pageId = process.env.FACEBOOK_PAGE_ID;
     if (token && pageId) return { token, pageId };
   }
@@ -108,6 +119,44 @@ function getEnvCredentials(platform: string): { token: string; pageId?: string; 
     if (token && accountId) return { token, accountId };
   }
   return null;
+}
+
+/**
+ * Emits startup warnings for common social media env-var misconfigurations.
+ * Call once from the server startup sequence (after logger is ready).
+ *
+ * Checks for:
+ *   - FACEBOOK_ACCESS_TOKEN set but FACEBOOK_PAGE_ID missing (required pair)
+ *   - INSTAGRAM_PAGE_ACCESS_TOKEN set but INSTAGRAM_USER_ID missing
+ *   - LINKEDIN_ACCESS_TOKEN set but LINKEDIN_PERSON_URN missing
+ *   - TWITTER_BEARER_TOKEN set (reminds operator it must be user-context token)
+ */
+export function warnSocialEnvMisconfig(): void {
+  const fbToken = process.env.FACEBOOK_ACCESS_TOKEN ?? process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  if (fbToken && !process.env.FACEBOOK_PAGE_ID) {
+    logger.warn(
+      "FACEBOOK_ACCESS_TOKEN is set but FACEBOOK_PAGE_ID is missing. " +
+      "Facebook publishing will fail until FACEBOOK_PAGE_ID is configured."
+    );
+  }
+  if (process.env.INSTAGRAM_PAGE_ACCESS_TOKEN && !process.env.INSTAGRAM_USER_ID) {
+    logger.warn(
+      "INSTAGRAM_PAGE_ACCESS_TOKEN is set but INSTAGRAM_USER_ID is missing. " +
+      "Instagram publishing will fail until INSTAGRAM_USER_ID is configured."
+    );
+  }
+  if (process.env.LINKEDIN_ACCESS_TOKEN && !process.env.LINKEDIN_PERSON_URN) {
+    logger.warn(
+      "LINKEDIN_ACCESS_TOKEN is set but LINKEDIN_PERSON_URN is missing. " +
+      "LinkedIn publishing will fail until LINKEDIN_PERSON_URN (urn:li:person:XXXX) is configured."
+    );
+  }
+  if (process.env.TWITTER_BEARER_TOKEN) {
+    logger.debug(
+      "TWITTER_BEARER_TOKEN is set. Ensure this is an OAuth 2.0 user-context access token " +
+      "(tweet.write scope), NOT an app-only bearer token — app-only tokens cannot post tweets."
+    );
+  }
 }
 
 export async function publishToAccount(

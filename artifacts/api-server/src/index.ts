@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { startFeeReminderScheduler, startSocialPostScheduler } from "./lib/scheduler.js";
+import { warnSocialEnvMisconfig } from "./lib/social.js";
 
 const rawPort = process.env["PORT"];
 
@@ -116,6 +117,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Warn early if social media env vars look misconfigured (missing required pair)
+  warnSocialEnvMisconfig();
 
   applyStartupMigrations()
     .then(() => {
