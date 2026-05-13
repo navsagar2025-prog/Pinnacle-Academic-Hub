@@ -132,7 +132,7 @@ router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (re
   try {
     const state = crypto.randomBytes(24).toString("hex");
     const redirectUri = buildCallbackUri(req);
-    const stateExpiresAt = (Date.now() + 15 * 60 * 1000).toString(); // 15 min
+    const stateExpiresAt = (Date.now() + 10 * 60 * 1000).toString(); // 10 min
 
     const upserts: Promise<void>[] = [
       upsertSetting("ga4_property_id", propertyId, "GA4 Property ID"),
@@ -175,6 +175,7 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
   const failRedirect = `${frontendBase}/portal/admin?section=ga4-setup&ga4=error`;
 
   if (oauthError || !code || !state) {
+    try { await clearOAuthState(); } catch { /* best-effort */ }
     res.redirect(`${failRedirect}&reason=${encodeURIComponent(oauthError ?? "missing_code")}`);
     return;
   }
