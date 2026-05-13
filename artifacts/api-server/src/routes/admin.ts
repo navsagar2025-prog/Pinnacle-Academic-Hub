@@ -1549,10 +1549,10 @@ router.post("/admin/social/accounts", async (req, res) => {
 router.patch("/admin/social/accounts/:id", async (req, res) => {
   const { status, accountName } = req.body;
   try {
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    const updates: Partial<typeof socialAccounts.$inferInsert> = { updatedAt: new Date() };
     if (status !== undefined) updates.status = status;
     if (accountName !== undefined) updates.accountName = accountName;
-    const [row] = await db.update(socialAccounts).set(updates as never).where(eq(socialAccounts.id, req.params.id)).returning();
+    const [row] = await db.update(socialAccounts).set(updates).where(eq(socialAccounts.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     const { accessToken: _a, refreshToken: _r, ...safe } = row;
     res.json({ ok: true, data: safe });
@@ -1620,7 +1620,7 @@ router.post("/admin/social/posts", async (req, res) => {
       errorMessage = Object.keys(errors).length
         ? Object.entries(errors).map(([p, e]) => `${p}: ${e}`).join("; ")
         : null;
-      await db.update(socialPosts).set({ status, publishedAt, publishedUrls, errorMessage, updatedAt: now } as never)
+      await db.update(socialPosts).set({ status, publishedAt, publishedUrls, errorMessage, updatedAt: now })
         .where(eq(socialPosts.id, row.id));
       logger.info({ postId: row.id, platforms: platformTargets, publishedUrls, errors }, "Admin publish-now executed");
     }
@@ -1638,11 +1638,11 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
     const { userId: clerkUserId } = getAuth(req);
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
     const now = new Date();
-    const updates: Record<string, unknown> = { updatedAt: now };
+    const updates: Partial<typeof socialPosts.$inferInsert> = { updatedAt: now };
     if (content !== undefined) updates.content = content;
     if (scheduledAt !== undefined) updates.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
-    if (platformTargets !== undefined) updates.platformTargets = platformTargets;
-    if (mediaUrls !== undefined) updates.mediaUrls = mediaUrls;
+    if (platformTargets !== undefined) updates.platformTargets = platformTargets as string[];
+    if (mediaUrls !== undefined) updates.mediaUrls = mediaUrls as string[];
 
     if (status !== undefined) {
       if (status === "approved" || status === "published") {
@@ -1685,7 +1685,7 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
       }
     }
 
-    const [row] = await db.update(socialPosts).set(updates as never).where(eq(socialPosts.id, req.params.id)).returning();
+    const [row] = await db.update(socialPosts).set(updates).where(eq(socialPosts.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true, data: row });
   } catch (e) {

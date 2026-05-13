@@ -217,7 +217,7 @@ async function publishScheduledPosts(): Promise<void> {
         publishedUrls,
         errorMessage,
         updatedAt: now,
-      } as never).where(eq(socialPosts.id, post.id));
+      }).where(eq(socialPosts.id, post.id));
 
       if (allFailed) {
         logger.warn({ postId: post.id, platforms, errors }, "Scheduled social post failed on all platforms");
