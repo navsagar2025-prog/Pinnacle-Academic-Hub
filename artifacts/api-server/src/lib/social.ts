@@ -7,7 +7,7 @@
 
 import crypto from "crypto";
 import { db } from "@workspace/db";
-import { socialAccounts } from "@workspace/db/schema";
+import { socialAccounts, blogPosts, notices } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
@@ -121,6 +121,23 @@ export async function publishToAccount(
 /**
  * Publish to all target platforms for a post. Returns a summary of results.
  */
+const WEBSITE_BASE_URL = process.env.WEBSITE_BASE_URL ?? "";
+
+export async function resolveLinkedContentUrl(
+  linkedBlogId: string | null | undefined,
+  linkedNoticeId: string | null | undefined,
+): Promise<string | null> {
+  if (linkedBlogId) {
+    const [post] = await db.select({ slug: blogPosts.slug }).from(blogPosts).where(eq(blogPosts.id, linkedBlogId)).limit(1);
+    if (post?.slug) return `${WEBSITE_BASE_URL}/blog/${post.slug}`;
+  }
+  if (linkedNoticeId) {
+    const [notice] = await db.select({ id: notices.id }).from(notices).where(eq(notices.id, linkedNoticeId)).limit(1);
+    if (notice) return `${WEBSITE_BASE_URL}/notices`;
+  }
+  return null;
+}
+
 export async function publishPostToPlatforms(
   platformTargets: string[],
   content: string,

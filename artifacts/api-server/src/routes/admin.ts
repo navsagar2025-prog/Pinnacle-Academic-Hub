@@ -13,7 +13,7 @@ import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzl
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
-import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, createOAuthState, validateOAuthState, generateCodeVerifier } from "../lib/social.js";
+import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier } from "../lib/social.js";
 
 const router = Router();
 
@@ -1607,8 +1607,10 @@ router.post("/admin/social/posts", async (req, res) => {
 
     // If publishNow, attempt real platform publishing immediately
     if (publishNow && row) {
+      const linkedUrl = await resolveLinkedContentUrl(linkedBlogId, linkedNoticeId);
+      const publishContent = linkedUrl ? `${content}\n\n${linkedUrl}` : content;
       const { publishedUrls: urls, errors } = await publishPostToPlatforms(
-        platformTargets as string[], content, mediaUrls || [],
+        platformTargets as string[], publishContent, mediaUrls || [],
       );
       const allFailed = Object.keys(errors).length === (platformTargets as string[]).length;
       status = allFailed ? "failed" : "published";
@@ -1659,8 +1661,10 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
           const targets = (platformTargets ?? existing.platformTargets) as string[];
           const postContent = content ?? existing.content;
           const postMedia = (mediaUrls ?? existing.mediaUrls) as string[];
+          const linkedUrl = await resolveLinkedContentUrl(existing.linkedBlogId, existing.linkedNoticeId);
+          const fullContent = linkedUrl ? `${postContent}\n\n${linkedUrl}` : postContent;
 
-          const { publishedUrls, errors } = await publishPostToPlatforms(targets, postContent, postMedia);
+          const { publishedUrls, errors } = await publishPostToPlatforms(targets, fullContent, postMedia);
           const allFailed = Object.keys(errors).length === targets.length;
 
           updates.status = allFailed ? "failed" : "published";

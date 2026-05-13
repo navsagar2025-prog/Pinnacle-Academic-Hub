@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { feeRecords, students, parents, users, socialPosts } from "@workspace/db/schema";
 import { eq, and, gte, lte, or, sql } from "drizzle-orm";
-import { publishPostToPlatforms } from "./social.js";
+import { publishPostToPlatforms, resolveLinkedContentUrl } from "./social.js";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
@@ -202,8 +202,10 @@ async function publishScheduledPosts(): Promise<void> {
     for (const post of due) {
       const platforms: string[] = (post.platformTargets as string[]) ?? [];
       const mediaUrls: string[] = (post.mediaUrls as string[]) ?? [];
+      const linkedUrl = await resolveLinkedContentUrl(post.linkedBlogId, post.linkedNoticeId);
+      const publishContent = linkedUrl ? `${post.content}\n\n${linkedUrl}` : post.content;
 
-      const { publishedUrls, errors } = await publishPostToPlatforms(platforms, post.content, mediaUrls);
+      const { publishedUrls, errors } = await publishPostToPlatforms(platforms, publishContent, mediaUrls);
 
       const allFailed = Object.keys(errors).length === platforms.length;
       const newStatus = allFailed ? "failed" : "published";
