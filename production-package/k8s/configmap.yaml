@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pinnacle-config
+  namespace: pinnacle
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  WEBSITE_BASE_URL: "https://yourdomain.com"
+  GOOGLE_GA4_PROPERTY_ID: ""
+  VITE_GA4_MEASUREMENT_ID: ""
