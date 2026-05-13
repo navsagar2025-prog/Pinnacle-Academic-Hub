@@ -465,6 +465,14 @@ router.post("/admin/fee-records", async (req, res) => {
 router.patch("/admin/fee-records/:id", async (req, res) => {
   const { status, paidAmount, paidDate, paymentMethod, transactionRef, notes } = req.body;
   try {
+    // Fetch current status before updating so we can detect a real "→ paid" transition.
+    const [current] = await db
+      .select({ status: feeRecords.status })
+      .from(feeRecords)
+      .where(eq(feeRecords.id, req.params.id))
+      .limit(1);
+    const wasAlreadyPaid = current?.status === "paid";
+
     const [row] = await db
       .update(feeRecords)
       .set({
@@ -481,7 +489,8 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
 
     res.json({ ok: true, data: row });
 
-    if (status === "paid" && row && row.studentId && emailAvailable()) {
+    // Only send confirmation on a genuine unpaid → paid transition.
+    if (status === "paid" && !wasAlreadyPaid && row && row.studentId && emailAvailable()) {
       const portalUrl = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://pinnacle.edu.in/portal";
       const paidDateStr = row.paidDate
         ? new Date(row.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })

@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { feeRecords, students, parents, users, siteSettings } from "@workspace/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { feeRecords, students, parents, users, siteSettings, auditLogs } from "@workspace/db/schema";
+import { eq, and, gte, lte, or } from "drizzle-orm";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
@@ -10,11 +10,14 @@ async function sendFeeReminders(): Promise<void> {
   if (!emailAvailable()) return;
 
   const now = new Date();
-  // Target records due exactly 3 days from today — natural idempotency:
-  // tomorrow the same record will be 2 days away and won't match again.
+  // Target records due exactly 3 days from today.
   const threeDaysAhead = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3);
   const threeDaysAheadEnd = new Date(threeDaysAhead);
   threeDaysAheadEnd.setHours(23, 59, 59, 999);
+
+  // Key stored in audit_logs.details to deduplicate per record per due-date
+  // window across process restarts and multi-instance runs.
+  const reminderDateKey = threeDaysAhead.toISOString().slice(0, 10);
 
   try {
     const dueSoon = await db
@@ -30,7 +33,7 @@ async function sendFeeReminders(): Promise<void> {
       .from(feeRecords)
       .where(
         and(
-          eq(feeRecords.status, "due"),
+          or(eq(feeRecords.status, "due"), eq(feeRecords.status, "overdue")),
           gte(feeRecords.dueDate, threeDaysAhead),
           lte(feeRecords.dueDate, threeDaysAheadEnd),
         ),
@@ -51,11 +54,31 @@ async function sendFeeReminders(): Promise<void> {
       const amountDue = record.amount - record.paidAmount;
       if (amountDue <= 0) continue;
 
+      const studentId = record.studentId;
+
+      // Idempotency: check audit_logs for a same-day reminder already sent
+      // for this fee record. Survives process restarts and multi-instance runs.
+      const existingLogs = await db
+        .select({ details: auditLogs.details })
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.action, "fee_reminder_sent"),
+            eq(auditLogs.entityType, "fee_record"),
+            eq(auditLogs.entityId, record.id),
+          ),
+        );
+      const alreadySentToday = existingLogs.some(
+        (l) => (l.details as { date?: string } | null)?.date === reminderDateKey,
+      );
+      if (alreadySentToday) {
+        logger.debug({ recordId: record.id, reminderDateKey }, "Skipping already-sent reminder");
+        continue;
+      }
+
       const dueDateStr = record.dueDate
         ? new Date(record.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
         : "";
-
-      const studentId = record.studentId;
 
       const [studentRow] = await db
         .select({ userId: students.userId })
@@ -93,6 +116,7 @@ async function sendFeeReminders(): Promise<void> {
         }
       }
 
+      let sentCount = 0;
       for (const recipient of recipients) {
         try {
           const { subject, html } = buildFeeReminderEmail({
@@ -104,9 +128,20 @@ async function sendFeeReminders(): Promise<void> {
             portalUrl: PORTAL_URL,
           });
           await sendEmail({ to: recipient.email, subject, html });
+          sentCount++;
         } catch (err) {
           logger.warn({ err, recordId: record.id, to: recipient.email }, "Fee reminder email failed");
         }
+      }
+
+      // Record the send so future runs (including same-day restarts) skip this record.
+      if (sentCount > 0) {
+        await db.insert(auditLogs).values({
+          action: "fee_reminder_sent",
+          entityType: "fee_record",
+          entityId: record.id,
+          details: { date: reminderDateKey, recipients: sentCount },
+        });
       }
     }
 
