@@ -15,9 +15,10 @@ if (!ANTHROPIC_BASE) throw new Error("AI_INTEGRATIONS_ANTHROPIC_BASE_URL not set
 
 const pool = new Pool({ connectionString: DB_URL });
 
-const BATCH_SIZE = 40;
-const CONCURRENCY = 4;
+const BATCH_SIZE = 20;
+const CONCURRENCY = 6;
 const TARGET_PER_SUBJECT = 2000;
+const MAX_OUTPUT_TOKENS = 16384;
 
 // ── SVG diagram generator ────────────────────────────────────────────────
 function makeSvg(subject: string, topic: string): string {
@@ -167,7 +168,7 @@ Rules:
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5",
-      max_tokens: 8192,
+      max_tokens: MAX_OUTPUT_TOKENS,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -192,7 +193,6 @@ Rules:
 
 // ── Insert into DB ───────────────────────────────────────────────────────
 async function insertBatch(
-  client: InstanceType<typeof Pool>["prototype"],
   subject: string,
   questions: any[],
   examTargets: string[],
@@ -206,7 +206,7 @@ async function insertBatch(
       const qType = ["mcq", "numerical", "short", "long"].includes(q.questionType)
         ? q.questionType : "mcq";
       const diff = ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium";
-      await client.query(
+      await pool.query(
         `INSERT INTO question_bank.question_bank
           (id, subject, topic, class_grade, difficulty, question_type,
            question_text, options, correct_answer, solution,
@@ -247,7 +247,6 @@ async function seedSubject(subject: string, cfg: { examTargets: string[]; topics
   const { topics, examTargets } = cfg;
   const batches = Math.ceil(TARGET_PER_SUBJECT / BATCH_SIZE);
   let total = 0;
-  const client = await pool.connect();
 
   console.log(`\n[${subject}] Generating ${TARGET_PER_SUBJECT} questions across ${batches} batches…`);
 
@@ -257,21 +256,31 @@ async function seedSubject(subject: string, cfg: { examTargets: string[]; topics
       group.map(async (bi) => {
         const slice = topics.slice((bi * 5) % topics.length).concat(topics.slice(0, 5));
         const qs = await generateBatch(subject, slice, BATCH_SIZE, examTargets);
-        return insertBatch(client, subject, qs, examTargets);
+        return insertBatch(subject, qs, examTargets);
       }),
     );
     for (const r of results) {
       if (r.status === "fulfilled") total += r.value;
       else console.error(`  ✗ Batch error: ${r.reason?.message ?? r.reason}`);
     }
-    process.stdout.write(`\r  [${subject}] ${total}/${TARGET_PER_SUBJECT} inserted…`);
+    console.log(`  [${subject}] ${total}/${TARGET_PER_SUBJECT} inserted (round ${Math.floor(i/CONCURRENCY)+1}/${Math.ceil(batches/CONCURRENCY)})`);
     if (i + CONCURRENCY < batches) await new Promise((r) => setTimeout(r, 600));
   }
 
-  client.release();
-  console.log(`\n  ✓ [${subject}] Done: ${total} inserted.`);
+  console.log(`  ✓ [${subject}] Done: ${total} inserted.`);
   return total;
 }
+
+process.on("unhandledRejection", (r) => {
+  console.error("UNHANDLED REJECTION:", r);
+  process.exitCode = 1;
+  process.exit(1);
+});
+process.on("uncaughtException", (e) => {
+  console.error("UNCAUGHT EXCEPTION:", e);
+  process.exitCode = 1;
+  process.exit(1);
+});
 
 // ── Entry ────────────────────────────────────────────────────────────────
 async function main() {
