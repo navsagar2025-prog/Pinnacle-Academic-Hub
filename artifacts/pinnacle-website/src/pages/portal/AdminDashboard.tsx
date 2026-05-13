@@ -21,7 +21,7 @@ import { AdminUsers } from "./AdminUsers";
 import { AdminSiteSettings, AdminSEO, AdminWatermarks, AdminGA4Setup } from "./AdminSiteSettings";
 import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
 import { AdminRecordingsSection } from "./AdminRecordings";
-import { ToastProvider, SkeletonList } from "./portalUtils";
+import { ToastProvider, SkeletonList, useToast } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -989,6 +989,7 @@ const FEE_COLORS: Record<string, string> = { paid: "bg-green-100 text-green-700"
 const EMPTY_CREATE = { studentId: "", period: "", amount: "", dueDate: "" };
 
 function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
   const { data, loading, reload } = useFetch<FeeRow[]>("/admin/fee-records", getToken);
   const [modal, setModal] = useState<FeeRow | null>(null);
   const [form, setForm] = useState({ status: "due", paidAmount: "", paidDate: "", paymentMethod: "", transactionRef: "", notes: "" });
@@ -1018,15 +1019,20 @@ function FeesSection({ getToken }: { getToken: () => Promise<string | null> }) {
   async function save() {
     if (!modal) return;
     setSaving(true);
-    await apiCall("PATCH", `/admin/fee-records/${modal.id}`, { status: form.status, paidAmount: Number(form.paidAmount), paidDate: form.paidDate || null, paymentMethod: form.paymentMethod || null, transactionRef: form.transactionRef || null, notes: form.notes || null }, getToken);
-    setSaving(false); setModal(null); reload();
+    const result = await apiCall("PATCH", `/admin/fee-records/${modal.id}`, { status: form.status, paidAmount: Number(form.paidAmount), paidDate: form.paidDate || null, paymentMethod: form.paymentMethod || null, transactionRef: form.transactionRef || null, notes: form.notes || null }, getToken);
+    setSaving(false);
+    if (result.ok) { toast("success", "Fee record updated"); setModal(null); reload(); }
+    else toast("error", (result as { error?: string }).error ?? "Failed to update fee record");
   }
 
   async function create() {
     if (!createForm.studentId || !createForm.period || !createForm.amount || !createForm.dueDate) return;
+    if (Number(createForm.amount) <= 0) { toast("error", "Amount must be greater than zero"); return; }
     setCreating(true);
-    await apiCall("POST", "/admin/fee-records", { studentId: createForm.studentId, period: createForm.period, amount: Number(createForm.amount), dueDate: createForm.dueDate }, getToken);
-    setCreating(false); setShowCreate(false); reload();
+    const result = await apiCall("POST", "/admin/fee-records", { studentId: createForm.studentId, period: createForm.period, amount: Number(createForm.amount), dueDate: createForm.dueDate }, getToken);
+    setCreating(false);
+    if (result.ok) { toast("success", "Fee installment added"); setShowCreate(false); reload(); }
+    else toast("error", (result as { error?: string }).error ?? "Failed to add fee record");
   }
 
   const filtered = filterStudentId ? (data ?? []).filter(f => f.studentId === filterStudentId) : (data ?? []);
