@@ -56,15 +56,19 @@ export default function StudentFees() {
   const [records, setRecords] = useState<FeeRecord[]>([]);
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!hasWebsiteBase()) { setLoading(false); return; }
+    setFetchError(false);
     const result = await fetchFees();
     if (result) {
       setRecords(result.data);
       setSummary(result.summary);
+    } else {
+      setFetchError(true);
     }
     setLoading(false);
   }, []);
@@ -104,6 +108,19 @@ export default function StudentFees() {
         <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
           <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Fee data unavailable in this environment.</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <ScreenContainer onRefresh={onRefresh} refreshing={refreshing}>
+        <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Feather name="alert-circle" size={32} color={colors.warning} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Could not load fee data. Pull down to retry.
+          </Text>
         </View>
       </ScreenContainer>
     );
