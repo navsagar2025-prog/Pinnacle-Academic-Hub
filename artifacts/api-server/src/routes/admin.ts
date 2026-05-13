@@ -24,11 +24,13 @@ const router = Router();
 // uses a cryptographically random one-time token with a 10-minute TTL.
 router.get("/admin/social/oauth/callback", async (req, res) => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
-  const closeWithMsg = (data: Record<string, string>) =>
-    res.send(`<!doctype html><html><body><script>
-      window.opener?.postMessage(${JSON.stringify(data)}, window.location.origin);
-      window.close();
-    </script></body></html>`);
+  // Embed JSON in a script block safely: replace "</" with "<\/" so the HTML
+  // parser never sees "</script>" even if attacker-controlled strings are present.
+  // This is the WHATWG-specified safe escape for JSON-in-script contexts.
+  const closeWithMsg = (data: Record<string, string>) => {
+    const json = JSON.stringify(data).replace(/<\//g, "<\\/");
+    res.send(`<!doctype html><html><body><script>window.opener?.postMessage(${json},location.origin);window.close();<\/script></body></html>`);
+  };
 
   if (oauthError) { closeWithMsg({ type: "social_oauth_error", error: oauthError }); return; }
   if (!code || !state) {
