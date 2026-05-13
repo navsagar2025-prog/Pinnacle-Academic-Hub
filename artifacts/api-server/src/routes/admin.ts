@@ -574,23 +574,41 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
             ? new Date(row.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
             : null;
 
+          let sentCount = 0;
           for (const recipient of recipients) {
-            const { subject, html } = buildFeePaymentConfirmationEmail({
-              recipientName: recipient.name,
-              studentName,
-              feeRecordId: row.id,
-              period: row.period,
-              amount: row.amount,
-              paidAmount: row.paidAmount,
-              paidDate: paidDateStr,
-              dueDate: dueDateStr,
-              paymentMethod: row.paymentMethod ?? null,
-              transactionRef: row.transactionRef ?? null,
-              notes: row.notes ?? null,
-              status: row.status,
-              portalUrl,
-            });
-            await sendEmail({ to: recipient.email, subject, html });
+            try {
+              const { subject, html } = buildFeePaymentConfirmationEmail({
+                recipientName: recipient.name,
+                studentName,
+                feeRecordId: row.id,
+                period: row.period,
+                amount: row.amount,
+                paidAmount: row.paidAmount,
+                paidDate: paidDateStr,
+                dueDate: dueDateStr,
+                paymentMethod: row.paymentMethod ?? null,
+                transactionRef: row.transactionRef ?? null,
+                notes: row.notes ?? null,
+                status: row.status,
+                portalUrl,
+              });
+              await sendEmail({ to: recipient.email, subject, html });
+              sentCount++;
+            } catch (sendErr) {
+              logger.error({ err: sendErr, feeRecordId: row.id, to: recipient.email }, "Fee confirmation send failed");
+            }
+          }
+
+          // If every send failed, release the claim so the fee record can be
+          // retried (e.g., on the next paid status update or manual re-trigger).
+          if (sentCount === 0 && recipients.length > 0) {
+            await db.execute(sql`
+              DELETE FROM audit_logs
+              WHERE action      = 'fee_confirmation_sent'
+                AND entity_type = 'fee_record'
+                AND entity_id   = ${row.id}
+            `);
+            logger.warn({ feeRecordId: row.id }, "All confirmation sends failed; claim released for retry");
           }
         } catch (err) {
           logger.error({ err, feeRecordId: row.id }, "Fee payment confirmation email failed");
