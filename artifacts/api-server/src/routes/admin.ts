@@ -11,7 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, inArray, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
-import { emailAvailable, sendEmail, sendTestEmail, loadSmtpSettings, buildFeePaymentConfirmationEmail, buildSocialPostRejectionEmail } from "../lib/email.js";
+import { emailAvailableAsync, sendEmail, sendTestEmail, loadSmtpSettings, encryptSmtpPassword, type SmtpConfig, buildFeePaymentConfirmationEmail, buildSocialPostRejectionEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier, fetchAndCachePostMetrics } from "../lib/social.js";
 
@@ -585,7 +585,7 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
     res.json({ ok: true, data: row });
 
     // Only send confirmation on a genuine unpaid → paid transition.
-    if (status === "paid" && !wasAlreadyPaid && row && row.studentId && emailAvailable()) {
+    if (status === "paid" && !wasAlreadyPaid && row && row.studentId && await emailAvailableAsync()) {
       const portalUrl = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://paconline.in/portal";
       const paidDateStr = row.paidDate
         ? new Date(row.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
@@ -914,7 +914,11 @@ router.put("/admin/smtp-settings", async (req, res) => {
     const body = req.body as Partial<Record<typeof SMTP_KEYS[number], string>>;
     const updates: { key: string; value: string }[] = [];
     for (const key of SMTP_KEYS) {
-      if (key === "smtp_pass" && !body[key]) continue;
+      if (key === "smtp_pass") {
+        if (!body[key]) continue;
+        updates.push({ key, value: encryptSmtpPassword(body[key] as string) });
+        continue;
+      }
       if (body[key] !== undefined) {
         updates.push({ key, value: body[key] as string });
       }
@@ -935,15 +939,30 @@ router.put("/admin/smtp-settings", async (req, res) => {
 
 router.post("/admin/smtp-settings/test", async (req, res) => {
   try {
-    const { to } = req.body as { to?: string };
+    const { to, smtpConfig } = req.body as { to?: string; smtpConfig?: Partial<SmtpConfig> };
     if (!to || !to.includes("@")) {
       res.status(400).json({ error: "A valid recipient email address is required" });
       return;
     }
-    const cfg = await loadSmtpSettings();
-    if (!cfg) {
-      res.status(400).json({ error: "SMTP not configured. Please save host, username and password first." });
-      return;
+    let cfg: SmtpConfig | null = null;
+    if (smtpConfig?.host && smtpConfig?.user && smtpConfig?.pass) {
+      // Use the caller-supplied (possibly unsaved) SMTP config directly
+      cfg = {
+        host: smtpConfig.host,
+        port: smtpConfig.port ?? 587,
+        secure: smtpConfig.secure ?? "starttls",
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+        senderName: smtpConfig.senderName ?? "Pinnacle Academic Classes",
+        senderEmail: smtpConfig.senderEmail ?? "team@paconline.in",
+        replyTo: smtpConfig.replyTo ?? "",
+      };
+    } else {
+      cfg = await loadSmtpSettings();
+      if (!cfg) {
+        res.status(400).json({ error: "SMTP not configured. Please fill in host, username and password." });
+        return;
+      }
     }
     await sendTestEmail(to, cfg);
     res.json({ ok: true, message: `Test email sent to ${to}` });
@@ -1749,7 +1768,7 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
       } else if (status === "rejected") {
         updates.status = "rejected";
         if (rejectionNote !== undefined) updates.rejectionNote = rejectionNote;
-        if (emailAvailable()) {
+        if (await emailAvailableAsync()) {
           const [existing] = await db
             .select({ postedByUserId: socialPosts.postedByUserId, content: socialPosts.content })
             .from(socialPosts).where(eq(socialPosts.id, req.params.id)).limit(1);

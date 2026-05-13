@@ -2,13 +2,13 @@ import { db } from "@workspace/db";
 import { feeRecords, students, parents, users, socialPosts } from "@workspace/db/schema";
 import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { publishPostToPlatforms, resolveLinkedContentUrl } from "./social.js";
-import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
+import { emailAvailableAsync, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
 const PORTAL_URL = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://paconline.in/portal";
 
 async function sendFeeReminders(): Promise<void> {
-  if (!emailAvailable()) return;
+  if (!await emailAvailableAsync()) return;
 
   const now = new Date();
   // Target records due exactly 3 days from today.

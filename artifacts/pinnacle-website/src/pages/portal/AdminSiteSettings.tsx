@@ -513,6 +513,7 @@ export function AdminSmtpSettings({ getToken }: { getToken: () => Promise<string
   const [pass, setPass] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -529,18 +530,25 @@ export function AdminSmtpSettings({ getToken }: { getToken: () => Promise<string
 
   const save = async () => {
     setSaving(true);
+    setSaveResult(null);
     try {
       const body: Record<string, string> = { ...data };
       if (pass) body.smtp_pass = pass;
       const res = await apiMutation("PUT", "/admin/smtp-settings", body, getToken) as { ok?: boolean; error?: string };
       if (res.ok) {
+        setSaveResult({ ok: true, msg: "Settings saved successfully." });
         toast("success", "SMTP settings saved");
         setPass("");
         load();
       } else {
-        toast("error", res.error ?? "Save failed");
+        const errMsg = res.error ?? "Save failed";
+        setSaveResult({ ok: false, msg: errMsg });
+        toast("error", errMsg);
       }
-    } catch { toast("error", "Network error"); }
+    } catch {
+      setSaveResult({ ok: false, msg: "Network error — please try again." });
+      toast("error", "Network error");
+    }
     finally { setSaving(false); }
   };
 
@@ -549,7 +557,20 @@ export function AdminSmtpSettings({ getToken }: { getToken: () => Promise<string
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await apiMutation("POST", "/admin/smtp-settings/test", { to: testEmail }, getToken) as { ok?: boolean; message?: string; error?: string };
+      // Send current form values so test works even before saving
+      const smtpConfig: Record<string, string | number> = {
+        host: data.smtp_host ?? "",
+        port: parseInt(data.smtp_port ?? "587", 10),
+        secure: data.smtp_secure ?? "starttls",
+        user: data.smtp_user ?? "",
+        senderName: data.smtp_sender_name ?? "Pinnacle Academic Classes",
+        senderEmail: data.smtp_sender_email ?? "team@paconline.in",
+        replyTo: data.smtp_reply_to ?? "",
+      };
+      if (pass) smtpConfig.pass = pass;
+      const body: Record<string, unknown> = { to: testEmail };
+      if (smtpConfig.host && smtpConfig.user && (pass || hasPassword)) body.smtpConfig = smtpConfig;
+      const res = await apiMutation("POST", "/admin/smtp-settings/test", body, getToken) as { ok?: boolean; message?: string; error?: string };
       if (res.ok) {
         setTestResult({ ok: true, msg: res.message ?? "Test email sent!" });
         toast("success", res.message ?? "Test email sent!");
@@ -665,17 +686,25 @@ export function AdminSmtpSettings({ getToken }: { getToken: () => Promise<string
       </div>
 
       {/* Save */}
-      <div className="flex justify-end">
-        <button onClick={save} disabled={saving}
-          className="btn-primary px-5 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
-          <Save size={14} /> {saving ? "Saving…" : "Save SMTP Settings"}
-        </button>
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <button onClick={save} disabled={saving}
+            className="btn-primary px-5 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
+            <Save size={14} /> {saving ? "Saving…" : "Save SMTP Settings"}
+          </button>
+        </div>
+        {saveResult && (
+          <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${saveResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+            {saveResult.ok ? <CheckCircle2 size={15} className="shrink-0 mt-0.5" /> : <AlertCircle size={15} className="shrink-0 mt-0.5" />}
+            {saveResult.msg}
+          </div>
+        )}
       </div>
 
       {/* Test Email */}
       <div className="card border border-slate-200 p-5 space-y-3">
         <p className="text-sm font-semibold text-[var(--color-navy)]">Send Test Email</p>
-        <p className="text-xs text-slate-500">Save your settings first, then send a test email to verify the connection works.</p>
+        <p className="text-xs text-slate-500">Test your current settings (no need to save first — the form values are used directly).</p>
         <div className="flex gap-2 items-start">
           <input type="email" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
             placeholder="your@email.com"

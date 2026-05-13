@@ -10,7 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, isNull, isNotNull, and, gte, lte, ilike, or, inArray } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds } from "../lib/ga4.js";
-import { emailAvailable, sendEmail, buildApprovalEmail, buildRejectionEmail } from "../lib/email.js";
+import { emailAvailableAsync, sendEmail, buildApprovalEmail, buildRejectionEmail } from "../lib/email.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -674,7 +674,7 @@ router.patch("/admin/users/:id/approve", async (req, res) => {
   try {
     const [row] = await db.update(users).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
-    const emailConfigured = emailAvailable();
+    const emailConfigured = await emailAvailableAsync();
     let emailSent = false;
     if (emailConfigured && row.email) {
       try {
@@ -695,7 +695,7 @@ router.patch("/admin/users/:id/reject", async (req, res) => {
   try {
     const [row] = await db.update(users).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
     if (!row) { res.status(404).json({ error: "User not found" }); return; }
-    const emailConfigured = emailAvailable();
+    const emailConfigured = await emailAvailableAsync();
     let emailSent = false;
     if (emailConfigured && row.email) {
       try {

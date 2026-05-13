@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { siteSettings } from "@workspace/db/schema";
 import { inArray } from "drizzle-orm";
+import crypto from "crypto";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
@@ -8,6 +9,45 @@ const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Pinnacle Academic Classes <team@
 
 export function emailAvailable(): boolean {
   return !!(RESEND_API_KEY || SENDGRID_API_KEY);
+}
+
+export async function emailAvailableAsync(): Promise<boolean> {
+  if (RESEND_API_KEY || SENDGRID_API_KEY) return true;
+  const cfg = await loadSmtpSettings();
+  return !!cfg;
+}
+
+// ── SMTP password encryption (reuses SOCIAL_TOKEN_ENCRYPTION_KEY) ──────────────
+
+function getSmtpEncKey(): Buffer | null {
+  const hex = process.env.SOCIAL_TOKEN_ENCRYPTION_KEY;
+  if (!hex || hex.length !== 64) return null;
+  return Buffer.from(hex, "hex");
+}
+
+export function encryptSmtpPassword(plaintext: string): string {
+  const key = getSmtpEncKey();
+  if (!key) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `enc:${iv.toString("base64")}:${authTag.toString("base64")}:${encrypted.toString("base64")}`;
+}
+
+export function decryptSmtpPassword(stored: string): string {
+  if (!stored.startsWith("enc:")) return stored;
+  const key = getSmtpEncKey();
+  if (!key) return stored;
+  const [, ivB64, tagB64, dataB64] = stored.split(":");
+  if (!ivB64 || !tagB64 || !dataB64) return stored;
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
+    decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+    return decipher.update(Buffer.from(dataB64, "base64")).toString("utf8") + decipher.final("utf8");
+  } catch {
+    return "";
+  }
 }
 
 interface SendOptions {
@@ -45,7 +85,7 @@ export async function loadSmtpSettings(): Promise<SmtpConfig | null> {
       port: parseInt(m.smtp_port ?? "587", 10),
       secure: (m.smtp_secure as SmtpConfig["secure"]) ?? "starttls",
       user: m.smtp_user,
-      pass: m.smtp_pass,
+      pass: decryptSmtpPassword(m.smtp_pass),
       senderName: m.smtp_sender_name ?? "Pinnacle Academic Classes",
       senderEmail: m.smtp_sender_email ?? "team@paconline.in",
       replyTo: m.smtp_reply_to ?? "",
