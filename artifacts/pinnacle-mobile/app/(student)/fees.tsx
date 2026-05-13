@@ -4,8 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -59,7 +57,7 @@ export default function StudentFees() {
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
-  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!hasWebsiteBase()) { setLoading(false); return; }
@@ -76,9 +74,9 @@ export default function StudentFees() {
 
   const openReceipt = async (record: FeeRecord) => {
     mediumHaptic();
-    setReceiptLoading(true);
+    setLoadingReceiptId(record.id);
     const html = await fetchFeeReceiptHtml(record.id);
-    setReceiptLoading(false);
+    setLoadingReceiptId(null);
     if (!html) {
       Alert.alert("Receipt", "Could not load receipt. Please try again.");
       return;
@@ -113,11 +111,7 @@ export default function StudentFees() {
 
   return (
     <>
-      <ScrollView
-        style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-      >
+      <ScreenContainer onRefresh={onRefresh} refreshing={refreshing}>
         {nextDueRecord && (
           <View style={[styles.nextDueCard, { backgroundColor: colors.primary, borderRadius: colors.radius }]}>
             <Text style={[styles.nextDueLabel, { color: "rgba(255,255,255,0.75)" }]}>
@@ -192,8 +186,9 @@ export default function StudentFees() {
                         onPress={() => openReceipt(f)}
                         style={[styles.receiptBtn, { borderColor: colors.border }]}
                         activeOpacity={0.7}
+                        disabled={loadingReceiptId !== null}
                       >
-                        {receiptLoading ? (
+                        {loadingReceiptId === f.id ? (
                           <ActivityIndicator size="small" color={colors.primary} />
                         ) : (
                           <Feather name="file-text" size={13} color={colors.primary} />
@@ -207,7 +202,7 @@ export default function StudentFees() {
             })
           )}
         </View>
-      </ScrollView>
+      </ScreenContainer>
 
       <Modal visible={receiptHtml !== null} animationType="slide" onRequestClose={() => setReceiptHtml(null)}>
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
