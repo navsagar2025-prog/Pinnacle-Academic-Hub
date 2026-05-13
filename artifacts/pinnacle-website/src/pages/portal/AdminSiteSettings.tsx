@@ -142,6 +142,9 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
           ))}
         </div>
       </div>
+
+      {/* Prospectus PDF Section */}
+      <AdminProspectus getToken={getToken} />
     </div>
   );
 }
@@ -838,7 +841,7 @@ export function AdminProspectus({ getToken }: { getToken: () => Promise<string |
     setSaving(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${BASE}/api/v1/admin/settings/prospectus`, {
+      const res = await fetch(`${BASE}/api/v1/settings/prospectus`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ url: url.trim() }),
