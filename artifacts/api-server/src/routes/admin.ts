@@ -1568,7 +1568,7 @@ router.post("/admin/social/posts", async (req, res) => {
     const now = new Date();
 
     // Determine initial status
-    let status = scheduledAt ? "scheduled" : publishNow ? "pending_publish" : "pending";
+    let status = scheduledAt ? "scheduled" : "pending"; // No intermediate "pending_publish" state
     let publishedAt: Date | null = null;
     let publishedUrls: Record<string, string> = {};
     let errorMessage: string | null = null;

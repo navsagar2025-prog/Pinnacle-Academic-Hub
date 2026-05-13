@@ -32,7 +32,8 @@ type Section = "overview" | "notices" | "enquiries" | "blog" | "gallery"
   | "timetable" | "assignments" | "study-materials" | "live-classes" | "recordings"
   | "question-bank" | "practice-sets"
   | "promotions" | "social-media"
-  | "site-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security";
+  | "site-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security"
+  | "social-media-settings";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType; group?: string }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -59,6 +60,7 @@ const NAV: { key: Section; label: string; Icon: React.ElementType; group?: strin
   { key: "promotions", label: "Promotions", Icon: Megaphone, group: "Content" },
   { key: "social-media", label: "Social Media", Icon: Share2, group: "Content" },
   { key: "enquiries", label: "Enquiries", Icon: Users, group: "Admissions" },
+  { key: "social-media-settings", label: "Social Media", Icon: Share2, group: "Settings" },
   { key: "site-settings", label: "Site Settings", Icon: Settings, group: "Settings" },
   { key: "seo", label: "SEO", Icon: SearchCode, group: "Settings" },
   { key: "watermarks", label: "Watermarks", Icon: Droplet, group: "Settings" },
@@ -1353,6 +1355,7 @@ export default function AdminDashboard() {
     gallery: <GallerySection getToken={tokenFn} />,
     promotions: <AdminPromotions getToken={tokenFn} />,
     "social-media": <AdminSocialMedia getToken={tokenFn} />,
+    "social-media-settings": <AdminSocialMedia getToken={tokenFn} defaultTab="access" />,
     enquiries: <EnquiriesSection getToken={tokenFn} />,
     "site-settings": <AdminSiteSettings getToken={tokenFn} />,
     seo: <AdminSEO getToken={tokenFn} />,

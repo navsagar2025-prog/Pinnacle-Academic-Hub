@@ -343,25 +343,78 @@ export function buildOAuthUrl(platform: string, state: string, codeVerifier?: st
   return null;
 }
 
-/** Exchange OAuth code for access token — platform-specific. Returns token or null. */
+type OAuthTokenResult = { accessToken: string; refreshToken?: string; expiresAt?: Date; accountId?: string; accountName?: string };
+
+/**
+ * Exchange OAuth code for access token — platform-specific.
+ * Also hydrates account metadata (page/user/profile IDs and names) via a secondary
+ * platform API call so that publishing works immediately after connection.
+ */
 export async function exchangeOAuthCode(
   platform: string,
   code: string,
   codeVerifier?: string, // For Twitter PKCE
-): Promise<{ accessToken: string; refreshToken?: string; expiresAt?: Date; accountId?: string; accountName?: string } | null> {
+): Promise<OAuthTokenResult | null> {
   const callbackUri = `${CALLBACK_BASE}/api/v1/admin/social/oauth/callback`;
 
-  if (platform === "facebook" || platform === "instagram") {
+  if (platform === "facebook") {
     const appId = process.env.SOCIAL_FACEBOOK_APP_ID;
     const appSecret = process.env.SOCIAL_FACEBOOK_APP_SECRET;
     if (!appId || !appSecret) return null;
-    const res = await fetch(
+    // Step 1: Exchange code for short-lived user token
+    const tokenRes = await fetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}&redirect_uri=${encodeURIComponent(callbackUri)}`,
     );
-    const json = (await res.json()) as { access_token?: string; expires_in?: number; error?: unknown };
-    if (!json.access_token) return null;
-    const expiresAt = json.expires_in ? new Date(Date.now() + json.expires_in * 1000) : undefined;
-    return { accessToken: json.access_token, expiresAt };
+    const tokenJson = (await tokenRes.json()) as { access_token?: string; expires_in?: number; error?: unknown };
+    if (!tokenJson.access_token) return null;
+
+    // Step 2: Fetch managed pages — use the first page token + id for publishing
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&access_token=${tokenJson.access_token}`,
+      );
+      const pagesJson = (await pagesRes.json()) as { data?: { id: string; name: string; access_token: string }[] };
+      const page = pagesJson.data?.[0];
+      if (page) {
+        return { accessToken: page.access_token, accountId: page.id, accountName: page.name };
+      }
+    } catch (e) {
+      logger.warn({ e }, "Failed to fetch Facebook pages — storing user token");
+    }
+    // Fallback: store user token (publishing to pages will still need pageId configured manually)
+    const expiresAt = tokenJson.expires_in ? new Date(Date.now() + tokenJson.expires_in * 1000) : undefined;
+    return { accessToken: tokenJson.access_token, expiresAt };
+  }
+
+  if (platform === "instagram") {
+    const appId = process.env.SOCIAL_FACEBOOK_APP_ID;
+    const appSecret = process.env.SOCIAL_FACEBOOK_APP_SECRET;
+    if (!appId || !appSecret) return null;
+    const tokenRes = await fetch(
+      `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}&redirect_uri=${encodeURIComponent(callbackUri)}`,
+    );
+    const tokenJson = (await tokenRes.json()) as { access_token?: string; expires_in?: number };
+    if (!tokenJson.access_token) return null;
+
+    // Fetch pages with instagram_business_account to get IG user ID
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${tokenJson.access_token}`,
+      );
+      const pagesJson = (await pagesRes.json()) as { data?: { id: string; name: string; access_token: string; instagram_business_account?: { id: string } }[] };
+      const page = pagesJson.data?.find(p => p.instagram_business_account);
+      if (page?.instagram_business_account) {
+        return {
+          accessToken: page.access_token, // Use page token for IG Graph API
+          accountId: page.instagram_business_account.id,
+          accountName: `${page.name} (Instagram)`,
+        };
+      }
+    } catch (e) {
+      logger.warn({ e }, "Failed to fetch Instagram business account");
+    }
+    const expiresAt = tokenJson.expires_in ? new Date(Date.now() + tokenJson.expires_in * 1000) : undefined;
+    return { accessToken: tokenJson.access_token, expiresAt };
   }
 
   if (platform === "twitter") {
@@ -383,7 +436,21 @@ export async function exchangeOAuthCode(
     const json = (await res.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
     if (!json.access_token) return null;
     const expiresAt = json.expires_in ? new Date(Date.now() + json.expires_in * 1000) : undefined;
-    return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt };
+
+    // Fetch Twitter user profile to get accountId and username
+    let accountId: string | undefined;
+    let accountName: string | undefined;
+    try {
+      const userRes = await fetch("https://api.twitter.com/2/users/me", {
+        headers: { Authorization: `Bearer ${json.access_token}` },
+      });
+      const userJson = (await userRes.json()) as { data?: { id: string; name: string; username: string } };
+      accountId = userJson.data?.id;
+      accountName = userJson.data?.username ? `@${userJson.data.username}` : userJson.data?.name;
+    } catch (e) {
+      logger.warn({ e }, "Failed to fetch Twitter user profile");
+    }
+    return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt, accountId, accountName };
   }
 
   if (platform === "linkedin") {
@@ -398,7 +465,25 @@ export async function exchangeOAuthCode(
     const json = (await res.json()) as { access_token?: string; expires_in?: number; refresh_token?: string };
     if (!json.access_token) return null;
     const expiresAt = json.expires_in ? new Date(Date.now() + json.expires_in * 1000) : undefined;
-    return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt };
+
+    // Fetch LinkedIn profile via OpenID userinfo endpoint to get person URN
+    let accountId: string | undefined;
+    let accountName: string | undefined;
+    try {
+      const profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+        headers: { Authorization: `Bearer ${json.access_token}` },
+      });
+      const profileJson = (await profileRes.json()) as { sub?: string; name?: string; given_name?: string; family_name?: string };
+      if (profileJson.sub) {
+        accountId = `urn:li:person:${profileJson.sub}`; // URN required for UGC posts API
+        accountName = (profileJson.name
+          ?? `${profileJson.given_name ?? ""} ${profileJson.family_name ?? ""}`.trim())
+          || undefined;
+      }
+    } catch (e) {
+      logger.warn({ e }, "Failed to fetch LinkedIn profile");
+    }
+    return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt, accountId, accountName };
   }
 
   return null;

@@ -954,8 +954,8 @@ function AccessTab({ getToken }: { getToken: GetToken }) {
 
 type Tab = "accounts" | "compose" | "pending" | "history" | "access";
 
-export function AdminSocialMedia({ getToken }: { getToken: GetToken }) {
-  const [tab, setTab] = useState<Tab>("accounts");
+export function AdminSocialMedia({ getToken, defaultTab }: { getToken: GetToken; defaultTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(defaultTab ?? "accounts");
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [notices, setNotices] = useState<{ id: string; title: string }[]>([]);
