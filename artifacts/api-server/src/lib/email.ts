@@ -266,7 +266,7 @@ export function buildFeeReminderEmail(opts: {
       Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
       This is a friendly reminder that a fee payment for <strong>${safe(opts.studentName)}</strong> is due soon.
     </p>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid ${BRAND.gold};border-radius:8px;padding:20px 24px;margin-bottom:24px;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td style="padding:6px 0;color:#374151;font-size:14px;width:50%;"><strong>Period</strong></td>
@@ -274,11 +274,11 @@ export function buildFeeReminderEmail(opts: {
         </tr>
         <tr>
           <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Amount Due</strong></td>
-          <td style="padding:6px 0;color:#c2410c;font-size:15px;font-weight:700;">${fmtINR(opts.amountDue)}</td>
+          <td style="padding:6px 0;color:${BRAND.navy};font-size:15px;font-weight:700;">${fmtINR(opts.amountDue)}</td>
         </tr>
         <tr>
           <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Due Date</strong></td>
-          <td style="padding:6px 0;color:#c2410c;font-size:14px;font-weight:600;">${safe(opts.dueDate)}</td>
+          <td style="padding:6px 0;color:${BRAND.navy};font-size:14px;font-weight:600;">${safe(opts.dueDate)}</td>
         </tr>
       </table>
     </div>
@@ -327,6 +327,53 @@ export function buildApprovalEmail(name: string, portalUrl: string): { subject: 
     <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
       If the button above doesn't work, copy and paste this link into your browser:<br />
       <a href="${safeUrl}" style="color:${BRAND.teal};">${safeUrl}</a>
+    </p>
+  `);
+  return { subject, html };
+}
+
+export function buildSocialPostRejectionEmail(opts: {
+  teacherName: string;
+  postContent: string;
+  rejectionNote: string;
+  dashboardUrl: string;
+}): { subject: string; html: string } {
+  const safe = escapeHtml;
+  const subject = "Your social media post was not approved — Pinnacle Academic Classes";
+  const snippet = opts.postContent.length > 120
+    ? opts.postContent.slice(0, 120) + "…"
+    : opts.postContent;
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;color:${BRAND.navy};font-size:20px;">Post Review Result</h2>
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+      Dear <strong>${safe(opts.teacherName)}</strong>,<br/>
+      Your social media post submission has been reviewed and was
+      <span style="color:#dc2626;font-weight:700;">not approved</span> for publishing at this time.
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${BRAND.navy};border-radius:4px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Your post</p>
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${safe(snippet)}</p>
+    </div>
+    ${opts.rejectionNote ? `
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid ${BRAND.gold};border-radius:4px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#92400e;">Reason</p>
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${safe(opts.rejectionNote)}</p>
+    </div>` : ""}
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+      You can view the post in your teacher dashboard. If you have any questions,
+      please contact an admin.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+      <tr>
+        <td style="background:${BRAND.teal};border-radius:6px;">
+          <a href="${safe(opts.dashboardUrl)}" style="display:block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">
+            View in Dashboard &rarr;
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+      Thank you for contributing to Pinnacle Academic Classes.
     </p>
   `);
   return { subject, html };

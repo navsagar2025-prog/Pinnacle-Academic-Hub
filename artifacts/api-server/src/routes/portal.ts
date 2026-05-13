@@ -631,16 +631,20 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fee Receipt &mdash; ${he(centreName)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 40px; }
+    body { font-family: "Plus Jakarta Sans", Arial, sans-serif; background: #f1f5f9; padding: 40px; color: #1e293b; }
     .page { max-width: 680px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
     .hdr { background: #0A1F5C; color: white; padding: 32px; text-align: center; }
-    .hdr h1 { font-size: 22px; font-weight: 800; }
-    .hdr p { font-size: 13px; opacity: 0.7; margin-top: 6px; }
+    .hdr h1 { font-family: "Playfair Display", serif; font-size: 24px; font-weight: 800; letter-spacing: 0.3px; }
+    .hdr .sub { font-size: 12px; color: #C9A84C; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 5px; font-weight: 600; }
+    .hdr .doc-type { font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 6px; }
     .hdr .ref { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 16px; font-size: 12px; margin-top: 10px; }
     .body { padding: 32px; }
-    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px; }
+    .sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; margin-bottom: 12px; }
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 24px; }
     .info-item label { font-size: 11px; color: #94a3b8; display: block; margin-bottom: 2px; }
     .info-item span { font-size: 14px; font-weight: 600; color: #1e293b; }
@@ -650,15 +654,17 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
     .amt-row:last-child { margin-bottom: 0; padding-top: 10px; border-top: 1px dashed #cbd5e1; margin-top: 10px; font-size: 16px; font-weight: 700; }
     .amt-row label { color: #64748b; }
     .amt-row span { font-weight: 600; color: #1e293b; }
+    .amt-row.total span { color: #0A1F5C; }
     .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
     .badge-paid { background: #dcfce7; color: #166534; }
     .badge-partial { background: #fef9c3; color: #854d0e; }
     .badge-due { background: #fee2e2; color: #991b1b; }
     .badge-overdue { background: #fecaca; color: #7f1d1d; }
     .badge-waived { background: #f1f5f9; color: #475569; }
-    .ftr { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 32px; text-align: center; }
+    .ftr { background: #f8fafc; border-top: 3px solid #C9A84C; padding: 18px 32px; text-align: center; }
     .ftr p { font-size: 11px; color: #94a3b8; line-height: 1.6; }
-    .print-btn { background: #0A1F5C; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: block; margin: 0 auto; }
+    .print-btn { background: #0A1F5C; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: block; margin: 0 auto; font-family: "Plus Jakarta Sans", Arial, sans-serif; letter-spacing: 0.3px; }
+    .print-btn:hover { background: #1a3580; }
     ${wmCss}
     @media print { body { background: white; padding: 0; } .page { box-shadow: none; border-radius: 0; } .print-btn { display: none !important; } }
   </style>
@@ -668,7 +674,8 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
   <div class="page">
     <div class="hdr">
       <h1>${he(centreName)}</h1>
-      <p>Fee Payment Receipt</p>
+      <p class="sub">Excellence in Education</p>
+      <p class="doc-type">Fee Payment Receipt</p>
       <div class="ref">Ref: ${he(record.transactionRef ?? record.id.slice(0, 12).toUpperCase())}</div>
     </div>
     <div class="body">

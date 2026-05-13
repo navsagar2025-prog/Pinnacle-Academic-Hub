@@ -11,7 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
-import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
+import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail, buildSocialPostRejectionEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier, fetchAndCachePostMetrics } from "../lib/social.js";
 
@@ -1693,11 +1693,14 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
               .from(users).where(eq(users.id, existing.postedByUserId)).limit(1);
             if (teacher?.email) {
               const note = rejectionNote ?? "";
-              await sendEmail({
-                to: teacher.email,
-                subject: "Your social media post was not approved — Pinnacle Academic Classes",
-                html: `<p>Hi ${teacher.name ?? "Teacher"},</p><p>Your social media post submission has been reviewed and was not approved for publishing.</p>${note ? `<p><strong>Reason:</strong> ${note}</p>` : ""}<p>You can view the post in your teacher dashboard. Please contact an admin if you have questions.</p><p>— Pinnacle Academic Classes</p>`,
+              const portalOrigin = process.env.PORTAL_URL ?? process.env.APP_URL ?? "";
+              const { subject: rejSubject, html: rejHtml } = buildSocialPostRejectionEmail({
+                teacherName: teacher.name ?? "Teacher",
+                postContent: existing.content ?? "",
+                rejectionNote: note,
+                dashboardUrl: `${portalOrigin}/portal/teacher`,
               });
+              await sendEmail({ to: teacher.email, subject: rejSubject, html: rejHtml });
               logger.info({ postId: req.params.id }, "Rejection email sent to teacher");
             }
           }
