@@ -161,6 +161,14 @@ router.post("/admin/ga4/oauth/start", requireAuth(), requireAdminRole, async (re
   }
 });
 
+async function clearOAuthState(): Promise<void> {
+  await Promise.all([
+    upsertSetting("ga4_oauth_state", null),
+    upsertSetting("ga4_oauth_state_expires", null),
+    upsertSetting("ga4_oauth_redirect_uri", null),
+  ]);
+}
+
 router.get("/admin/ga4/oauth/callback", async (req, res) => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
   const frontendBase = buildFrontendBase(req);
@@ -175,11 +183,13 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
     const settings = await getDbSettings();
 
     if (!settings.ga4_oauth_state || settings.ga4_oauth_state !== state) {
+      await clearOAuthState();
       res.redirect(`${failRedirect}&reason=invalid_state`);
       return;
     }
     const expiresAt = Number(settings.ga4_oauth_state_expires ?? "0");
     if (!expiresAt || Date.now() > expiresAt) {
+      await clearOAuthState();
       res.redirect(`${failRedirect}&reason=state_expired`);
       return;
     }
@@ -187,29 +197,38 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
     const clientId = settings.ga4_client_id || ENV_CLIENT_ID || "";
     const clientSecret = settings.ga4_client_secret || ENV_CLIENT_SECRET || "";
     if (!clientId || !clientSecret) {
+      await clearOAuthState();
       res.redirect(`${failRedirect}&reason=missing_credentials`);
       return;
     }
 
     const redirectUri = settings.ga4_oauth_redirect_uri || buildCallbackUri(req);
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    const { tokens } = await oauth2Client.getToken(code);
+    let tokens: Awaited<ReturnType<typeof oauth2Client.getToken>>["tokens"];
+    try {
+      ({ tokens } = await oauth2Client.getToken(code));
+    } catch (tokenErr) {
+      console.error("GA4 OAuth token exchange error:", tokenErr);
+      await clearOAuthState();
+      res.redirect(`${failRedirect}&reason=token_exchange_failed`);
+      return;
+    }
 
     if (!tokens.refresh_token) {
+      await clearOAuthState();
       res.redirect(`${failRedirect}&reason=no_refresh_token&hint=revoke_and_retry`);
       return;
     }
 
     await Promise.all([
       upsertSetting("ga4_refresh_token", tokens.refresh_token, "GA4 OAuth Refresh Token"),
-      upsertSetting("ga4_oauth_state", null),
-      upsertSetting("ga4_oauth_state_expires", null),
-      upsertSetting("ga4_oauth_redirect_uri", null),
+      clearOAuthState(),
     ]);
 
     res.redirect(`${frontendBase}/portal/admin?section=ga4-setup&ga4=connected`);
   } catch (e) {
     console.error("GA4 OAuth callback error:", e);
+    try { await clearOAuthState(); } catch { /* best-effort */ }
     res.redirect(`${failRedirect}&reason=server_error`);
   }
 });
