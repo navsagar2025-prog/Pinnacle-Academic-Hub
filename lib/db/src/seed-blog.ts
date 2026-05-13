@@ -12,6 +12,7 @@ const ANT_KEY  = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY!;
 
 if (!DB_URL)   throw new Error("DATABASE_URL not set");
 if (!ANT_BASE) throw new Error("AI_INTEGRATIONS_ANTHROPIC_BASE_URL not set");
+if (!ANT_KEY)  throw new Error("AI_INTEGRATIONS_ANTHROPIC_API_KEY not set");
 
 const pool = new Pool({ connectionString: DB_URL });
 
@@ -344,6 +345,19 @@ Content requirements:
   };
 }
 
+// Allowlist-based HTML sanitizer — strips any tag not in the set, removes all attributes
+const ALLOWED_HTML_TAGS = new Set(["p", "h2", "h3", "ul", "ol", "li", "strong", "em", "b", "i", "br"]);
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<\/?([a-z][a-z0-9]*)[^>]*>/gi, (match, tag: string) => {
+      const lower = tag.toLowerCase();
+      if (!ALLOWED_HTML_TAGS.has(lower)) return "";
+      return match.startsWith("</") ? `</${lower}>` : `<${lower}>`;
+    })
+    .replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);)/gi, "&amp;");
+}
+
 // Estimate read time in minutes from HTML string
 function estimateReadMinutes(html: string): number {
   const words = html.replace(/<[^>]+>/g, "").split(/\s+/).filter(Boolean).length;
@@ -405,7 +419,7 @@ async function seed() {
             topic.slug,
             topic.title,
             art.excerpt,
-            art.content,
+            sanitizeHtml(art.content),
             topic.category,
             topic.tags,
             topic.author,
