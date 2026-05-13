@@ -50,27 +50,38 @@ async function sendFeeReminders(): Promise<void> {
       const studentId = record.studentId;
 
       // Atomic idempotency claim using INSERT WHERE NOT EXISTS.
-      // This is race-safe across restarts and multi-instance runs without
-      // requiring a unique index on audit_logs.
-      // rowCount == 0  → another instance already claimed this record today → skip.
-      // rowCount > 0   → we own the send for this record+day → proceed.
-      const claimResult = await db.execute(sql`
-        INSERT INTO audit_logs (id, action, entity_type, entity_id, details, created_at)
-        SELECT gen_random_uuid(),
-               'fee_reminder_sent',
-               'fee_record',
-               ${record.id},
-               ${JSON.stringify({ date: reminderDateKey })}::jsonb,
-               NOW()
-        WHERE NOT EXISTS (
-          SELECT 1 FROM audit_logs
-          WHERE action       = 'fee_reminder_sent'
-            AND entity_type  = 'fee_record'
-            AND entity_id    = ${record.id}
-            AND details->>'date' = ${reminderDateKey}
-        )
-      `);
-      if ((claimResult.rowCount ?? 0) === 0) {
+      // A DB-level unique partial index (audit_logs_reminder_dedup_idx) enforces
+      // race-safety: if two instances race, one succeeds (rowCount>0) and the
+      // other either gets rowCount==0 (sequential) or a PG 23505 unique-violation
+      // (truly concurrent). Both "skip" paths are handled below.
+      let claimed = false;
+      try {
+        const claimResult = await db.execute(sql`
+          INSERT INTO audit_logs (id, action, entity_type, entity_id, details, created_at)
+          SELECT gen_random_uuid(),
+                 'fee_reminder_sent',
+                 'fee_record',
+                 ${record.id},
+                 ${JSON.stringify({ date: reminderDateKey })}::jsonb,
+                 NOW()
+          WHERE NOT EXISTS (
+            SELECT 1 FROM audit_logs
+            WHERE action       = 'fee_reminder_sent'
+              AND entity_type  = 'fee_record'
+              AND entity_id    = ${record.id}
+              AND details->>'date' = ${reminderDateKey}
+          )
+        `);
+        claimed = (claimResult.rowCount ?? 0) > 0;
+      } catch (err: unknown) {
+        // PG error 23505 = unique_violation: another instance claimed concurrently.
+        if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+          logger.debug({ recordId: record.id, reminderDateKey }, "Concurrent claim lost; skipping");
+        } else {
+          throw err; // unexpected error — let outer catch handle it
+        }
+      }
+      if (!claimed) {
         logger.debug({ recordId: record.id, reminderDateKey }, "Skipping already-claimed reminder");
         continue;
       }
