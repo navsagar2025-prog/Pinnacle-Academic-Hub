@@ -1975,7 +1975,7 @@ router.put("/admin/social/teacher-access/:userId", async (req, res) => {
 });
 
 // ── Prospectus URL — admin write ───────────────────────────────────────────
-router.put("/settings/prospectus", requireAdminRole, async (req, res) => {
+router.put("/settings/prospectus", async (req, res) => {
   try {
     const { url } = req.body as { url: string };
     if (typeof url !== "string") { res.status(400).json({ error: "url must be a string" }); return; }

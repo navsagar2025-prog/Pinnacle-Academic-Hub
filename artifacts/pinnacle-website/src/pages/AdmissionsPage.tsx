@@ -21,6 +21,7 @@ export default function AdmissionsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prospectusUrl, setProspectusUrl] = useState<string | null>(null);
+  const [prospectusLoading, setProspectusLoading] = useState(true);
 
   useEffect(() => {
     fetch(`${BASE}/api/v1/settings/prospectus`)
@@ -28,7 +29,8 @@ export default function AdmissionsPage() {
       .then((d: { ok?: boolean; data?: { url: string | null } }) => {
         if (d.ok && d.data?.url) setProspectusUrl(d.data.url);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setProspectusLoading(false));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -162,7 +164,12 @@ export default function AdmissionsPage() {
                     ))}
                   </ul>
                 </div>
-                {prospectusUrl ? (
+                {prospectusLoading ? (
+                  <div className="card flex items-center gap-3 text-slate-400 animate-pulse">
+                    <Download size={18} className="text-slate-300" />
+                    Download Prospectus 2026–27
+                  </div>
+                ) : prospectusUrl ? (
                   <a
                     href={prospectusUrl}
                     target="_blank"
