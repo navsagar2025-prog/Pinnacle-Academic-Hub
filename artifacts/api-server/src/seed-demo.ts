@@ -24,9 +24,20 @@ export interface SeedDemoResult {
 export async function seedDemo(): Promise<SeedDemoResult> {
   const created: string[] = [];
 
-  // ── Completion sentinel check ─────────────────────────────────────────────
-  // The sentinel is set only after ALL entities are created, so a partial
-  // failure on a previous run leaves the sentinel absent and allows a retry.
+  // ── Idempotency: dual-check (email sentinel + completion marker) ─────────
+  //
+  // Primary guard: check for the demo student email. This catches the common
+  // case where all records already exist and prevents creating duplicates.
+  const demoUserCheck = await db.execute(sql`
+    SELECT id FROM users WHERE email = 'demo.student@pinnacle.test' LIMIT 1
+  `);
+  if (demoUserCheck.rows.length > 0) {
+    return { created: [], skipped: true };
+  }
+  //
+  // Secondary guard: completion marker (set last in this function). Present
+  // only when a FULL seed finished. If the email guard above passes but the
+  // marker is also present, something is inconsistent — still skip safely.
   const sentinel = await db.execute(sql`
     SELECT id FROM site_settings WHERE key = 'demo_seed_v1' LIMIT 1
   `);
@@ -506,30 +517,58 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   }
   created.push("Mock attempt: 18 answered (12 correct, 6 wrong, 2 skipped), score 48/80 — 18 per-question mock_test_answers rows");
 
-  // ── Assignments (pending / overdue / past-due) ────────────────────────────
-  // Note: the schema has no assignment_submissions table, so we cannot seed a
-  // "submitted" record. Three assignments cover the three visible date-based states.
+  // ── Assignments: 1 pending / 1 submitted+graded / 1 overdue ──────────────
+  // assignment_submissions table created via startup migration so we can
+  // seed a concrete "submitted" state for the demo student.
   const dueIn7   = new Date(); dueIn7.setDate(dueIn7.getDate() + 7);
-  const dueYest  = new Date(); dueYest.setDate(dueYest.getDate() - 1);
   const due2wAgo = new Date(); due2wAgo.setDate(due2wAgo.getDate() - 14);
+  const due5dAgo = new Date(); due5dAgo.setDate(due5dAgo.getDate() - 5);
   const post3w   = new Date(); post3w.setDate(post3w.getDate() - 21);
+  const post8d   = new Date(); post8d.setDate(post8d.getDate() - 8);
 
+  // 1. Pending — due in 7 days, no submission yet
   await db.execute(sql`
     INSERT INTO assignments (id, batch_id, posted_by, title, subject, description, due_date, max_marks, is_visible, created_at, updated_at)
     VALUES (gen_random_uuid(), ${primaryBatchId}, ${teacherUserId}, 'Kinematics Problem Set', 'Physics',
-      'Solve 20 problems on kinematics — projectile, relative motion, v-t graphs. Show full working.', ${dueIn7.toISOString()}, 40, true, NOW(), NOW())
+      'Solve 20 problems on kinematics — projectile, relative motion, v-t graphs. Show full working.',
+      ${dueIn7.toISOString()}, 40, true, NOW(), NOW())
   `);
-  await db.execute(sql`
+
+  // 2. Submitted + graded — due 5 days ago, student submitted 6 days ago (before due date)
+  const submittedAssignment = await db.execute(sql`
     INSERT INTO assignments (id, batch_id, posted_by, title, subject, description, due_date, max_marks, is_visible, created_at, updated_at)
     VALUES (gen_random_uuid(), ${primaryBatchId}, ${teacherUserId}, 'Organic Chemistry — Named Reactions', 'Chemistry',
-      'Write and balance 15 named reactions with mechanisms (Aldol, Cannizzaro, Sandmeyer, Reimer-Tiemann).', ${dueYest.toISOString()}, 30, true, NOW() - INTERVAL '6 days', NOW() - INTERVAL '6 days')
+      'Write and balance 15 named reactions with mechanisms (Aldol, Cannizzaro, Sandmeyer, Reimer-Tiemann).',
+      ${due5dAgo.toISOString()}, 30, true, ${post8d.toISOString()}, ${post8d.toISOString()})
+    RETURNING id
   `);
+  const submittedAssignmentId = submittedAssignment.rows[0].id as string;
+
+  // Seed the submission record: demo student submitted before due date, got graded
+  const submittedAt = new Date(); submittedAt.setDate(submittedAt.getDate() - 6);
+  const gradedAt    = new Date(); gradedAt.setDate(gradedAt.getDate() - 3);
+  await db.execute(sql`
+    INSERT INTO assignment_submissions (id, assignment_id, student_id, submitted_at, note, marks_awarded, feedback, graded_by, graded_at, status, created_at, updated_at)
+    VALUES (
+      gen_random_uuid(), ${submittedAssignmentId}, ${primaryStudentId},
+      ${submittedAt.toISOString()},
+      'Completed all 15 reactions. Sandmeyer mechanism required extra reference — referenced NCERT Organic Chemistry Vol 2.',
+      26, 'Good attempt! Named reactions are well-balanced. Mechanism for Reimer-Tiemann needs more detail. Overall solid.',
+      ${teacherUserId}, ${gradedAt.toISOString()}, 'graded',
+      ${submittedAt.toISOString()}, ${gradedAt.toISOString()}
+    )
+    ON CONFLICT (assignment_id, student_id) DO NOTHING
+  `);
+
+  // 3. Overdue — due 14 days ago, no submission (missed deadline)
   await db.execute(sql`
     INSERT INTO assignments (id, batch_id, posted_by, title, subject, description, due_date, max_marks, is_visible, created_at, updated_at)
     VALUES (gen_random_uuid(), ${primaryBatchId}, ${teacherUserId}, 'Integration Practice Worksheet', 'Mathematics',
-      'Complete all definite and indefinite integration problems. Substitution and by-parts required.', ${due2wAgo.toISOString()}, 50, true, ${post3w.toISOString()}, ${post3w.toISOString()})
+      'Complete all definite and indefinite integration problems. Substitution and by-parts required.',
+      ${due2wAgo.toISOString()}, 50, true, ${post3w.toISOString()}, ${post3w.toISOString()})
   `);
-  created.push("3 assignments — Physics (pending, due +7 d), Chemistry (overdue, –1 d), Maths (past-due, –14 d) [no submissions table in schema]");
+
+  created.push("3 assignments — Physics (pending, due +7 d), Chemistry (submitted+graded 26/30 via assignment_submissions), Maths (overdue, –14 d, no submission)");
 
   // ── Notices ───────────────────────────────────────────────────────────────
   await db.execute(sql`

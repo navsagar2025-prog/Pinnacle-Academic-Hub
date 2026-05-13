@@ -1076,3 +1076,22 @@ export type PracticeSetQuestion = typeof practiceSetQuestions.$inferSelect;
 export type PracticeSetAssignment = typeof practiceSetAssignments.$inferSelect;
 export type QuestionBankSavedView = typeof questionBankSavedViews.$inferSelect;
 export type InsertQuestionBankSavedView = typeof questionBankSavedViews.$inferInsert;
+
+// ── Assignment Submissions ─────────────────────────────────────────────────
+export const assignmentSubmissions = pgTable("assignment_submissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  assignmentId: uuid("assignment_id").notNull().references(() => assignments.id, { onDelete: "cascade" }),
+  studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  fileUrl: text("file_url"),
+  note: text("note"),
+  marksAwarded: integer("marks_awarded"),
+  feedback: text("feedback"),
+  gradedBy: uuid("graded_by").references(() => users.id),
+  gradedAt: timestamp("graded_at"),
+  status: text("status").default("submitted").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect;
+export type InsertAssignmentSubmission = typeof assignmentSubmissions.$inferInsert;

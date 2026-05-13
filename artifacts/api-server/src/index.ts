@@ -131,6 +131,29 @@ async function applyStartupMigrations(): Promise<void> {
       ON social_post_metrics (post_id)
   `);
 
+  // Assignment submissions table (added for demo-seed submitted state)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS assignment_submissions (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+      student_id    UUID NOT NULL REFERENCES students(id)    ON DELETE CASCADE,
+      submitted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      file_url      TEXT,
+      note          TEXT,
+      marks_awarded INTEGER,
+      feedback      TEXT,
+      graded_by     UUID REFERENCES users(id),
+      graded_at     TIMESTAMPTZ,
+      status        TEXT NOT NULL DEFAULT 'submitted',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS assignment_submissions_assignment_student_uq
+      ON assignment_submissions (assignment_id, student_id)
+  `);
+
   logger.info("Startup migrations applied");
 }
 
