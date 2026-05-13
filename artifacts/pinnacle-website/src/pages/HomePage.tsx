@@ -105,32 +105,12 @@ function HeroSection() {
             </div>
           </div>
 
-          <div className="hidden lg:block">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 space-y-4">
-              <div className="text-white font-semibold text-lg font-[family-name:var(--font-playfair)]">
-                2024 Achievements 🏆
-              </div>
-              {[
-                { label: "IIT Selections", value: "47", icon: "🎓" },
-                { label: "AIIMS / MBBS Selections", value: "38", icon: "🏥" },
-                { label: "NIT Selections", value: "120+", icon: "⚙️" },
-                { label: "Board Toppers (90%+)", value: "210+", icon: "📊" },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{stat.icon}</span>
-                    <span className="text-white/80 text-sm">{stat.label}</span>
-                  </div>
-                  <span className="text-[var(--color-gold)] font-bold text-lg">{stat.value}</span>
-                </div>
-              ))}
-              <div className="pt-2 border-t border-white/10">
-                <p className="text-white/50 text-xs text-center">Join the legacy of excellence</p>
-              </div>
-            </div>
+          <div className="hidden lg:flex flex-col items-center justify-center">
+            <img
+              src="/logo.png"
+              alt="Pinnacle Academic Classes"
+              className="w-full max-w-sm object-contain drop-shadow-2xl"
+            />
           </div>
         </div>
       </div>

@@ -53,7 +53,7 @@ const clerkAppearance = {
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+    logoImageUrl: `${window.location.origin}${basePath}/logo.png`,
   },
   variables: {
     colorPrimary: "#0A1F5C",
@@ -157,7 +157,7 @@ function SignInPage() {
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <img
-              src={`${basePath}/logo.svg`}
+              src={`${basePath}/logo.png`}
               alt="Pinnacle Academic Classes"
               className="h-12 mx-auto mb-5"
             />

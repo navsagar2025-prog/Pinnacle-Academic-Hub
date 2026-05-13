@@ -81,7 +81,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <img
-                src="/logo.svg"
+                src="/logo.png"
                 alt="Pinnacle Academic Classes"
                 className="h-12 w-auto"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
