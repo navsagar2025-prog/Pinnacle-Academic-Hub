@@ -907,7 +907,15 @@ export const auditLogs = pgTable("audit_logs", {
   entityId: text("entity_id"),
   details: jsonb("details"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Unique partial index that makes fee-reminder deduplication race-safe at
+  // the DB level. Concurrent transactions that both attempt INSERT WHERE NOT
+  // EXISTS for the same (entity_id, date) will serialize — only one will
+  // succeed; the other gets a unique-violation and its rowCount will be 0.
+  uniqueIndex("audit_logs_reminder_dedup_idx")
+    .on(t.action, t.entityType, t.entityId, sql`(details->>'date')`)
+    .where(sql`action = 'fee_reminder_sent' AND entity_type = 'fee_record' AND details->>'date' IS NOT NULL`),
+]);
 
 /**
  * Periodic system health snapshots written by the /api/v1/admin/ops/health-snapshot
