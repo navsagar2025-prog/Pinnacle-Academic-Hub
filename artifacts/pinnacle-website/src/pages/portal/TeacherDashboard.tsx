@@ -546,7 +546,7 @@ export default function TeacherDashboard() {
         }).then(() => reloadRejections()).catch(() => { /* non-critical */ });
       });
     }
-  }, [section]);
+  }, [section, rejectionCount]);
 
   function goToSocial() { setSection("social-posts"); setSidebarOpen(false); }
 
