@@ -6,7 +6,7 @@ import {
   Menu, GraduationCap, School, Layers, CreditCard, Trophy, ClipboardList,
   CalendarDays, ClipboardCheck, FileText, UserCheck, Video, Play,
   MessageCircleQuestion, Megaphone, Database, BookMarked, Settings,
-  SearchCode, Droplet, BarChart2, ShieldAlert, UserCog,
+  SearchCode, Droplet, BarChart2, ShieldAlert, UserCog, Share2,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { AdminQuestionBank, AdminPracticeSets } from "./AdminQuestionBank";
@@ -21,6 +21,7 @@ import { AdminUsers } from "./AdminUsers";
 import { AdminSiteSettings, AdminSEO, AdminWatermarks, AdminGA4Setup } from "./AdminSiteSettings";
 import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
 import { AdminRecordingsSection } from "./AdminRecordings";
+import { AdminSocialMedia } from "./AdminSocialMedia";
 import { ToastProvider, SkeletonList, useToast } from "./portalUtils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -30,7 +31,7 @@ type Section = "overview" | "notices" | "enquiries" | "blog" | "gallery"
   | "attendance" | "doubts" | "users"
   | "timetable" | "assignments" | "study-materials" | "live-classes" | "recordings"
   | "question-bank" | "practice-sets"
-  | "promotions"
+  | "promotions" | "social-media"
   | "site-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType; group?: string }[] = [
@@ -56,6 +57,7 @@ const NAV: { key: Section; label: string; Icon: React.ElementType; group?: strin
   { key: "blog", label: "Blog", Icon: BookOpen, group: "Content" },
   { key: "gallery", label: "Gallery", Icon: Image, group: "Content" },
   { key: "promotions", label: "Promotions", Icon: Megaphone, group: "Content" },
+  { key: "social-media", label: "Social Media", Icon: Share2, group: "Content" },
   { key: "enquiries", label: "Enquiries", Icon: Users, group: "Admissions" },
   { key: "site-settings", label: "Site Settings", Icon: Settings, group: "Settings" },
   { key: "seo", label: "SEO", Icon: SearchCode, group: "Settings" },
@@ -1350,6 +1352,7 @@ export default function AdminDashboard() {
     blog: <BlogSection getToken={tokenFn} />,
     gallery: <GallerySection getToken={tokenFn} />,
     promotions: <AdminPromotions getToken={tokenFn} />,
+    "social-media": <AdminSocialMedia getToken={tokenFn} />,
     enquiries: <EnquiriesSection getToken={tokenFn} />,
     "site-settings": <AdminSiteSettings getToken={tokenFn} />,
     seo: <AdminSEO getToken={tokenFn} />,

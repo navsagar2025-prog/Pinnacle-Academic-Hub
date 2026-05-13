@@ -7,6 +7,7 @@ import {
   mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
   pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
   practiceSets, practiceSetQuestions, practiceSetAssignments,
+  socialAccounts, socialPosts, socialTeacherAccess,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
@@ -1398,6 +1399,213 @@ router.delete("/admin/practice-sets/:id/assignments/:assignmentId", async (req, 
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed to remove assignment" });
+  }
+});
+
+// ── Social Media: Accounts ─────────────────────────────────────────────────
+
+router.get("/admin/social/accounts", async (_req, res) => {
+  try {
+    const rows = await db.select().from(socialAccounts).orderBy(asc(socialAccounts.platform));
+    const safe = rows.map(({ accessToken: _a, refreshToken: _r, ...rest }) => rest);
+    res.json({ ok: true, data: safe });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch social accounts" });
+  }
+});
+
+router.post("/admin/social/accounts", async (req, res) => {
+  const { platform, accountName, accountId, accessToken, refreshToken, tokenExpiresAt, pageId } = req.body;
+  if (!platform || !accountName || !accessToken) {
+    res.status(400).json({ error: "platform, accountName, and accessToken are required" }); return;
+  }
+  const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
+  if (!PLATFORMS.includes(platform)) { res.status(400).json({ error: "Invalid platform" }); return; }
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const [admin] = await db.select({ email: users.email }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    const [row] = await db.insert(socialAccounts).values({
+      platform, accountName, accountId: accountId || null,
+      accessToken, refreshToken: refreshToken || null,
+      tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
+      pageId: pageId || null, status: "connected",
+      connectedBy: admin?.email || null, connectedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: socialAccounts.platform,
+      set: {
+        accountName, accountId: accountId || null, accessToken,
+        refreshToken: refreshToken || null,
+        tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
+        pageId: pageId || null, status: "connected",
+        connectedBy: admin?.email || null, connectedAt: new Date(), updatedAt: new Date(),
+      },
+    }).returning();
+    const { accessToken: _a, refreshToken: _r, ...safe } = row;
+    res.status(201).json({ ok: true, data: safe });
+  } catch (e) {
+    console.error("POST /admin/social/accounts error:", e);
+    res.status(500).json({ error: "Failed to connect account" });
+  }
+});
+
+router.patch("/admin/social/accounts/:id", async (req, res) => {
+  const { status, accountName } = req.body;
+  try {
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (status !== undefined) updates.status = status;
+    if (accountName !== undefined) updates.accountName = accountName;
+    const [row] = await db.update(socialAccounts).set(updates as never).where(eq(socialAccounts.id, req.params.id)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    const { accessToken: _a, refreshToken: _r, ...safe } = row;
+    res.json({ ok: true, data: safe });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to update account" });
+  }
+});
+
+router.delete("/admin/social/accounts/:id", async (req, res) => {
+  try {
+    await db.delete(socialAccounts).where(eq(socialAccounts.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to disconnect account" });
+  }
+});
+
+// ── Social Media: Posts ─────────────────────────────────────────────────────
+
+router.get("/admin/social/posts", async (req, res) => {
+  try {
+    const statusFilter = req.query.status as string | undefined;
+    const rows = await db.select().from(socialPosts)
+      .where(statusFilter ? eq(socialPosts.status, statusFilter) : undefined)
+      .orderBy(desc(socialPosts.createdAt)).limit(200);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch posts" });
+  }
+});
+
+router.post("/admin/social/posts", async (req, res) => {
+  const { content, mediaUrls, platformTargets, scheduledAt, linkedBlogId, linkedNoticeId, publishNow } = req.body;
+  if (!content || !platformTargets?.length) {
+    res.status(400).json({ error: "content and platformTargets are required" }); return;
+  }
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const [user] = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    const status = publishNow ? "published" : scheduledAt ? "scheduled" : "pending";
+    const [row] = await db.insert(socialPosts).values({
+      content, mediaUrls: mediaUrls || [], platformTargets, status,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+      publishedAt: publishNow ? new Date() : null,
+      postedByUserId: user?.id || null, postedByName: user?.name || null,
+      linkedBlogId: linkedBlogId || null, linkedNoticeId: linkedNoticeId || null,
+    }).returning();
+    if (publishNow && row) {
+      logger.info({ postId: row.id, platforms: platformTargets }, "Social post marked published — configure SOCIAL_* env vars to enable live platform publishing");
+    }
+    res.status(201).json({ ok: true, data: row });
+  } catch (e) {
+    console.error("POST /admin/social/posts error:", e);
+    res.status(500).json({ error: "Failed to create post" });
+  }
+});
+
+router.patch("/admin/social/posts/:id", async (req, res) => {
+  const { content, status, rejectionNote, scheduledAt, platformTargets, mediaUrls } = req.body;
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (content !== undefined) updates.content = content;
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === "approved" || status === "published") {
+        updates.approvedByUserId = user?.id || null;
+        updates.publishedAt = new Date();
+        updates.status = "published";
+      }
+      if (status === "rejected" && rejectionNote !== undefined) updates.rejectionNote = rejectionNote;
+    }
+    if (scheduledAt !== undefined) updates.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    if (platformTargets !== undefined) updates.platformTargets = platformTargets;
+    if (mediaUrls !== undefined) updates.mediaUrls = mediaUrls;
+    const [row] = await db.update(socialPosts).set(updates as never).where(eq(socialPosts.id, req.params.id)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    if (updates.status === "published") {
+      logger.info({ postId: row.id, platforms: row.platformTargets }, "Social post approved and published — configure SOCIAL_* env vars for live platform posting");
+    }
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    console.error("PATCH /admin/social/posts/:id error:", e);
+    res.status(500).json({ error: "Failed to update post" });
+  }
+});
+
+router.delete("/admin/social/posts/:id", async (req, res) => {
+  try {
+    await db.delete(socialPosts).where(eq(socialPosts.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
+// ── Social Media: Teacher Access ────────────────────────────────────────────
+
+router.get("/admin/social/teacher-access", async (_req, res) => {
+  try {
+    const access = await db
+      .select({
+        id: socialTeacherAccess.id,
+        userId: socialTeacherAccess.userId,
+        platformsAllowed: socialTeacherAccess.platformsAllowed,
+        isEnabled: socialTeacherAccess.isEnabled,
+        grantedBy: socialTeacherAccess.grantedBy,
+        updatedAt: socialTeacherAccess.updatedAt,
+        userName: users.name, userEmail: users.email,
+      })
+      .from(socialTeacherAccess)
+      .leftJoin(users, eq(socialTeacherAccess.userId, users.id))
+      .orderBy(asc(users.name));
+
+    const teacherRows = await db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .innerJoin(teachers, eq(users.id, teachers.userId))
+      .where(eq(users.role, "teacher"));
+
+    res.json({ ok: true, data: { access, teachers: teacherRows } });
+  } catch (e) {
+    console.error("GET /admin/social/teacher-access error:", e);
+    res.status(500).json({ error: "Failed to fetch teacher access" });
+  }
+});
+
+router.put("/admin/social/teacher-access/:userId", async (req, res) => {
+  const { platformsAllowed, isEnabled } = req.body;
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const [admin] = await db.select({ email: users.email }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    const [row] = await db.insert(socialTeacherAccess).values({
+      userId: req.params.userId,
+      platformsAllowed: platformsAllowed || [],
+      isEnabled: isEnabled ?? false,
+      grantedBy: admin?.email || null,
+    }).onConflictDoUpdate({
+      target: socialTeacherAccess.userId,
+      set: {
+        platformsAllowed: platformsAllowed || [],
+        isEnabled: isEnabled ?? false,
+        grantedBy: admin?.email || null,
+        updatedAt: new Date(),
+      },
+    }).returning();
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    console.error("PUT /admin/social/teacher-access/:userId error:", e);
+    res.status(500).json({ error: "Failed to update teacher access" });
   }
 });
 

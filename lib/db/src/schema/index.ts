@@ -943,6 +943,67 @@ export const healthSnapshots = pgTable("health_snapshots", {
 export type HealthSnapshot = typeof healthSnapshots.$inferSelect;
 export type InsertHealthSnapshot = typeof healthSnapshots.$inferInsert;
 
+// ── Social Media ─────────────────────────────────────────────────────────────
+
+export const socialAccounts = pgTable("social_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platform: text("platform").notNull(), // facebook | instagram | twitter | linkedin
+  accountName: text("account_name").notNull(),
+  accountId: text("account_id"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  pageId: text("page_id"),
+  status: text("status").notNull().default("connected"), // connected | expired | disconnected
+  connectedBy: text("connected_by"),
+  connectedAt: timestamp("connected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("social_accounts_platform_uq").on(t.platform),
+  index("social_accounts_status_idx").on(t.status),
+]);
+
+export const socialPosts = pgTable("social_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  content: text("content").notNull(),
+  mediaUrls: jsonb("media_urls").$type<string[]>().default([]),
+  platformTargets: jsonb("platform_targets").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("pending"), // draft | pending | approved | rejected | published | scheduled | failed
+  scheduledAt: timestamp("scheduled_at"),
+  publishedAt: timestamp("published_at"),
+  postedByUserId: uuid("posted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  postedByName: text("posted_by_name"),
+  approvedByUserId: uuid("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  rejectionNote: text("rejection_note"),
+  linkedBlogId: uuid("linked_blog_id"),
+  linkedNoticeId: uuid("linked_notice_id"),
+  publishedUrls: jsonb("published_urls").$type<Record<string, string>>().default({}),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("social_posts_status_idx").on(t.status),
+  index("social_posts_scheduled_at_idx").on(t.scheduledAt),
+  index("social_posts_posted_by_idx").on(t.postedByUserId),
+]);
+
+export const socialTeacherAccess = pgTable("social_teacher_access", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platformsAllowed: jsonb("platforms_allowed").$type<string[]>().notNull().default([]),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  grantedBy: text("granted_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("social_teacher_access_user_uq").on(t.userId),
+]);
+
+export type SocialAccount = typeof socialAccounts.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type SocialTeacherAccess = typeof socialTeacherAccess.$inferSelect;
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Course = typeof courses.$inferSelect;
