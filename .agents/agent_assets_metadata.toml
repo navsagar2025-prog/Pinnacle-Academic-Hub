@@ -6,3 +6,9 @@ id = "GPuw_OHjAF6bAl8ydKNJV"
 uri = "file://pinnacle-production.zip"
 type = "unspecified"
 title = "Pinnacle Production Package (pre-built, no build required)"
+
+[[outputs]]
+id = "e_xhdcNftx5WMdpEsho8k"
+uri = "file://pinnacle-production-package.zip"
+type = "unspecified"
+title = "Pinnacle Academic Classes — Production Package (14.3 MB)"
