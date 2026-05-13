@@ -11,6 +11,7 @@ import {
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -523,22 +524,30 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
             if (pu?.email) recipients.push({ name: pu.name ?? "Parent", email: pu.email });
           }
 
+          const dueDateStr = row.dueDate
+            ? new Date(row.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+            : null;
+
           for (const recipient of recipients) {
             const { subject, html } = buildFeePaymentConfirmationEmail({
               recipientName: recipient.name,
               studentName,
+              feeRecordId: row.id,
               period: row.period,
               amount: row.amount,
               paidAmount: row.paidAmount,
               paidDate: paidDateStr,
+              dueDate: dueDateStr,
               paymentMethod: row.paymentMethod ?? null,
               transactionRef: row.transactionRef ?? null,
+              notes: row.notes ?? null,
+              status: row.status,
               portalUrl,
             });
             await sendEmail({ to: recipient.email, subject, html });
           }
-        } catch {
-          // Fire-and-forget — log silently
+        } catch (err) {
+          logger.error({ err, feeRecordId: row.id }, "Fee payment confirmation email failed");
         }
       })();
     }

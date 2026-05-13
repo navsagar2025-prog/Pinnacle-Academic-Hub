@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { feeRecords, students, parents, users, siteSettings } from "@workspace/db/schema";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
@@ -10,9 +10,11 @@ async function sendFeeReminders(): Promise<void> {
   if (!emailAvailable()) return;
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const thresholdEnd = new Date(todayStart);
-  thresholdEnd.setDate(thresholdEnd.getDate() + 3);
+  // Target records due exactly 3 days from today — natural idempotency:
+  // tomorrow the same record will be 2 days away and won't match again.
+  const threeDaysAhead = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3);
+  const threeDaysAheadEnd = new Date(threeDaysAhead);
+  threeDaysAheadEnd.setHours(23, 59, 59, 999);
 
   try {
     const dueSoon = await db
@@ -28,9 +30,9 @@ async function sendFeeReminders(): Promise<void> {
       .from(feeRecords)
       .where(
         and(
-          inArray(feeRecords.status, ["due", "overdue"]),
-          gte(feeRecords.dueDate, todayStart),
-          lte(feeRecords.dueDate, thresholdEnd),
+          eq(feeRecords.status, "due"),
+          gte(feeRecords.dueDate, threeDaysAhead),
+          lte(feeRecords.dueDate, threeDaysAheadEnd),
         ),
       );
 

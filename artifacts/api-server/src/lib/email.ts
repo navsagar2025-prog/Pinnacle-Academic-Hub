@@ -102,58 +102,188 @@ function baseTemplate(content: string): string {
 </html>`;
 }
 
-export function buildFeePaymentConfirmationEmail(opts: {
-  recipientName: string;
+export function buildFeeReceiptHtml(opts: {
+  feeRecordId: string;
   studentName: string;
   period: string;
   amount: number;
   paidAmount: number;
   paidDate: string | null;
+  dueDate: string | null;
   paymentMethod: string | null;
   transactionRef: string | null;
-  portalUrl: string;
-}): { subject: string; html: string } {
+  notes: string | null;
+  status: string;
+  centreName?: string;
+}): string {
   const safe = escapeHtml;
   const fmtINR = (n: number) => "&#x20B9;" + n.toLocaleString("en-IN");
-  const subject = `Fee Payment Confirmed — ${opts.period}`;
-  const html = baseTemplate(`
-    <h2 style="margin:0 0 16px;color:${BRAND.navy};font-size:20px;">Payment Received!</h2>
-    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
-      Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
-      We have received the fee payment for <strong>${safe(opts.studentName)}</strong>.
-    </p>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
+  const centre = opts.centreName ?? "Pinnacle Academic Classes";
+  const ref = opts.transactionRef ?? opts.feeRecordId.slice(0, 12).toUpperCase();
+  const statusLabel: Record<string, string> = {
+    paid: "Paid", partial: "Partially Paid", due: "Due", overdue: "Overdue", waived: "Waived",
+  };
+  const safeStatus = ["paid", "partial", "due", "overdue", "waived"].includes(opts.status) ? opts.status : "due";
+  const statusColor: Record<string, string> = {
+    paid: "#166534", partial: "#854d0e", due: "#991b1b", overdue: "#7f1d1d", waived: "#475569",
+  };
+  const statusBg: Record<string, string> = {
+    paid: "#dcfce7", partial: "#fef9c3", due: "#fee2e2", overdue: "#fecaca", waived: "#f1f5f9",
+  };
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fee Receipt &mdash; ${safe(centre)}</title>
+</head>
+<body style="margin:0;padding:24px;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <!-- Header -->
+    <tr>
+      <td style="background:${BRAND.navy};padding:28px 32px;text-align:center;">
+        <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:800;">${safe(centre)}</h1>
+        <p style="margin:6px 0 10px;color:rgba(255,255,255,0.7);font-size:12px;">Fee Payment Receipt</p>
+        <span style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:20px;padding:3px 14px;font-size:11px;color:#ffffff;">Ref: ${safe(ref)}</span>
+      </td>
+    </tr>
+    <!-- Student Details -->
+    <tr>
+      <td style="padding:28px 32px 0;">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Student Details</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:5px 0;width:50%;font-size:11px;color:#94a3b8;">Name</td>
+            <td style="padding:5px 0;width:50%;font-size:11px;color:#94a3b8;">Period</td>
+          </tr>
+          <tr>
+            <td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.studentName)}</td>
+            <td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.period)}</td>
+          </tr>
+          ${opts.paidDate ? `<tr><td style="padding:5px 0;font-size:11px;color:#94a3b8;">Payment Date</td><td style="padding:5px 0;font-size:11px;color:#94a3b8;">${opts.paymentMethod ? "Payment Mode" : "&nbsp;"}</td></tr><tr><td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.paidDate)}</td><td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${opts.paymentMethod ? safe(opts.paymentMethod) : ""}</td></tr>` : ""}
+          <tr>
+            <td colspan="2" style="padding:5px 0;font-size:11px;color:#94a3b8;">Status</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding:0 0 10px;">
+              <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusBg[safeStatus] ?? "#f1f5f9"};color:${statusColor[safeStatus] ?? "#475569"};">${safe(statusLabel[opts.status] ?? opts.status)}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <!-- Divider -->
+    <tr><td style="padding:0 32px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 16px;" /></td></tr>
+    <!-- Amount Details -->
+    <tr>
+      <td style="padding:0 32px 24px;">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Amount Details</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;" >
+          <tr>
+            <td style="padding:8px 16px;font-size:13px;color:#64748b;">Total Fee</td>
+            <td style="padding:8px 16px;font-size:13px;color:#1e293b;font-weight:600;text-align:right;">${fmtINR(opts.amount)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 16px;font-size:13px;color:#64748b;">Amount Paid</td>
+            <td style="padding:8px 16px;font-size:14px;color:#166534;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
+          </tr>
+          ${opts.paidAmount < opts.amount ? `<tr><td style="padding:8px 16px;font-size:13px;color:#64748b;">Balance Due</td><td style="padding:8px 16px;font-size:13px;color:#dc2626;font-weight:600;text-align:right;">${fmtINR(opts.amount - opts.paidAmount)}</td></tr>` : ""}
+          <tr>
+            <td colspan="2" style="border-top:1px dashed #cbd5e1;"></td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:15px;color:#0A1F5C;font-weight:700;">Net Amount Paid</td>
+            <td style="padding:10px 16px;font-size:15px;color:#0A1F5C;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
+          </tr>
+        </table>
+        ${opts.notes ? `<p style="margin:12px 0 0;font-size:12px;color:#64748b;line-height:1.5;">Note: ${safe(opts.notes)}</p>` : ""}
+      </td>
+    </tr>
+    <!-- Footer -->
+    <tr>
+      <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">
+        <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">${safe(centre)} &bull; Computer-generated receipt. No signature required.<br/>For queries, contact the Pinnacle office.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildFeePaymentConfirmationEmail(opts: {
+  recipientName: string;
+  studentName: string;
+  feeRecordId: string;
+  period: string;
+  amount: number;
+  paidAmount: number;
+  paidDate: string | null;
+  dueDate: string | null;
+  paymentMethod: string | null;
+  transactionRef: string | null;
+  notes: string | null;
+  status: string;
+  portalUrl: string;
+  centreName?: string;
+}): { subject: string; html: string } {
+  const safe = escapeHtml;
+  const subject = `Fee Payment Receipt — ${opts.period}`;
+  const receiptHtml = buildFeeReceiptHtml({
+    feeRecordId: opts.feeRecordId,
+    studentName: opts.studentName,
+    period: opts.period,
+    amount: opts.amount,
+    paidAmount: opts.paidAmount,
+    paidDate: opts.paidDate,
+    dueDate: opts.dueDate,
+    paymentMethod: opts.paymentMethod,
+    transactionRef: opts.transactionRef,
+    notes: opts.notes,
+    status: opts.status,
+    centreName: opts.centreName,
+  });
+  // Wrap the receipt with a greeting and portal link
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Fee Receipt</title></head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+    <tr><td align="center">
+      <table width="640" cellpadding="0" cellspacing="0" style="max-width:100%;">
+        <!-- Greeting -->
         <tr>
-          <td style="padding:6px 0;color:#374151;font-size:14px;width:50%;"><strong>Period</strong></td>
-          <td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.period)}</td>
+          <td style="padding:0 0 16px;">
+            <p style="margin:0;font-size:15px;color:#374151;line-height:1.6;">
+              Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
+              The fee payment receipt for <strong>${safe(opts.studentName)}</strong> is attached below.
+            </p>
+          </td>
         </tr>
+        <!-- Receipt -->
         <tr>
-          <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Amount Paid</strong></td>
-          <td style="padding:6px 0;color:#166534;font-size:15px;font-weight:700;">${fmtINR(opts.paidAmount)}</td>
+          <td>${receiptHtml}</td>
         </tr>
-        ${opts.paidAmount < opts.amount ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Balance Due</strong></td><td style="padding:6px 0;color:#dc2626;font-size:14px;font-weight:600;">${fmtINR(opts.amount - opts.paidAmount)}</td></tr>` : ""}
-        ${opts.paidDate ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Payment Date</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.paidDate)}</td></tr>` : ""}
-        ${opts.paymentMethod ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Payment Mode</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.paymentMethod)}</td></tr>` : ""}
-        ${opts.transactionRef ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Reference</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;font-family:monospace;">${safe(opts.transactionRef)}</td></tr>` : ""}
+        <!-- Portal link -->
+        <tr>
+          <td style="padding:20px 0 8px;text-align:center;">
+            <a href="${safe(opts.portalUrl)}" style="display:inline-block;background:${BRAND.teal};color:#ffffff;padding:11px 26px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;">
+              View &amp; Download in Portal &rarr;
+            </a>
+          </td>
+        </tr>
+        <!-- Footer note -->
+        <tr>
+          <td style="padding:12px 0 0;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#8892a4;">
+              &copy; ${new Date().getFullYear()} Pinnacle Academic Classes. All rights reserved.
+            </p>
+          </td>
+        </tr>
       </table>
-    </div>
-    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
-      You can view and download the full receipt from the portal.
-    </p>
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
-      <tr>
-        <td style="background:${BRAND.teal};border-radius:6px;">
-          <a href="${safe(opts.portalUrl)}" style="display:block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">
-            View Receipt in Portal &rarr;
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
-      Thank you for your timely payment. If you have any questions, please contact the Pinnacle office.
-    </p>
-  `);
+    </td></tr>
+  </table>
+</body>
+</html>`;
   return { subject, html };
 }
 
