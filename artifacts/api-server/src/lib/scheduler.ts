@@ -93,9 +93,14 @@ async function sendFeeReminders(): Promise<void> {
         .where(eq(users.id, studentRow.userId))
         .limit(1);
 
-      const recipients: Array<{ name: string; email: string }> = [];
+      // Build recipient list, deduplicating by email address to prevent
+      // double-sends when a parent user also shares the student's email.
+      const recipientMap = new Map<string, { name: string; email: string }>();
       if (studentUser?.email) {
-        recipients.push({ name: studentUser.name ?? "Student", email: studentUser.email });
+        recipientMap.set(studentUser.email.toLowerCase(), {
+          name: studentUser.name ?? "Student",
+          email: studentUser.email,
+        });
       }
 
       const parentRows = await db
@@ -110,11 +115,14 @@ async function sendFeeReminders(): Promise<void> {
           .from(users)
           .where(eq(users.id, pr.userId))
           .limit(1);
-        if (pu?.email) {
-          recipients.push({ name: pu.name ?? "Parent", email: pu.email });
+        if (pu?.email && !recipientMap.has(pu.email.toLowerCase())) {
+          recipientMap.set(pu.email.toLowerCase(), { name: pu.name ?? "Parent", email: pu.email });
         }
       }
 
+      const recipients = Array.from(recipientMap.values());
+
+      let sentCount = 0;
       for (const recipient of recipients) {
         try {
           const { subject, html } = buildFeeReminderEmail({
@@ -126,9 +134,23 @@ async function sendFeeReminders(): Promise<void> {
             portalUrl: PORTAL_URL,
           });
           await sendEmail({ to: recipient.email, subject, html });
+          sentCount++;
         } catch (err) {
           logger.warn({ err, recordId: record.id, to: recipient.email }, "Fee reminder email failed");
         }
+      }
+
+      // If every send attempt failed, release the idempotency claim so the
+      // next scheduler run can retry (transient provider outage scenario).
+      if (sentCount === 0 && recipients.length > 0) {
+        await db.execute(sql`
+          DELETE FROM audit_logs
+          WHERE action      = 'fee_reminder_sent'
+            AND entity_type = 'fee_record'
+            AND entity_id   = ${record.id}
+            AND details->>'date' = ${reminderDateKey}
+        `);
+        logger.warn({ recordId: record.id }, "All reminder sends failed; claim released for retry");
       }
     }
 
