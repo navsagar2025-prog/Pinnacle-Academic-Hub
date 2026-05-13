@@ -14,21 +14,36 @@ import { logger } from "./logger.js";
 // ── Token Encryption ──────────────────────────────────────────────────────────
 // Requires SOCIAL_TOKEN_ENCRYPTION_KEY env var (32-byte hex string, i.e. 64 hex chars).
 // Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-// If not set, tokens are stored as-is with a warning logged once.
+//
+// Security policy:
+//   - In production (NODE_ENV=production): missing or invalid key throws immediately
+//     so tokens are never written/read as plaintext in a live environment.
+//   - In development: missing key logs a warning and falls back to plaintext storage
+//     so local dev works without extra setup.
 
 let _warnedOnce = false;
+const IS_PROD = process.env.NODE_ENV === "production";
 
 function getEncryptionKey(): Buffer | null {
   const hex = process.env.SOCIAL_TOKEN_ENCRYPTION_KEY;
   if (!hex) {
+    if (IS_PROD) {
+      throw new Error(
+        "SOCIAL_TOKEN_ENCRYPTION_KEY is required in production. " +
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" " +
+        "and set it as an environment variable."
+      );
+    }
     if (!_warnedOnce) {
-      logger.warn("SOCIAL_TOKEN_ENCRYPTION_KEY is not set — social tokens stored unencrypted. Set this env var in production.");
+      logger.warn("SOCIAL_TOKEN_ENCRYPTION_KEY not set — social tokens stored unencrypted (development only).");
       _warnedOnce = true;
     }
     return null;
   }
   if (hex.length !== 64) {
-    logger.error("SOCIAL_TOKEN_ENCRYPTION_KEY must be a 64-char hex string (32 bytes). Falling back to unencrypted storage.");
+    const msg = "SOCIAL_TOKEN_ENCRYPTION_KEY must be a 64-char hex string (32 bytes).";
+    if (IS_PROD) throw new Error(msg);
+    logger.error(msg + " Falling back to unencrypted storage (development only).");
     return null;
   }
   return Buffer.from(hex, "hex");
