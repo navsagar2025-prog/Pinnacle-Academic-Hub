@@ -7,9 +7,10 @@
 
 import crypto from "crypto";
 import { db } from "@workspace/db";
-import { socialAccounts, socialPostMetrics, blogPosts, notices } from "@workspace/db/schema";
+import { socialAccounts, socialPostMetrics, blogPosts, notices, users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
+import { emailAvailable, sendEmail } from "./email.js";
 
 // ── Token Encryption ──────────────────────────────────────────────────────────
 // SOCIAL_TOKEN_ENCRYPTION_KEY: 64-char hex (32 bytes). Required in production;
@@ -67,6 +68,223 @@ export function decryptToken(stored: string): string {
   } catch {
     logger.error("Failed to decrypt social token — token may be corrupted or key changed");
     return "";
+  }
+}
+
+// ── Token Refresh ─────────────────────────────────────────────────────────────
+
+/**
+ * Attempt to refresh an expired OAuth access token for a connected platform account.
+ *
+ * Supported platforms: twitter, linkedin.
+ * Facebook/Instagram page tokens are long-lived (60 days) and do not use refresh_token
+ * flows in the same way — their tokens are renewed via re-authorization.
+ *
+ * On success: stores the new encrypted token + updated expiry in social_accounts
+ *             and returns the plaintext new access token.
+ * On permanent failure (invalid_grant / 400 / 401): marks the account "expired",
+ *             emails all admin users, and returns null.
+ * On transient failure (network error / 5xx): logs a warning and returns null
+ *             without marking the account expired so the next attempt can retry.
+ */
+
+/**
+ * Returns true for HTTP status codes that represent a permanent token failure
+ * (bad credentials, revoked token, invalid_grant) as opposed to a transient
+ * server/network error that should not immediately mark the account expired.
+ */
+function isPermanentRefreshFailure(status: number, errorCode?: string): boolean {
+  // OAuth error codes that definitively indicate the refresh token is no longer valid.
+  // These are checked first — if present they override the HTTP status heuristic.
+  const permanentOAuthErrors = new Set(["invalid_grant", "invalid_token", "unauthorized_client"]);
+  if (errorCode && permanentOAuthErrors.has(errorCode)) return true;
+
+  // 401 Unauthorized = credentials rejected by the platform → permanent.
+  if (status === 401) return true;
+
+  // 400 Bad Request WITHOUT a known OAuth error code may be a misconfiguration
+  // or malformed request (e.g. wrong Content-Type, missing param) rather than
+  // a revoked token — treat as transient to avoid prematurely expiring the account.
+  // Only treat 400 as permanent when an explicit OAuth error code confirms it.
+  return false;
+}
+
+async function attemptTokenRefresh(
+  platform: string,
+  account: { id: string; refreshToken: string | null; accountName?: string | null },
+): Promise<string | null> {
+  if (!account.refreshToken) return null;
+
+  const storedRefreshToken = decryptToken(account.refreshToken);
+  if (!storedRefreshToken) return null;
+
+  let newAccessToken: string | null = null;
+  let newRefreshToken: string | null = null;
+  let newExpiresAt: Date | null = null;
+
+  try {
+    if (platform === "twitter") {
+      const clientId = process.env.SOCIAL_TWITTER_CLIENT_ID;
+      const clientSecret = process.env.SOCIAL_TWITTER_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        logger.warn({ platform }, "Cannot refresh token — Twitter client credentials not configured");
+        return null;
+      }
+      const res = await fetch("https://api.twitter.com/2/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: storedRefreshToken }),
+      });
+      const json = (await res.json()) as { access_token?: string; refresh_token?: string; expires_in?: number; error?: string; error_description?: string };
+      if (!res.ok || !json.access_token) {
+        logger.warn({ platform, status: res.status, error: json.error, description: json.error_description }, "Twitter token refresh failed");
+        if (isPermanentRefreshFailure(res.status, json.error)) {
+          await markAccountExpired(account.id, platform, account.accountName);
+        }
+        return null;
+      }
+      newAccessToken = json.access_token;
+      newRefreshToken = json.refresh_token ?? null;
+      newExpiresAt = json.expires_in ? new Date(Date.now() + json.expires_in * 1000) : null;
+
+    } else if (platform === "linkedin") {
+      const clientId = process.env.SOCIAL_LINKEDIN_CLIENT_ID;
+      const clientSecret = process.env.SOCIAL_LINKEDIN_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        logger.warn({ platform }, "Cannot refresh token — LinkedIn client credentials not configured");
+        return null;
+      }
+      const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: storedRefreshToken, client_id: clientId, client_secret: clientSecret }),
+      });
+      const json = (await res.json()) as { access_token?: string; refresh_token?: string; expires_in?: number; error?: string; error_description?: string };
+      if (!res.ok || !json.access_token) {
+        logger.warn({ platform, status: res.status, error: json.error, description: json.error_description }, "LinkedIn token refresh failed");
+        if (isPermanentRefreshFailure(res.status, json.error)) {
+          await markAccountExpired(account.id, platform, account.accountName);
+        }
+        return null;
+      }
+      newAccessToken = json.access_token;
+      newRefreshToken = json.refresh_token ?? null;
+      newExpiresAt = json.expires_in ? new Date(Date.now() + json.expires_in * 1000) : null;
+
+    } else {
+      // Platform doesn't support token refresh (Facebook/Instagram use long-lived page tokens)
+      return null;
+    }
+  } catch (err) {
+    // Network / unexpected exception — treat as transient; do NOT mark account expired
+    logger.warn({ platform, err }, "Token refresh request threw an exception (transient failure — account not marked expired)");
+    return null;
+  }
+
+  // Persist the new token (encrypted) and updated expiry
+  try {
+    await db.update(socialAccounts)
+      .set({
+        accessToken: encryptToken(newAccessToken),
+        refreshToken: newRefreshToken ? encryptToken(newRefreshToken) : account.refreshToken,
+        tokenExpiresAt: newExpiresAt,
+        status: "connected",
+        updatedAt: new Date(),
+      })
+      .where(eq(socialAccounts.id, account.id));
+    logger.info({ platform }, "Social account token refreshed successfully");
+  } catch (err) {
+    logger.warn({ platform, err }, "Failed to persist refreshed token — will use in-memory for this request");
+  }
+
+  return newAccessToken;
+}
+
+// ── Admin notification deduplication ─────────────────────────────────────────
+// Prevent burst email notifications when the same platform fails repeatedly.
+// Tracks the last time an admin notification was sent per platform (in-memory,
+// resets on server restart which is acceptable — admins want to know on restart too).
+const _lastAdminNotifyMs = new Map<string, number>();
+const ADMIN_NOTIFY_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour per platform
+
+/**
+ * Mark a social account as permanently expired and notify all admin users by email.
+ * Called only on permanent failures (invalid_grant / 401), not transient ones.
+ */
+async function markAccountExpired(accountId: string, platform: string, accountName?: string | null): Promise<void> {
+  try {
+    await db.update(socialAccounts)
+      .set({ status: "expired", updatedAt: new Date() })
+      .where(eq(socialAccounts.id, accountId));
+  } catch (err) {
+    logger.warn({ platform, err }, "Failed to mark social account as expired");
+  }
+
+  logger.warn(
+    { platform, accountName },
+    `[Social] Token refresh failed permanently for ${platform}${accountName ? ` (${accountName})` : ""}. ` +
+    "Account marked 'expired'. An admin must reconnect via Admin → Social Media.",
+  );
+
+  // Send notification email to all admin users (best-effort, non-blocking, rate-limited)
+  void notifyAdminsOfTokenRefreshFailure(platform, accountName);
+}
+
+/**
+ * Fetch all admin users and email each one to alert them that a social account
+ * needs to be reconnected. Silently skips if no email provider is configured.
+ * Rate-limited to once per platform per hour to prevent burst notifications.
+ */
+async function notifyAdminsOfTokenRefreshFailure(platform: string, accountName?: string | null): Promise<void> {
+  // Deduplicate: skip if we already notified about this platform recently
+  const lastNotify = _lastAdminNotifyMs.get(platform) ?? 0;
+  if (Date.now() - lastNotify < ADMIN_NOTIFY_COOLDOWN_MS) {
+    logger.debug({ platform }, "Admin token-refresh-failure notification suppressed (within cooldown window)");
+    return;
+  }
+  _lastAdminNotifyMs.set(platform, Date.now());
+
+  if (!emailAvailable()) {
+    logger.debug({ platform }, "Email not configured — skipping admin token-refresh-failure notification");
+    return;
+  }
+  try {
+    const adminUsers = await db
+      .select({ email: users.email, name: users.name })
+      .from(users)
+      .where(eq(users.role, "admin"));
+
+    if (adminUsers.length === 0) {
+      logger.warn({ platform }, "No admin users found to notify about token refresh failure");
+      return;
+    }
+
+    const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+    const safeAccountName = accountName ? accountName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") : null;
+    const accountLabel = safeAccountName ? ` (<strong>${safeAccountName}</strong>)` : "";
+    const subject = `Action required: ${platformLabel} social account disconnected — Pinnacle Academic Classes`;
+    const html = `
+      <p>Hello,</p>
+      <p>The <strong>${platformLabel}</strong>${accountLabel} social media account connected to Pinnacle Academic Classes has been disconnected because its access token expired and could not be refreshed automatically.</p>
+      <p><strong>Impact:</strong> Social media posts scheduled for ${platformLabel} will fail until the account is reconnected.</p>
+      <p><strong>Action required:</strong> Please log in to the admin panel and go to <strong>Social Media → Connected Accounts</strong> to reconnect the ${platformLabel} account.</p>
+      <p>If you have any questions, contact your technical team.</p>
+      <p>— Pinnacle Academic Classes Platform</p>
+    `;
+
+    await Promise.all(
+      adminUsers.map(admin =>
+        sendEmail({ to: admin.email, subject, html }).catch(err => {
+          logger.warn({ platform, adminEmail: admin.email, err }, "Failed to send token-refresh-failure email to admin");
+        })
+      )
+    );
+    logger.info({ platform, accountName, count: adminUsers.length }, "Admin notification emails sent for token refresh failure");
+  } catch (err) {
+    logger.warn({ platform, err }, "Failed to send admin token-refresh-failure notifications");
   }
 }
 
@@ -173,7 +391,43 @@ export async function publishToAccount(
   let accountId: string | undefined;
 
   if (account?.status === "connected" && account.accessToken) {
-    token = decryptToken(account.accessToken);
+    const now = Date.now();
+    // "near expiry" = expires within 60 seconds (handles clock skew / slow requests)
+    const nearExpiry = account.tokenExpiresAt != null && account.tokenExpiresAt.getTime() <= now + 60_000;
+    // "truly expired" = the token has already passed its expiry time
+    const trulyExpired = account.tokenExpiresAt != null && account.tokenExpiresAt.getTime() <= now;
+
+    if (nearExpiry && account.refreshToken) {
+      // Token is at or near expiry — attempt automatic refresh
+      logger.info({ platform }, "Social account token is expired — attempting automatic refresh");
+      const refreshed = await attemptTokenRefresh(platform, account);
+      if (refreshed) {
+        token = refreshed;
+      } else if (trulyExpired) {
+        // Token is definitively expired and refresh failed permanently
+        return {
+          ok: false,
+          error: `${platform} access token expired and could not be refreshed automatically. ` +
+            "Please reconnect the account via Admin → Social Media.",
+        };
+      } else {
+        // Token is only near expiry (within 60s buffer) and refresh had a transient failure.
+        // The current token may still be valid — attempt publish and let the platform decide.
+        logger.warn({ platform }, "Transient refresh failure for near-expiry token — attempting publish with current token");
+        token = decryptToken(account.accessToken);
+      }
+    } else if (trulyExpired && !account.refreshToken) {
+      // Token has expired and no refresh token is available — admin must reconnect manually
+      logger.warn({ platform }, "Social account token expired with no refresh token — admin reconnect required");
+      return {
+        ok: false,
+        error: `${platform} access token has expired and no refresh token is available. ` +
+          "Please reconnect the account via Admin → Social Media.",
+      };
+    } else {
+      token = decryptToken(account.accessToken);
+    }
+
     pageId = account.pageId ?? undefined;
     accountId = account.accountId ?? undefined;
   } else {
