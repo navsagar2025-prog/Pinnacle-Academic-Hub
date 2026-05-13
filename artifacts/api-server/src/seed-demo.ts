@@ -45,6 +45,11 @@ export async function seedDemo(): Promise<SeedDemoResult> {
     return { created: [], skipped: true };
   }
 
+  // ── Transaction — all rows committed atomically ───────────────────────────
+  // If any INSERT fails the transaction rolls back, leaving the demo student
+  // email absent in `users` so the next call can retry from a clean state.
+  await db.execute(sql`BEGIN`);
+  try {
   // ── Resolve or create admin user ──────────────────────────────────────────
   const adminRows = await db.execute(sql`
     SELECT id FROM users WHERE role = 'admin' AND approval_status = 'approved' LIMIT 1
@@ -421,10 +426,14 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   created.push(`${questions.length} question bank questions (Physics + Biology, MCQ + numerical, ${imageQCount} with diagram image URLs)`);
 
   // ── Mock test + 2 sections + per-question answers ─────────────────────────
+  // scheduled_start = tomorrow 9 AM; scheduled_end = tomorrow 10 AM (60 min window)
+  const schedStart = new Date(); schedStart.setDate(schedStart.getDate() + 1); schedStart.setHours(9,0,0,0);
+  const schedEnd   = new Date(schedStart.getTime() + 60 * 60 * 1000);
   const mockTest = await db.execute(sql`
-    INSERT INTO mock_tests (id, title, subject, exam_type, batch_id, duration_minutes, marks_per_question, negative_marking_percent, instructions, is_published, is_public, created_by, created_at, updated_at)
+    INSERT INTO mock_tests (id, title, subject, exam_type, batch_id, duration_minutes, marks_per_question, negative_marking_percent, instructions, scheduled_start, scheduled_end, is_published, is_public, created_by, created_at, updated_at)
     VALUES (gen_random_uuid(), 'Demo Full Mock Test — JEE Pattern', 'Mixed', 'JEE_MAIN', ${primaryBatchId}, 60, 4, 25,
       'Read each question carefully. Attempt all sections. –1 per wrong MCQ. No penalty for numerical.',
+      ${schedStart.toISOString()}, ${schedEnd.toISOString()},
       true, false, ${adminId}, NOW(), NOW())
     RETURNING id
   `);
@@ -647,12 +656,36 @@ export async function seedDemo(): Promise<SeedDemoResult> {
   `);
   created.push("1 enquiry: Test Parent — JEE Mains 2026 interest");
 
-  // ── Completion sentinel (set LAST so partial failures allow safe retry) ────
+  // ── Completion sentinel (set LAST — inside transaction) ───────────────────
   await db.execute(sql`
     INSERT INTO site_settings (id, key, value, label, updated_at)
     VALUES (gen_random_uuid(), 'demo_seed_v1', 'completed', 'Demo Seed Status', NOW())
     ON CONFLICT (key) DO UPDATE SET value = 'completed', updated_at = NOW()
   `);
 
-  return { created, skipped: false };
+    await db.execute(sql`COMMIT`);
+    return { created, skipped: false };
+  } catch (err) {
+    await db.execute(sql`ROLLBACK`);
+    throw err;
+  }
+}
+
+// ── CLI entrypoint ────────────────────────────────────────────────────────────
+// Run directly:  pnpm --filter @workspace/api-server exec tsx src/seed-demo.ts
+if (process.argv[1] && (process.argv[1].endsWith('seed-demo.ts') || process.argv[1].endsWith('seed-demo.mjs'))) {
+  seedDemo()
+    .then(r => {
+      if (r.skipped) {
+        console.log("⚠️  Demo data already exists — seed skipped.");
+      } else {
+        console.log(`✅  Demo data seeded — ${r.created.length} entity group(s) created:`);
+        r.created.forEach(line => console.log(`  • ${line}`));
+      }
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error("❌  Seed failed:", err);
+      process.exit(1);
+    });
 }
