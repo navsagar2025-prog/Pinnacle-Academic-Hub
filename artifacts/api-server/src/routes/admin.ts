@@ -109,6 +109,18 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
   }
 });
 
+// ── Prospectus URL — PUBLIC read (no auth required) ───────────────────────
+router.get("/settings/prospectus", async (_req, res) => {
+  try {
+    const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, "prospectus_url"));
+    const url = rows[0]?.value ?? null;
+    res.json({ ok: true, data: { url } });
+  } catch (e) {
+    console.error("GET /settings/prospectus error:", e);
+    res.status(500).json({ error: "Failed to fetch prospectus URL" });
+  }
+});
+
 router.use(requireAuth());
 
 async function requireAdminRole(req: Request, res: Response, next: NextFunction) {
@@ -1959,6 +1971,23 @@ router.put("/admin/social/teacher-access/:userId", async (req, res) => {
   } catch (e) {
     console.error("PUT /admin/social/teacher-access/:userId error:", e);
     res.status(500).json({ error: "Failed to update teacher access" });
+  }
+});
+
+// ── Prospectus URL ─────────────────────────────────────────────────────────
+// Admin write — save or update the prospectus URL.
+router.put("/admin/settings/prospectus", async (req, res) => {
+  try {
+    const { url } = req.body as { url: string };
+    if (typeof url !== "string") { res.status(400).json({ error: "url must be a string" }); return; }
+    const trimmed = url.trim();
+    await db.insert(siteSettings)
+      .values({ key: "prospectus_url", value: trimmed, label: "Prospectus PDF URL" })
+      .onConflictDoUpdate({ target: siteSettings.key, set: { value: trimmed, updatedAt: new Date() } });
+    res.json({ ok: true, data: { url: trimmed } });
+  } catch (e) {
+    console.error("PUT /admin/settings/prospectus error:", e);
+    res.status(500).json({ error: "Failed to save prospectus URL" });
   }
 });
 

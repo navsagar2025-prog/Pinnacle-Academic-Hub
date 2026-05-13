@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail, Send, Eye, EyeOff } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail, Send, Eye, EyeOff, FileText, ExternalLink } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 import { useLocation } from "wouter";
 
@@ -808,6 +808,97 @@ export function AdminWatermarks({ getToken }: { getToken: () => Promise<string |
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Prospectus PDF ───────────────────────────────────────────────────────────
+export function AdminProspectus({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
+  const [url, setUrl] = useState("");
+  const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/v1/settings/prospectus`);
+      const json = await res.json() as { ok?: boolean; data?: { url: string | null } };
+      const existing = json.data?.url ?? null;
+      setSavedUrl(existing);
+      setUrl(existing ?? "");
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/settings/prospectus`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (json.ok) {
+        toast("success", "Prospectus URL saved");
+        setSavedUrl(url.trim() || null);
+      } else {
+        toast("error", json.error ?? "Save failed");
+      }
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-6">
+        <FileText size={20} className="text-[var(--color-teal)]" />
+        <h2 className="text-xl font-bold text-[var(--color-navy)]">Prospectus PDF</h2>
+      </div>
+      <p className="text-sm text-slate-500 mb-4">
+        Paste a direct PDF URL (Google Drive shareable link, Cloudinary, etc.). The "Download Prospectus" button
+        on the Admissions page will open this link in a new tab. Leave blank to show a "Request via contact form" fallback instead.
+      </p>
+
+      {loading ? <SkeletonList rows={1} /> : (
+        <div className="space-y-4">
+          <div className="card border border-slate-200">
+            <label className="block text-xs font-semibold text-slate-500 mb-1">
+              Prospectus PDF URL <span className="font-mono font-normal text-slate-400">(prospectus_url)</span>
+            </label>
+            <input
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              placeholder="https://drive.google.com/file/d/…/view?usp=sharing"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+            />
+            {savedUrl && (
+              <a
+                href={savedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-[var(--color-teal)] hover:underline"
+              >
+                <ExternalLink size={11} /> Open saved PDF
+              </a>
+            )}
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={save}
+              disabled={saving}
+              className="btn-primary px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              <Save size={14} /> {saving ? "Saving…" : "Save Prospectus URL"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

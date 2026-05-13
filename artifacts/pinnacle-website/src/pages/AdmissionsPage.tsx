@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
 import { COURSES } from "@/lib/data";
 import { CONTACT } from "@/lib/contact";
 import { CheckCircle, Send, Phone, Mail, Download, AlertCircle } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const ADMISSION_STEPS = [
   { step: "1", title: "Enquire / Call", description: "Fill the form below or call us. Our counsellor will contact you within 24 hours." },
@@ -18,6 +20,16 @@ export default function AdmissionsPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prospectusUrl, setProspectusUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/v1/settings/prospectus`)
+      .then(r => r.json())
+      .then((d: { ok?: boolean; data?: { url: string | null } }) => {
+        if (d.ok && d.data?.url) setProspectusUrl(d.data.url);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -150,10 +162,28 @@ export default function AdmissionsPage() {
                     ))}
                   </ul>
                 </div>
-                <a href="#" className="card flex items-center gap-3 text-[var(--color-navy)] font-semibold hover:shadow-elevated transition-all group">
-                  <Download size={18} className="text-[var(--color-gold)] group-hover:scale-110 transition-transform" />
-                  Download Prospectus 2026–27
-                </a>
+                {prospectusUrl ? (
+                  <a
+                    href={prospectusUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="card flex items-center gap-3 text-[var(--color-navy)] font-semibold hover:shadow-elevated transition-all group"
+                  >
+                    <Download size={18} className="text-[var(--color-gold)] group-hover:scale-110 transition-transform" />
+                    Download Prospectus 2026–27
+                  </a>
+                ) : (
+                  <a
+                    href="/contact"
+                    className="card flex items-center gap-3 text-[var(--color-navy)] font-semibold hover:shadow-elevated transition-all group"
+                  >
+                    <Download size={18} className="text-[var(--color-gold)] group-hover:scale-110 transition-transform" />
+                    <div>
+                      <p>Download Prospectus 2026–27</p>
+                      <p className="text-xs font-normal text-slate-400 mt-0.5">Request a copy via our contact form</p>
+                    </div>
+                  </a>
+                )}
               </div>
             </div>
           </div>
