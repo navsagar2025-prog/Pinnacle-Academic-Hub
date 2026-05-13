@@ -513,9 +513,11 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
             .limit(1);
 
           const studentName = studentUser?.name ?? "Student";
-          const recipients: Array<{ name: string; email: string }> = [];
+          // Deduplicate by email (lowercase) so a parent sharing the student's
+          // inbox does not receive two copies of the receipt.
+          const recipientMap = new Map<string, { name: string; email: string }>();
           if (studentUser?.email) {
-            recipients.push({ name: studentName, email: studentUser.email });
+            recipientMap.set(studentUser.email.toLowerCase(), { name: studentName, email: studentUser.email });
           }
 
           const parentRows = await db
@@ -530,8 +532,12 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
               .from(users)
               .where(eq(users.id, pr.userId))
               .limit(1);
-            if (pu?.email) recipients.push({ name: pu.name ?? "Parent", email: pu.email });
+            if (pu?.email && !recipientMap.has(pu.email.toLowerCase())) {
+              recipientMap.set(pu.email.toLowerCase(), { name: pu.name ?? "Parent", email: pu.email });
+            }
           }
+
+          const recipients = Array.from(recipientMap.values());
 
           const dueDateStr = row.dueDate
             ? new Date(row.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })

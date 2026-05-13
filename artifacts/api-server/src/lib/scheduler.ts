@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { feeRecords, students, parents, users, siteSettings, auditLogs } from "@workspace/db/schema";
+import { feeRecords, students, parents, users } from "@workspace/db/schema";
 import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
