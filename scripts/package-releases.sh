@@ -48,7 +48,7 @@ DIST_ZIP="$RELEASES_DIR/pinnacle-dist-$DATE.zip"
 echo "==> Creating dist zip: $DIST_ZIP"
 
 python3 - <<'PYEOF'
-import os, zipfile, pathlib
+import os, sys, zipfile, pathlib
 
 repo_root    = pathlib.Path(os.environ["REPO_ROOT"])
 date         = os.environ["DATE"]
@@ -61,23 +61,27 @@ DIST_DIRS = [
     repo_root / "artifacts" / "pinnacle-mobile"   / "dist",
 ]
 
+# Fail if any required dist directory is absent or empty.
+for d in DIST_DIRS:
+    if not d.exists():
+        print(f"ERROR: Required dist directory not found: {d.relative_to(repo_root)}", file=sys.stderr)
+        sys.exit(1)
+    files_in_dir = [p for p in d.rglob("*") if p.is_file()]
+    if not files_in_dir:
+        print(f"ERROR: dist directory is empty: {d.relative_to(repo_root)}", file=sys.stderr)
+        sys.exit(1)
+
 added = 0
 with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
     for dist_dir in DIST_DIRS:
-        if not dist_dir.exists():
-            print(f"    [skip] {dist_dir.relative_to(repo_root)} not found")
-            continue
         for path in sorted(dist_dir.rglob("*")):
             if path.is_file():
                 zf.write(path, path.relative_to(repo_root))
                 added += 1
         print(f"    Added: {dist_dir.relative_to(repo_root)}")
 
-if added == 0:
-    print("    [warn] No dist files found — dist zip is empty.")
-else:
-    size_mb = out_path.stat().st_size / 1_048_576
-    print(f"    {added} files → {size_mb:.1f} MB")
+size_mb = out_path.stat().st_size / 1_048_576
+print(f"    {added} files → {size_mb:.1f} MB")
 PYEOF
 
 echo "==> Release archives ready in $RELEASES_DIR/"
