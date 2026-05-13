@@ -102,6 +102,114 @@ function baseTemplate(content: string): string {
 </html>`;
 }
 
+export function buildFeePaymentConfirmationEmail(opts: {
+  recipientName: string;
+  studentName: string;
+  period: string;
+  amount: number;
+  paidAmount: number;
+  paidDate: string | null;
+  paymentMethod: string | null;
+  transactionRef: string | null;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  const safe = escapeHtml;
+  const fmtINR = (n: number) => "&#x20B9;" + n.toLocaleString("en-IN");
+  const subject = `Fee Payment Confirmed — ${opts.period}`;
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;color:${BRAND.navy};font-size:20px;">Payment Received!</h2>
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+      Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
+      We have received the fee payment for <strong>${safe(opts.studentName)}</strong>.
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:6px 0;color:#374151;font-size:14px;width:50%;"><strong>Period</strong></td>
+          <td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.period)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Amount Paid</strong></td>
+          <td style="padding:6px 0;color:#166534;font-size:15px;font-weight:700;">${fmtINR(opts.paidAmount)}</td>
+        </tr>
+        ${opts.paidAmount < opts.amount ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Balance Due</strong></td><td style="padding:6px 0;color:#dc2626;font-size:14px;font-weight:600;">${fmtINR(opts.amount - opts.paidAmount)}</td></tr>` : ""}
+        ${opts.paidDate ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Payment Date</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.paidDate)}</td></tr>` : ""}
+        ${opts.paymentMethod ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Payment Mode</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.paymentMethod)}</td></tr>` : ""}
+        ${opts.transactionRef ? `<tr><td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Reference</strong></td><td style="padding:6px 0;color:#374151;font-size:14px;font-family:monospace;">${safe(opts.transactionRef)}</td></tr>` : ""}
+      </table>
+    </div>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+      You can view and download the full receipt from the portal.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background:${BRAND.teal};border-radius:6px;">
+          <a href="${safe(opts.portalUrl)}" style="display:block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">
+            View Receipt in Portal &rarr;
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+      Thank you for your timely payment. If you have any questions, please contact the Pinnacle office.
+    </p>
+  `);
+  return { subject, html };
+}
+
+export function buildFeeReminderEmail(opts: {
+  recipientName: string;
+  studentName: string;
+  period: string;
+  amountDue: number;
+  dueDate: string;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  const safe = escapeHtml;
+  const fmtINR = (n: number) => "&#x20B9;" + n.toLocaleString("en-IN");
+  const subject = `Fee Due Reminder — ${opts.period} (Due ${opts.dueDate})`;
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 16px;color:${BRAND.navy};font-size:20px;">Fee Payment Reminder</h2>
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+      Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
+      This is a friendly reminder that a fee payment for <strong>${safe(opts.studentName)}</strong> is due soon.
+    </p>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:6px 0;color:#374151;font-size:14px;width:50%;"><strong>Period</strong></td>
+          <td style="padding:6px 0;color:#374151;font-size:14px;">${safe(opts.period)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Amount Due</strong></td>
+          <td style="padding:6px 0;color:#c2410c;font-size:15px;font-weight:700;">${fmtINR(opts.amountDue)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#374151;font-size:14px;"><strong>Due Date</strong></td>
+          <td style="padding:6px 0;color:#c2410c;font-size:14px;font-weight:600;">${safe(opts.dueDate)}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+      Please clear the dues before the due date to avoid any inconvenience.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+      <tr>
+        <td style="background:${BRAND.gold};border-radius:6px;">
+          <a href="${safe(opts.portalUrl)}" style="display:block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">
+            Pay Now &rarr;
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+      If you have already made this payment, please disregard this reminder.
+      For any queries, contact the Pinnacle office.
+    </p>
+  `);
+  return { subject, html };
+}
+
 export function buildApprovalEmail(name: string, portalUrl: string): { subject: string; html: string } {
   const safeName = escapeHtml(name);
   const safeUrl = escapeHtml(portalUrl);

@@ -539,13 +539,14 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
       if (student?.id === record.studentId) { authorized = true; }
     } else if (user.role === "parent") {
       const [parent] = await db.select().from(parents).where(eq(parents.userId, user.id)).limit(1);
-      if (parent?.studentId === record.studentId) {
+      if (parent?.studentId && parent.studentId === record.studentId) {
         authorized = true;
+        const sid = record.studentId as string;
         const [sw] = await db
           .select({ name: users.name })
           .from(students)
           .leftJoin(users, eq(students.userId, users.id))
-          .where(eq(students.id, record.studentId))
+          .where(eq(students.id, sid))
           .limit(1);
         if (sw?.name) studentName = sw.name;
       }

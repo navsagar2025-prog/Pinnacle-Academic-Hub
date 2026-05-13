@@ -3,13 +3,14 @@ import { requireAuth, getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   notices, enquiries, blogPosts, galleryItems,
-  users, students, teachers, courses, batches, feeRecords, results,
+  users, students, parents, teachers, courses, batches, feeRecords, results,
   mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
   pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
   practiceSets, practiceSetQuestions, practiceSetAssignments,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
+import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -463,8 +464,84 @@ router.post("/admin/fee-records", async (req, res) => {
 router.patch("/admin/fee-records/:id", async (req, res) => {
   const { status, paidAmount, paidDate, paymentMethod, transactionRef, notes } = req.body;
   try {
-    const [row] = await db.update(feeRecords).set({ status, paidAmount, paidDate: paidDate ? new Date(paidDate) : undefined, paymentMethod, transactionRef, notes, updatedAt: new Date() }).where(eq(feeRecords.id, req.params.id)).returning();
+    const [row] = await db
+      .update(feeRecords)
+      .set({
+        status,
+        paidAmount,
+        paidDate: paidDate ? new Date(paidDate) : undefined,
+        paymentMethod,
+        transactionRef,
+        notes,
+        updatedAt: new Date(),
+      })
+      .where(eq(feeRecords.id, req.params.id))
+      .returning();
+
     res.json({ ok: true, data: row });
+
+    if (status === "paid" && row && row.studentId && emailAvailable()) {
+      const portalUrl = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://pinnacle.edu.in/portal";
+      const paidDateStr = row.paidDate
+        ? new Date(row.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+        : null;
+      const studentId = row.studentId;
+
+      (async () => {
+        try {
+          const [studentRow] = await db
+            .select({ userId: students.userId })
+            .from(students)
+            .where(eq(students.id, studentId))
+            .limit(1);
+          if (!studentRow?.userId) return;
+
+          const [studentUser] = await db
+            .select({ name: users.name, email: users.email })
+            .from(users)
+            .where(eq(users.id, studentRow.userId))
+            .limit(1);
+
+          const studentName = studentUser?.name ?? "Student";
+          const recipients: Array<{ name: string; email: string }> = [];
+          if (studentUser?.email) {
+            recipients.push({ name: studentName, email: studentUser.email });
+          }
+
+          const parentRows = await db
+            .select({ userId: parents.userId })
+            .from(parents)
+            .where(eq(parents.studentId, studentId));
+
+          for (const pr of parentRows) {
+            if (!pr.userId) continue;
+            const [pu] = await db
+              .select({ name: users.name, email: users.email })
+              .from(users)
+              .where(eq(users.id, pr.userId))
+              .limit(1);
+            if (pu?.email) recipients.push({ name: pu.name ?? "Parent", email: pu.email });
+          }
+
+          for (const recipient of recipients) {
+            const { subject, html } = buildFeePaymentConfirmationEmail({
+              recipientName: recipient.name,
+              studentName,
+              period: row.period,
+              amount: row.amount,
+              paidAmount: row.paidAmount,
+              paidDate: paidDateStr,
+              paymentMethod: row.paymentMethod ?? null,
+              transactionRef: row.transactionRef ?? null,
+              portalUrl,
+            });
+            await sendEmail({ to: recipient.email, subject, html });
+          }
+        } catch {
+          // Fire-and-forget — log silently
+        }
+      })();
+    }
   } catch (e) { res.status(500).json({ error: "Failed to update fee record" }); }
 });
 
