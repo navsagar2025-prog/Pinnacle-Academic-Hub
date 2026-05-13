@@ -76,29 +76,78 @@ export type PublishResult =
   | { ok: true; url: string | null }
   | { ok: false; error: string };
 
+/**
+ * Returns env-var credentials for a platform as a fallback when no OAuth
+ * account is connected in the DB. Set these for simple single-account
+ * deployments that don't use the OAuth connection UI.
+ *
+ * Facebook:   FACEBOOK_PAGE_ACCESS_TOKEN + FACEBOOK_PAGE_ID
+ * Instagram:  INSTAGRAM_PAGE_ACCESS_TOKEN + INSTAGRAM_USER_ID
+ * Twitter/X:  TWITTER_BEARER_TOKEN  (must be an OAuth 2.0 *user-context* token
+ *             obtained with tweet.write scope — not an app-only bearer token)
+ * LinkedIn:   LINKEDIN_ACCESS_TOKEN + LINKEDIN_PERSON_URN (e.g. urn:li:person:xxx)
+ */
+function getEnvCredentials(platform: string): { token: string; pageId?: string; accountId?: string } | null {
+  if (platform === "facebook") {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    const pageId = process.env.FACEBOOK_PAGE_ID;
+    if (token && pageId) return { token, pageId };
+  }
+  if (platform === "instagram") {
+    const token = process.env.INSTAGRAM_PAGE_ACCESS_TOKEN;
+    const accountId = process.env.INSTAGRAM_USER_ID;
+    if (token && accountId) return { token, accountId };
+  }
+  if (platform === "twitter") {
+    const token = process.env.TWITTER_BEARER_TOKEN;
+    if (token) return { token };
+  }
+  if (platform === "linkedin") {
+    const token = process.env.LINKEDIN_ACCESS_TOKEN;
+    const accountId = process.env.LINKEDIN_PERSON_URN;
+    if (token && accountId) return { token, accountId };
+  }
+  return null;
+}
+
 export async function publishToAccount(
   platform: string,
   content: string,
   mediaUrls: string[] = [],
 ): Promise<PublishResult> {
+  // 1. Try DB-stored OAuth account first (connected via admin OAuth flow)
   const [account] = await db.select().from(socialAccounts)
     .where(eq(socialAccounts.platform, platform)).limit(1);
 
-  if (!account || account.status !== "connected") {
-    return { ok: false, error: `No connected ${platform} account` };
+  let token: string | null = null;
+  let pageId: string | undefined;
+  let accountId: string | undefined;
+
+  if (account?.status === "connected" && account.accessToken) {
+    token = decryptToken(account.accessToken);
+    pageId = account.pageId ?? undefined;
+    accountId = account.accountId ?? undefined;
+  } else {
+    // 2. Fall back to env-var credentials (simpler single-account deployments)
+    const env = getEnvCredentials(platform);
+    if (env) {
+      token = env.token;
+      pageId = env.pageId;
+      accountId = env.accountId;
+      logger.debug({ platform }, "Using env-var credentials for platform publish (no DB OAuth account)");
+    }
   }
 
-  const token = account.accessToken ? decryptToken(account.accessToken) : null;
   if (!token) {
-    return { ok: false, error: `No access token for ${platform}` };
+    return { ok: false, error: `No credentials for ${platform}. Connect via Admin → Social Media or set env vars (e.g. FACEBOOK_PAGE_ACCESS_TOKEN).` };
   }
 
   try {
     switch (platform) {
-      case "facebook": return await publishFacebook(token, account.pageId ?? undefined, content, mediaUrls);
-      case "instagram": return await publishInstagram(token, account.accountId ?? undefined, content, mediaUrls);
+      case "facebook": return await publishFacebook(token, pageId, content, mediaUrls);
+      case "instagram": return await publishInstagram(token, accountId, content, mediaUrls);
       case "twitter": return await publishTwitter(token, content, mediaUrls);
-      case "linkedin": return await publishLinkedIn(token, account.accountId ?? undefined, content, mediaUrls);
+      case "linkedin": return await publishLinkedIn(token, accountId, content, mediaUrls);
       default: return { ok: false, error: `Unknown platform: ${platform}` };
     }
   } catch (err) {
@@ -132,18 +181,19 @@ export async function publishPostToPlatforms(
 ): Promise<{ publishedUrls: Record<string, string>; errors: Record<string, string>; anySuccess: boolean }> {
   const publishedUrls: Record<string, string> = {};
   const errors: Record<string, string> = {};
+  const successes = new Set<string>();
 
   await Promise.all(platformTargets.map(async (platform) => {
     const result = await publishToAccount(platform, content, mediaUrls);
     if (result.ok) {
+      successes.add(platform);
       if (result.url) publishedUrls[platform] = result.url;
     } else {
       errors[platform] = result.error;
     }
   }));
 
-  const anySuccess = Object.keys(publishedUrls).length > 0 || Object.keys(errors).length < platformTargets.length;
-  return { publishedUrls, errors, anySuccess };
+  return { publishedUrls, errors, anySuccess: successes.size > 0 };
 }
 
 // ── Platform-specific publish functions ───────────────────────────────────────
@@ -171,12 +221,21 @@ async function publishInstagram(
   token: string, igUserId: string | undefined, content: string, mediaUrls: string[]
 ): Promise<PublishResult> {
   if (!igUserId) return { ok: false, error: "Instagram user ID not configured" };
-  const containerBody: Record<string, unknown> = { caption: content, access_token: token };
-  if (mediaUrls.length > 0) {
-    // Instagram requires a hosted image URL for image posts
-    containerBody.image_url = mediaUrls[0];
-    containerBody.media_type = "IMAGE";
+  // Instagram Business API requires at least one media item (image or video).
+  // Text-only posts are not supported — return a clear error rather than letting
+  // the Meta API return a cryptic "media type not supported" message.
+  if (mediaUrls.length === 0) {
+    return {
+      ok: false,
+      error: "Instagram does not support text-only posts. Please attach at least one image or video.",
+    };
   }
+  const containerBody: Record<string, unknown> = {
+    caption: content,
+    access_token: token,
+    image_url: mediaUrls[0],
+    media_type: "IMAGE",
+  };
   const containerRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
