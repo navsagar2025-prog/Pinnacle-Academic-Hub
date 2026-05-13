@@ -21,12 +21,20 @@ if (Number.isNaN(port) || port <= 0) {
 // Ensure the unique partial index that guards reminder deduplication exists.
 // Using IF NOT EXISTS makes this idempotent across all deployments/restarts.
 async function applyStartupMigrations(): Promise<void> {
+  // One row per (fee_record_id, reminder_date) — prevents duplicate reminders.
   await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS audit_logs_reminder_dedup_idx
       ON audit_logs (action, entity_type, entity_id, (details->>'date'))
       WHERE action       = 'fee_reminder_sent'
         AND entity_type  = 'fee_record'
         AND details->>'date' IS NOT NULL
+  `);
+  // One row per fee_record_id — prevents duplicate confirmation receipts.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS audit_logs_confirmation_dedup_idx
+      ON audit_logs (action, entity_type, entity_id)
+      WHERE action      = 'fee_confirmation_sent'
+        AND entity_type = 'fee_record'
   `);
   logger.info("Startup migrations applied");
 }

@@ -912,9 +912,14 @@ export const auditLogs = pgTable("audit_logs", {
   // the DB level. Concurrent transactions that both attempt INSERT WHERE NOT
   // EXISTS for the same (entity_id, date) will serialize — only one will
   // succeed; the other gets a unique-violation and its rowCount will be 0.
+  // Reminder dedup: one row per (fee_record_id, reminder_date).
   uniqueIndex("audit_logs_reminder_dedup_idx")
     .on(t.action, t.entityType, t.entityId, sql`(details->>'date')`)
     .where(sql`action = 'fee_reminder_sent' AND entity_type = 'fee_record' AND details->>'date' IS NOT NULL`),
+  // Confirmation dedup: one confirmation email per fee record ever.
+  uniqueIndex("audit_logs_confirmation_dedup_idx")
+    .on(t.action, t.entityType, t.entityId)
+    .where(sql`action = 'fee_confirmation_sent' AND entity_type = 'fee_record'`),
 ]);
 
 /**
