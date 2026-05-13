@@ -1561,7 +1561,10 @@ router.patch("/admin/social/accounts/:id", async (req, res) => {
 
 router.delete("/admin/social/accounts/:id", async (req, res) => {
   try {
-    await db.delete(socialAccounts).where(eq(socialAccounts.id, req.params.id));
+    // Soft-disconnect: retain the row so warning banners stay accurate; clear tokens.
+    await db.update(socialAccounts)
+      .set({ status: "disconnected", accessToken: null, refreshToken: null, updatedAt: new Date() })
+      .where(eq(socialAccounts.id, req.params.id));
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed to disconnect account" });
