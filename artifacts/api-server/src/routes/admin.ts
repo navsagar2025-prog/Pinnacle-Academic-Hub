@@ -539,6 +539,37 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
 
           const recipients = Array.from(recipientMap.values());
 
+          // Claim the send slot atomically to prevent duplicate confirmations
+          // when two concurrent PATCH requests both see the unpaid→paid transition.
+          // Uses the same INSERT WHERE NOT EXISTS pattern as the reminder scheduler,
+          // backed by the DB-level unique partial index for true race-safety.
+          let confirmClaimed = false;
+          try {
+            const claimResult = await db.execute(sql`
+              INSERT INTO audit_logs (id, action, entity_type, entity_id, details, created_at)
+              SELECT gen_random_uuid(),
+                     'fee_confirmation_sent',
+                     'fee_record',
+                     ${row.id},
+                     '{}'::jsonb,
+                     NOW()
+              WHERE NOT EXISTS (
+                SELECT 1 FROM audit_logs
+                WHERE action      = 'fee_confirmation_sent'
+                  AND entity_type = 'fee_record'
+                  AND entity_id   = ${row.id}
+              )
+            `);
+            confirmClaimed = (claimResult.rowCount ?? 0) > 0;
+          } catch (claimErr: unknown) {
+            if (typeof claimErr === "object" && claimErr !== null && (claimErr as { code?: string }).code === "23505") {
+              logger.info({ feeRecordId: row.id }, "Concurrent confirmation claim lost; skipping");
+            } else {
+              throw claimErr;
+            }
+          }
+          if (!confirmClaimed) return;
+
           const dueDateStr = row.dueDate
             ? new Date(row.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
             : null;
