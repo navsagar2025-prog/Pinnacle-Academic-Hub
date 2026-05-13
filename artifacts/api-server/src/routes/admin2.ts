@@ -679,7 +679,7 @@ router.patch("/admin/users/:id/approve", async (req, res) => {
     if (emailConfigured && row.email) {
       try {
         const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, "portal_url")).limit(1);
-        const portalUrl = setting?.value || process.env.PORTAL_URL || `https://${process.env.REPLIT_DEV_DOMAIN ?? "pinnacle.edu.in"}`;
+        const portalUrl = setting?.value || process.env.PORTAL_URL || `https://${process.env.REPLIT_DEV_DOMAIN ?? "paconline.in"}`;
         const { subject, html } = buildApprovalEmail(row.name ?? "Student", portalUrl);
         await sendEmail({ to: row.email, subject, html });
         emailSent = true;

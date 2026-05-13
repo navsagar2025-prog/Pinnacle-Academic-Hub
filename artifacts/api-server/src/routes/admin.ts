@@ -9,9 +9,9 @@ import {
   practiceSets, practiceSetQuestions, practiceSetAssignments,
   socialAccounts, socialPosts, socialTeacherAccess, socialPostMetrics,
 } from "@workspace/db/schema";
-import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
+import { desc, eq, sql, asc, and, or, isNull, isNotNull, inArray, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
-import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail, buildSocialPostRejectionEmail } from "../lib/email.js";
+import { emailAvailable, sendEmail, sendTestEmail, loadSmtpSettings, buildFeePaymentConfirmationEmail, buildSocialPostRejectionEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier, fetchAndCachePostMetrics } from "../lib/social.js";
 
@@ -586,7 +586,7 @@ router.patch("/admin/fee-records/:id", async (req, res) => {
 
     // Only send confirmation on a genuine unpaid → paid transition.
     if (status === "paid" && !wasAlreadyPaid && row && row.studentId && emailAvailable()) {
-      const portalUrl = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://pinnacle.edu.in/portal";
+      const portalUrl = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://paconline.in/portal";
       const paidDateStr = row.paidDate
         ? new Date(row.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
         : null;
@@ -884,6 +884,72 @@ router.patch("/admin/site-settings/bulk", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// ── SMTP Settings ─────────────────────────────────────────────────────────────
+
+const SMTP_KEYS = [
+  "smtp_host", "smtp_port", "smtp_secure",
+  "smtp_user", "smtp_pass",
+  "smtp_sender_name", "smtp_sender_email", "smtp_reply_to",
+] as const;
+
+router.get("/admin/smtp-settings", async (_req, res) => {
+  try {
+    const rows = await db.select().from(siteSettings)
+      .where(inArray(siteSettings.key, [...SMTP_KEYS]));
+    const data: Record<string, string> = {};
+    for (const r of rows) { if (r.value !== null) data[r.key] = r.value; }
+    const sanitised = { ...data };
+    if (sanitised.smtp_pass) sanitised.smtp_pass = "";
+    res.json({ ok: true, data: sanitised, hasPassword: !!(data.smtp_pass) });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch SMTP settings" });
+  }
+});
+
+router.put("/admin/smtp-settings", async (req, res) => {
+  try {
+    const body = req.body as Partial<Record<typeof SMTP_KEYS[number], string>>;
+    const updates: { key: string; value: string }[] = [];
+    for (const key of SMTP_KEYS) {
+      if (key === "smtp_pass" && !body[key]) continue;
+      if (body[key] !== undefined) {
+        updates.push({ key, value: body[key] as string });
+      }
+    }
+    if (updates.length === 0) { res.json({ ok: true }); return; }
+    await Promise.all(
+      updates.map(u =>
+        db.insert(siteSettings)
+          .values({ key: u.key, value: u.value, label: u.key })
+          .onConflictDoUpdate({ target: siteSettings.key, set: { value: u.value, updatedAt: new Date() } })
+      )
+    );
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to save SMTP settings" });
+  }
+});
+
+router.post("/admin/smtp-settings/test", async (req, res) => {
+  try {
+    const { to } = req.body as { to?: string };
+    if (!to || !to.includes("@")) {
+      res.status(400).json({ error: "A valid recipient email address is required" });
+      return;
+    }
+    const cfg = await loadSmtpSettings();
+    if (!cfg) {
+      res.status(400).json({ error: "SMTP not configured. Please save host, username and password first." });
+      return;
+    }
+    await sendTestEmail(to, cfg);
+    res.json({ ok: true, message: `Test email sent to ${to}` });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: `SMTP test failed: ${msg}` });
   }
 });
 

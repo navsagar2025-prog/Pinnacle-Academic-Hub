@@ -678,7 +678,7 @@ function deriveCodeChallenge(verifier: string): string {
 
 const CALLBACK_BASE = process.env.SOCIAL_OAUTH_CALLBACK_BASE
   ?? process.env.WEBSITE_BASE_URL
-  ?? "https://pinnacle.edu.in";
+  ?? "https://paconline.in";
 
 /**
  * Build the OAuth authorization URL for a platform.

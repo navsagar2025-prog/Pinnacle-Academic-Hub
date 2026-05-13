@@ -6,7 +6,7 @@ import {
   Menu, GraduationCap, School, Layers, CreditCard, Trophy, ClipboardList,
   CalendarDays, ClipboardCheck, FileText, UserCheck, Video, Play,
   MessageCircleQuestion, Megaphone, Database, BookMarked, Settings,
-  SearchCode, Droplet, BarChart2, ShieldAlert, UserCog, Share2,
+  SearchCode, Droplet, BarChart2, ShieldAlert, UserCog, Share2, Mail,
 } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { AdminQuestionBank, AdminPracticeSets } from "./AdminQuestionBank";
@@ -18,7 +18,7 @@ import { AdminLiveClasses } from "./AdminLiveClasses";
 import { AdminDoubts } from "./AdminDoubts";
 import { AdminPromotions } from "./AdminPromotions";
 import { AdminUsers } from "./AdminUsers";
-import { AdminSiteSettings, AdminSEO, AdminWatermarks, AdminGA4Setup } from "./AdminSiteSettings";
+import { AdminSiteSettings, AdminSEO, AdminWatermarks, AdminGA4Setup, AdminSmtpSettings } from "./AdminSiteSettings";
 import { AdminAnalytics, AdminSecurity } from "./AdminSecurity";
 import { AdminRecordingsSection } from "./AdminRecordings";
 import { AdminSocialMedia } from "./AdminSocialMedia";
@@ -32,7 +32,7 @@ type Section = "overview" | "notices" | "enquiries" | "blog" | "gallery"
   | "timetable" | "assignments" | "study-materials" | "live-classes" | "recordings"
   | "question-bank" | "practice-sets"
   | "promotions" | "social-media"
-  | "site-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security"
+  | "site-settings" | "smtp-settings" | "seo" | "watermarks" | "ga4-setup" | "analytics" | "security"
   | "social-media-settings";
 
 const NAV: { key: Section; label: string; Icon: React.ElementType; group?: string }[] = [
@@ -62,6 +62,7 @@ const NAV: { key: Section; label: string; Icon: React.ElementType; group?: strin
   { key: "enquiries", label: "Enquiries", Icon: Users, group: "Admissions" },
   { key: "social-media-settings", label: "Social Media", Icon: Share2, group: "Settings" },
   { key: "site-settings", label: "Site Settings", Icon: Settings, group: "Settings" },
+  { key: "smtp-settings", label: "Email & SMTP", Icon: Mail, group: "Settings" },
   { key: "seo", label: "SEO", Icon: SearchCode, group: "Settings" },
   { key: "watermarks", label: "Watermarks", Icon: Droplet, group: "Settings" },
   { key: "ga4-setup", label: "Google Analytics", Icon: BarChart2, group: "Settings" },
@@ -1358,6 +1359,7 @@ export default function AdminDashboard() {
     "social-media-settings": <AdminSocialMedia getToken={tokenFn} defaultTab="access" />,
     enquiries: <EnquiriesSection getToken={tokenFn} />,
     "site-settings": <AdminSiteSettings getToken={tokenFn} />,
+    "smtp-settings": <AdminSmtpSettings getToken={tokenFn} />,
     seo: <AdminSEO getToken={tokenFn} />,
     watermarks: <AdminWatermarks getToken={tokenFn} />,
     "ga4-setup": <AdminGA4Setup getToken={tokenFn} />,

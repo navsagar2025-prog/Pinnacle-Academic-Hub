@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail } from "lucide-react";
+import { Save, Plus, X, Pencil, Trash2, BarChart2, CheckCircle2, AlertCircle, Loader2, Unlink, Mail, Send, Eye, EyeOff } from "lucide-react";
 import { useToast, SkeletonList, useModalEscape, apiMutation } from "./portalUtils";
 import { useLocation } from "wouter";
 
@@ -91,7 +91,7 @@ export function AdminSiteSettings({ getToken }: { getToken: () => Promise<string
               </label>
               <input
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                placeholder={`https://${typeof window !== "undefined" ? window.location.hostname : "pinnacle.edu.in"}`}
+                placeholder={`https://${typeof window !== "undefined" ? window.location.hostname : "paconline.in"}`}
                 value={values["portal_url"] ?? ""}
                 onChange={e => setValues(v => ({ ...v, portal_url: e.target.value }))}
               />
@@ -490,6 +490,209 @@ export function AdminGA4Setup({ getToken }: { getToken: () => Promise<string | n
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── SMTP / Email Settings ────────────────────────────────────────────────────
+
+type SmtpData = {
+  smtp_host?: string; smtp_port?: string; smtp_secure?: string;
+  smtp_user?: string; smtp_sender_name?: string;
+  smtp_sender_email?: string; smtp_reply_to?: string;
+};
+
+export function AdminSmtpSettings({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { toast } = useToast();
+  const [data, setData] = useState<SmtpData>({});
+  const [hasPassword, setHasPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/api/v1/admin/smtp-settings`, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (json.ok) { setData(json.data ?? {}); setHasPassword(json.hasPassword ?? false); }
+    } catch { }
+    finally { setLoading(false); }
+  }, [getToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body: Record<string, string> = { ...data };
+      if (pass) body.smtp_pass = pass;
+      const res = await apiMutation("PUT", "/admin/smtp-settings", body, getToken) as { ok?: boolean; error?: string };
+      if (res.ok) {
+        toast("success", "SMTP settings saved");
+        setPass("");
+        load();
+      } else {
+        toast("error", res.error ?? "Save failed");
+      }
+    } catch { toast("error", "Network error"); }
+    finally { setSaving(false); }
+  };
+
+  const sendTest = async () => {
+    if (!testEmail.includes("@")) { toast("error", "Enter a valid email address"); return; }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await apiMutation("POST", "/admin/smtp-settings/test", { to: testEmail }, getToken) as { ok?: boolean; message?: string; error?: string };
+      if (res.ok) {
+        setTestResult({ ok: true, msg: res.message ?? "Test email sent!" });
+        toast("success", res.message ?? "Test email sent!");
+      } else {
+        setTestResult({ ok: false, msg: res.error ?? "Test failed" });
+        toast("error", res.error ?? "Test failed");
+      }
+    } catch { toast("error", "Network error"); }
+    finally { setTesting(false); }
+  };
+
+  const set = (key: keyof SmtpData, val: string) => setData(d => ({ ...d, [key]: val }));
+
+  if (loading) return <SkeletonList rows={6} />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Mail size={20} className="text-[var(--color-teal)]" />
+        <h2 className="text-xl font-bold text-[var(--color-navy)]">Email &amp; SMTP</h2>
+      </div>
+      <p className="text-sm text-slate-500">
+        Configure your outgoing mail server. All platform emails (fee reminders, approval/rejection notices, attendance alerts) will be sent through these settings.
+        Leave blank to use the <span className="font-mono text-xs bg-slate-100 px-1 rounded">RESEND_API_KEY</span> or <span className="font-mono text-xs bg-slate-100 px-1 rounded">SENDGRID_API_KEY</span> environment variable fallback.
+      </p>
+
+      {/* SMTP Server */}
+      <div className="card border border-slate-200 space-y-4 p-5">
+        <p className="text-sm font-semibold text-[var(--color-navy)]">Server Configuration</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">SMTP Host</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+              placeholder="smtp.gmail.com" value={data.smtp_host ?? ""}
+              onChange={e => set("smtp_host", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Port</label>
+            <input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+              placeholder="587" value={data.smtp_port ?? ""}
+              onChange={e => set("smtp_port", e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Encryption</label>
+          <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            value={data.smtp_secure ?? "starttls"}
+            onChange={e => set("smtp_secure", e.target.value)}>
+            <option value="starttls">STARTTLS (port 587 — recommended)</option>
+            <option value="tls">TLS / SSL (port 465)</option>
+            <option value="none">None (port 25 — not recommended)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Credentials */}
+      <div className="card border border-slate-200 space-y-4 p-5">
+        <p className="text-sm font-semibold text-[var(--color-navy)]">Credentials</p>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Username / Email</label>
+          <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            placeholder="team@paconline.in" value={data.smtp_user ?? ""}
+            onChange={e => set("smtp_user", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Password {hasPassword && <span className="font-normal text-emerald-600 ml-1">● saved</span>}
+          </label>
+          <div className="relative">
+            <input
+              type={showPass ? "text" : "password"}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-10 text-sm font-mono"
+              placeholder={hasPassword ? "Leave blank to keep existing" : "Enter SMTP password or app password"}
+              value={pass}
+              onChange={e => setPass(e.target.value)}
+            />
+            <button type="button" onClick={() => setShowPass(s => !s)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+              {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">For Gmail, use an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-[var(--color-teal)] underline">App Password</a> instead of your account password.</p>
+        </div>
+      </div>
+
+      {/* Sender */}
+      <div className="card border border-slate-200 space-y-4 p-5">
+        <p className="text-sm font-semibold text-[var(--color-navy)]">Sender Identity</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Sender Name</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              placeholder="Pinnacle Academic Classes"
+              value={data.smtp_sender_name ?? ""}
+              onChange={e => set("smtp_sender_name", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Sender Email</label>
+            <input type="email" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              placeholder="team@paconline.in"
+              value={data.smtp_sender_email ?? ""}
+              onChange={e => set("smtp_sender_email", e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Reply-To Address <span className="font-normal text-slate-400">(optional)</span></label>
+          <input type="email" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            placeholder="team@paconline.in"
+            value={data.smtp_reply_to ?? ""}
+            onChange={e => set("smtp_reply_to", e.target.value)} />
+          <p className="text-xs text-slate-400 mt-1">If set, replies from recipients will go to this address instead of the sender email.</p>
+        </div>
+      </div>
+
+      {/* Save */}
+      <div className="flex justify-end">
+        <button onClick={save} disabled={saving}
+          className="btn-primary px-5 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
+          <Save size={14} /> {saving ? "Saving…" : "Save SMTP Settings"}
+        </button>
+      </div>
+
+      {/* Test Email */}
+      <div className="card border border-slate-200 p-5 space-y-3">
+        <p className="text-sm font-semibold text-[var(--color-navy)]">Send Test Email</p>
+        <p className="text-xs text-slate-500">Save your settings first, then send a test email to verify the connection works.</p>
+        <div className="flex gap-2 items-start">
+          <input type="email" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            placeholder="your@email.com"
+            value={testEmail}
+            onChange={e => { setTestEmail(e.target.value); setTestResult(null); }} />
+          <button onClick={sendTest} disabled={testing || !testEmail}
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-[var(--color-teal)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+            {testing ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Send Test</>}
+          </button>
+        </div>
+        {testResult && (
+          <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${testResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+            {testResult.ok ? <CheckCircle2 size={15} className="shrink-0 mt-0.5" /> : <AlertCircle size={15} className="shrink-0 mt-0.5" />}
+            {testResult.msg}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

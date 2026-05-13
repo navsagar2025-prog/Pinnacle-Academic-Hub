@@ -1,6 +1,10 @@
+import { db } from "@workspace/db";
+import { siteSettings } from "@workspace/db/schema";
+import { inArray } from "drizzle-orm";
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM ?? "Pinnacle Academic Classes <noreply@pinnacle.edu.in>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Pinnacle Academic Classes <team@paconline.in>";
 
 export function emailAvailable(): boolean {
   return !!(RESEND_API_KEY || SENDGRID_API_KEY);
@@ -12,6 +16,69 @@ interface SendOptions {
   html: string;
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: "tls" | "starttls" | "none";
+  user: string;
+  pass: string;
+  senderName: string;
+  senderEmail: string;
+  replyTo: string;
+}
+
+const SMTP_KEYS = [
+  "smtp_host", "smtp_port", "smtp_secure",
+  "smtp_user", "smtp_pass",
+  "smtp_sender_name", "smtp_sender_email", "smtp_reply_to",
+] as const;
+
+export async function loadSmtpSettings(): Promise<SmtpConfig | null> {
+  try {
+    const rows = await db.select().from(siteSettings)
+      .where(inArray(siteSettings.key, [...SMTP_KEYS]));
+    const m: Record<string, string> = {};
+    for (const r of rows) { if (r.value) m[r.key] = r.value; }
+    if (!m.smtp_host || !m.smtp_user || !m.smtp_pass) return null;
+    return {
+      host: m.smtp_host,
+      port: parseInt(m.smtp_port ?? "587", 10),
+      secure: (m.smtp_secure as SmtpConfig["secure"]) ?? "starttls",
+      user: m.smtp_user,
+      pass: m.smtp_pass,
+      senderName: m.smtp_sender_name ?? "Pinnacle Academic Classes",
+      senderEmail: m.smtp_sender_email ?? "team@paconline.in",
+      replyTo: m.smtp_reply_to ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function sendViaSmtp(opts: SendOptions, cfg: SmtpConfig): Promise<void> {
+  const nodemailer = await import("nodemailer");
+  const transporter = nodemailer.default.createTransport({
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure === "tls",
+    ...(cfg.secure === "starttls" ? { requireTLS: true } : {}),
+    auth: { user: cfg.user, pass: cfg.pass },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  });
+  const fromAddress = cfg.senderName
+    ? `"${cfg.senderName}" <${cfg.senderEmail}>`
+    : cfg.senderEmail;
+  await transporter.sendMail({
+    from: fromAddress,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(cfg.replyTo ? { replyTo: cfg.replyTo } : {}),
+  });
+}
+
 async function sendViaResend(opts: SendOptions): Promise<void> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -19,7 +86,7 @@ async function sendViaResend(opts: SendOptions): Promise<void> {
       "Authorization": `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: EMAIL_FROM, to: opts.to, subject: opts.subject, html: opts.html }),
+    body: JSON.stringify({ from: DEFAULT_FROM, to: opts.to, subject: opts.subject, html: opts.html }),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -30,17 +97,38 @@ async function sendViaResend(opts: SendOptions): Promise<void> {
 async function sendViaSendGrid(opts: SendOptions): Promise<void> {
   const sgMail = await import("@sendgrid/mail");
   sgMail.default.setApiKey(SENDGRID_API_KEY!);
-  await sgMail.default.send({ from: EMAIL_FROM, to: opts.to, subject: opts.subject, html: opts.html });
+  await sgMail.default.send({ from: DEFAULT_FROM, to: opts.to, subject: opts.subject, html: opts.html });
 }
 
 export async function sendEmail(opts: SendOptions): Promise<void> {
+  const smtpCfg = await loadSmtpSettings();
+  if (smtpCfg) {
+    return sendViaSmtp(opts, smtpCfg);
+  }
   if (RESEND_API_KEY) {
     return sendViaResend(opts);
   }
   if (SENDGRID_API_KEY) {
     return sendViaSendGrid(opts);
   }
-  throw new Error("No email provider configured. Set RESEND_API_KEY or SENDGRID_API_KEY.");
+  throw new Error("No email provider configured. Set SMTP settings in Admin → Email & SMTP, or set RESEND_API_KEY / SENDGRID_API_KEY.");
+}
+
+export async function sendTestEmail(to: string, cfg: SmtpConfig): Promise<void> {
+  await sendViaSmtp({
+    to,
+    subject: "Pinnacle — SMTP Test Email",
+    html: baseTemplate(`
+      <h2 style="margin:0 0 16px;color:#0A1F5C;font-size:20px;">SMTP Connection Test</h2>
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+        This is a test email sent from the <strong>Pinnacle Academic Classes</strong> admin panel.<br/>
+        Your SMTP configuration is working correctly.
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:6px;padding:16px 20px;">
+        <p style="margin:0;font-size:14px;color:#166534;font-weight:600;">All good! Emails will be delivered via your SMTP server.</p>
+      </div>
+    `),
+  }, cfg);
 }
 
 function escapeHtml(str: string): string {
@@ -91,7 +179,7 @@ function baseTemplate(content: string): string {
         <tr>
           <td style="background:#f4f6fb;padding:20px 40px;text-align:center;border-top:1px solid #e8ecf4;">
             <p style="margin:0;color:#8892a4;font-size:12px;">
-              &copy; ${new Date().getFullYear()} Pinnacle Academic Classes. All rights reserved.
+              &copy; ${new Date().getFullYear()} Pinnacle Academic Classes &bull; <a href="https://paconline.in" style="color:#8892a4;text-decoration:none;">paconline.in</a>
             </p>
           </td>
         </tr>
@@ -130,8 +218,6 @@ export function buildFeeReceiptHtml(opts: {
   const statusBg: Record<string, string> = {
     paid: "#dcfce7", partial: "#fef9c3", due: "#fee2e2", overdue: "#fecaca", waived: "#f1f5f9",
   };
-  // Returns a self-contained table fragment (no html/head/body wrappers) so it
-  // can be safely embedded inside any email template without nesting documents.
   return `
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin:16px 0;">
     <!-- Receipt header -->
@@ -219,7 +305,6 @@ export function buildFeePaymentConfirmationEmail(opts: {
 }): { subject: string; html: string } {
   const safe = escapeHtml;
   const subject = `Fee Payment Receipt — ${opts.period}`;
-  // buildFeeReceiptHtml returns a table fragment — embed it inside baseTemplate.
   const receiptFragment = buildFeeReceiptHtml({
     feeRecordId: opts.feeRecordId,
     studentName: opts.studentName,

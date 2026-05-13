@@ -5,7 +5,7 @@ import { publishPostToPlatforms, resolveLinkedContentUrl } from "./social.js";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
-const PORTAL_URL = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://pinnacle.edu.in/portal";
+const PORTAL_URL = process.env.PORTAL_URL ?? process.env.WEBSITE_BASE_URL ?? "https://paconline.in/portal";
 
 async function sendFeeReminders(): Promise<void> {
   if (!emailAvailable()) return;
