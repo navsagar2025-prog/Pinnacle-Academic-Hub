@@ -7,7 +7,7 @@ import {
   attendance, studentTestResults, schedules, mockTests, mockTestAttempts,
   classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
-  socialTeacherAccess, socialPosts,
+  socialTeacherAccess, socialPosts, blogPosts,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
 import busboy from "busboy";
@@ -772,6 +772,40 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
   } catch (e) {
     console.error("Teacher media upload error:", e);
     res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// GET /portal/teacher/social/blog-posts — published blog posts list for link-to-blog in composer
+router.get("/portal/teacher/social/blog-posts", async (_req, res) => {
+  try {
+    const rows = await db
+      .select({ id: blogPosts.id, title: blogPosts.title })
+      .from(blogPosts)
+      .where(eq(blogPosts.status, "published"))
+      .orderBy(desc(blogPosts.createdAt))
+      .limit(50);
+    res.json({ ok: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch blog posts" });
+  }
+});
+
+// GET /portal/teacher/social/unread-rejections — returns rejected posts for the current teacher
+// Used by the dashboard root to show a persistent notification badge + Overview alert.
+router.get("/portal/teacher/social/unread-rejections", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user) { res.json({ ok: true, data: { count: 0, posts: [] } }); return; }
+    const rows = await db
+      .select({ id: socialPosts.id, content: socialPosts.content, rejectionNote: socialPosts.rejectionNote, createdAt: socialPosts.createdAt })
+      .from(socialPosts)
+      .where(and(eq(socialPosts.postedByUserId, user.id), eq(socialPosts.status, "rejected")))
+      .orderBy(desc(socialPosts.createdAt))
+      .limit(10);
+    res.json({ ok: true, data: { count: rows.length, posts: rows } });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
   }
 });
 

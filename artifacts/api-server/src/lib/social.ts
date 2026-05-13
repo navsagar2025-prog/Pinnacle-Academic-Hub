@@ -224,82 +224,115 @@ async function publishLinkedIn(
   return { ok: true, url: json.id ? `https://www.linkedin.com/feed/update/${json.id}` : null };
 }
 
-// ── OAuth URL generation ──────────────────────────────────────────────────────
+// ── OAuth State Store (in-memory, 10-minute TTL) ──────────────────────────────
+// Prevents CSRF and account-linking attacks by binding each OAuth flow to a
+// server-generated random state that is validated on callback before processing.
+// Also stores the PKCE code_verifier so the callback can complete the exchange.
 
-export type OAuthConfig = {
-  authUrl: string;
-  clientId: string;
-  scopes: string[];
-  extraParams?: Record<string, string>;
+type OAuthStateEntry = {
+  platform: string;
+  expiresAt: number;
+  codeVerifier?: string; // PKCE — only for Twitter
 };
+
+const _oauthStates = new Map<string, OAuthStateEntry>();
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/** Create a random state token, persist it, and return it. */
+export function createOAuthState(platform: string, codeVerifier?: string): string {
+  const now = Date.now();
+  // Purge expired entries
+  for (const [k, v] of _oauthStates.entries()) {
+    if (v.expiresAt < now) _oauthStates.delete(k);
+  }
+  const state = crypto.randomBytes(32).toString("hex");
+  _oauthStates.set(state, { platform, expiresAt: now + OAUTH_STATE_TTL_MS, codeVerifier });
+  return state;
+}
+
+/**
+ * Validate a state token. Returns the stored entry and deletes it (one-time use).
+ * Returns null if the state is unknown or has expired.
+ */
+export function validateOAuthState(state: string): OAuthStateEntry | null {
+  const entry = _oauthStates.get(state);
+  _oauthStates.delete(state); // Always delete — prevents replay
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) return null; // Expired
+  return entry;
+}
+
+// ── PKCE helpers ─────────────────────────────────────────────────────────────
+
+/** Generate a PKCE code_verifier (random 32-byte base64url string). */
+export function generateCodeVerifier(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+/** Derive the S256 code_challenge from a verifier. */
+function deriveCodeChallenge(verifier: string): string {
+  return crypto.createHash("sha256").update(verifier).digest("base64url");
+}
+
+// ── OAuth URL generation ──────────────────────────────────────────────────────
 
 const CALLBACK_BASE = process.env.SOCIAL_OAUTH_CALLBACK_BASE
   ?? process.env.WEBSITE_BASE_URL
   ?? "https://pinnacle.edu.in";
 
-export const OAUTH_CONFIGS: Record<string, (() => OAuthConfig | null)> = {
-  facebook: () => {
+/**
+ * Build the OAuth authorization URL for a platform.
+ * @param codeVerifier – Required for Twitter (PKCE S256). Pass the same verifier
+ *   that was stored via createOAuthState so the callback can use it.
+ */
+export function buildOAuthUrl(platform: string, state: string, codeVerifier?: string): string | null {
+  const redirectUri = `${CALLBACK_BASE}/api/v1/admin/social/oauth/callback`;
+
+  if (platform === "facebook" || platform === "instagram") {
     const clientId = process.env.SOCIAL_FACEBOOK_APP_ID;
     if (!clientId) return null;
-    return {
-      authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-      clientId,
-      scopes: ["pages_manage_posts", "pages_read_engagement", "pages_show_list"],
-      extraParams: { response_type: "code" },
-    };
-  },
-  instagram: () => {
-    const clientId = process.env.SOCIAL_FACEBOOK_APP_ID; // Instagram uses same FB app
-    if (!clientId) return null;
-    return {
-      authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-      clientId,
-      scopes: ["instagram_basic", "instagram_content_publish", "pages_show_list"],
-      extraParams: { response_type: "code" },
-    };
-  },
-  twitter: () => {
+    const scopes = platform === "facebook"
+      ? ["pages_manage_posts", "pages_read_engagement", "pages_show_list"]
+      : ["instagram_basic", "instagram_content_publish", "pages_show_list"];
+    const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, scope: scopes.join(","), state, response_type: "code" });
+    return `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
+  }
+
+  if (platform === "twitter") {
     const clientId = process.env.SOCIAL_TWITTER_CLIENT_ID;
     if (!clientId) return null;
-    return {
-      authUrl: "https://twitter.com/i/oauth2/authorize",
-      clientId,
-      scopes: ["tweet.write", "users.read", "offline.access"],
-      extraParams: { response_type: "code", code_challenge_method: "plain", code_challenge: "challenge" },
-    };
-  },
-  linkedin: () => {
+    if (!codeVerifier) {
+      logger.warn("buildOAuthUrl: codeVerifier required for Twitter PKCE but not provided");
+      return null;
+    }
+    const challenge = deriveCodeChallenge(codeVerifier);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: "tweet.write users.read offline.access",
+      state,
+      response_type: "code",
+      code_challenge_method: "S256",
+      code_challenge: challenge,
+    });
+    return `https://twitter.com/i/oauth2/authorize?${params}`;
+  }
+
+  if (platform === "linkedin") {
     const clientId = process.env.SOCIAL_LINKEDIN_CLIENT_ID;
     if (!clientId) return null;
-    return {
-      authUrl: "https://www.linkedin.com/oauth/v2/authorization",
-      clientId,
-      scopes: ["w_member_social", "r_liteprofile"],
-      extraParams: { response_type: "code" },
-    };
-  },
-};
+    const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, scope: "w_member_social r_liteprofile", state, response_type: "code" });
+    return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
+  }
 
-export function buildOAuthUrl(platform: string, state: string): string | null {
-  const configFn = OAUTH_CONFIGS[platform];
-  if (!configFn) return null;
-  const config = configFn();
-  if (!config) return null;
-
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    redirect_uri: `${CALLBACK_BASE}/api/v1/admin/social/oauth/callback`,
-    scope: config.scopes.join(","),
-    state,
-    ...config.extraParams,
-  });
-  return `${config.authUrl}?${params.toString()}`;
+  return null;
 }
 
 /** Exchange OAuth code for access token — platform-specific. Returns token or null. */
 export async function exchangeOAuthCode(
   platform: string,
   code: string,
+  codeVerifier?: string, // For Twitter PKCE
 ): Promise<{ accessToken: string; refreshToken?: string; expiresAt?: Date; accountId?: string; accountName?: string } | null> {
   const callbackUri = `${CALLBACK_BASE}/api/v1/admin/social/oauth/callback`;
 
@@ -320,13 +353,17 @@ export async function exchangeOAuthCode(
     const clientId = process.env.SOCIAL_TWITTER_CLIENT_ID;
     const clientSecret = process.env.SOCIAL_TWITTER_CLIENT_SECRET;
     if (!clientId || !clientSecret) return null;
+    if (!codeVerifier) {
+      logger.error("Twitter PKCE exchange called without code_verifier — cannot complete");
+      return null;
+    }
     const res = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
       },
-      body: new URLSearchParams({ code, grant_type: "authorization_code", redirect_uri: callbackUri, code_verifier: "challenge" }),
+      body: new URLSearchParams({ code, grant_type: "authorization_code", redirect_uri: callbackUri, code_verifier: codeVerifier }),
     });
     const json = (await res.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
     if (!json.access_token) return null;

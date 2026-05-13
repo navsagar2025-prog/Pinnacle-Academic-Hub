@@ -13,7 +13,7 @@ import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzl
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
-import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms } from "../lib/social.js";
+import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, createOAuthState, validateOAuthState, generateCodeVerifier } from "../lib/social.js";
 
 const router = Router();
 router.use(requireAuth());
@@ -1600,29 +1600,45 @@ router.delete("/admin/social/posts/:id", async (req, res) => {
 // ── Social Media: OAuth ──────────────────────────────────────────────────────
 
 // GET /admin/social/oauth/initiate/:platform
-// Returns the OAuth redirect URL (or error if client ID env var is not set).
-// The frontend opens a popup window with this URL.
+// Generates a cryptographically random state token (stored server-side with 10-min TTL)
+// and the OAuth redirect URL. For Twitter, also generates a PKCE S256 code_verifier
+// stored alongside the state. The frontend opens a popup at the returned URL.
 router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
   const { platform } = req.params;
-  const state = `${platform}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-  const url = buildOAuthUrl(platform, state);
+
+  // Generate PKCE verifier for Twitter (S256); other platforms don't use PKCE here
+  const codeVerifier = platform === "twitter" ? generateCodeVerifier() : undefined;
+
+  // Persist state server-side — validated on callback to prevent CSRF
+  const state = createOAuthState(platform, codeVerifier);
+
+  const url = buildOAuthUrl(platform, state, codeVerifier);
   if (!url) {
     res.status(400).json({
-      error: `OAuth not configured for ${platform}. Set the required SOCIAL_${platform.toUpperCase()}_APP_ID / CLIENT_ID env var.`,
+      error: `OAuth not configured for ${platform}. Set the required env var (e.g. SOCIAL_FACEBOOK_APP_ID or SOCIAL_TWITTER_CLIENT_ID).`,
     });
     return;
   }
-  res.json({ ok: true, url, state });
+  res.json({ ok: true, url });
+  // Note: do NOT return state to client — it is validated server-side only
 });
 
-// GET /admin/social/oauth/callback?code=...&state=...&platform=...
-// Platform redirects here after user approves. Exchanges code for token and
-// saves the account to the DB, then renders a self-closing page.
+// GET /admin/social/oauth/callback?code=...&state=...
+// OAuth provider redirects here after user approval. Validates state (CSRF guard),
+// exchanges code for token (with PKCE verifier for Twitter), encrypts, and stores.
+// Responds with a self-closing HTML page that postMessages the result to the opener.
 router.get("/admin/social/oauth/callback", async (req, res) => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
+  // The opener origin is embedded in origin header; for postMessage we use
+  // window.location.origin (same-origin) so the message stays within the domain.
+  const closeWithMsg = (data: Record<string, string>) =>
+    res.send(`<!doctype html><html><body><script>
+      window.opener?.postMessage(${JSON.stringify(data)}, window.location.origin);
+      window.close();
+    </script></body></html>`);
 
   if (oauthError) {
-    res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:${JSON.stringify(oauthError)}}, "*");window.close();</script>`);
+    closeWithMsg({ type: "social_oauth_error", error: oauthError });
     return;
   }
   if (!code || !state) {
@@ -1630,13 +1646,19 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
     return;
   }
 
-  const platform = state.split(":")[0];
-  if (!platform) { res.status(400).send("<p>Invalid state.</p>"); return; }
+  // Validate state — one-time use, prevents CSRF/replay
+  const stateEntry = validateOAuthState(state);
+  if (!stateEntry) {
+    closeWithMsg({ type: "social_oauth_error", error: "OAuth state invalid or expired. Please try connecting again." });
+    return;
+  }
+
+  const { platform, codeVerifier } = stateEntry;
 
   try {
-    const result = await exchangeOAuthCode(platform, code);
+    const result = await exchangeOAuthCode(platform, code, codeVerifier);
     if (!result) {
-      res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:"Token exchange failed — check server env vars"}, "*");window.close();</script>`);
+      closeWithMsg({ type: "social_oauth_error", error: "Token exchange failed — check server env vars" });
       return;
     }
 
@@ -1665,10 +1687,10 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
     });
 
     logger.info({ platform }, "Social account connected via OAuth");
-    res.send(`<script>window.opener?.postMessage({type:"social_oauth_success",platform:${JSON.stringify(platform)}}, "*");window.close();</script>`);
+    closeWithMsg({ type: "social_oauth_success", platform });
   } catch (e) {
     logger.error({ e }, "OAuth callback error");
-    res.send(`<script>window.opener?.postMessage({type:"social_oauth_error",error:"Server error during token exchange"}, "*");window.close();</script>`);
+    closeWithMsg({ type: "social_oauth_error", error: "Server error during token exchange" });
   }
 });
 

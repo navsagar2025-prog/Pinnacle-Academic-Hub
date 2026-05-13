@@ -40,7 +40,13 @@ function NoProfile() {
   );
 }
 
-function Overview({ teacher, getToken }: { teacher: TeacherInfo; getToken: () => Promise<string | null> }) {
+type RejectionSummary = { count: number; posts: { id: string; content: string; rejectionNote: string | null; createdAt: string }[] };
+
+function Overview({ teacher, getToken, rejections, onGoToSocial }: {
+  teacher: TeacherInfo; getToken: () => Promise<string | null>;
+  rejections: RejectionSummary | null;
+  onGoToSocial: () => void;
+}) {
   const { data: schedData } = useFetch<{ data: ScheduleRow[] }>("/portal/teacher/schedule", getToken);
   const { data: batchData } = useFetch<{ data: BatchRow[] }>("/portal/teacher/batches", getToken);
   const today = new Date().getDay();
@@ -48,6 +54,26 @@ function Overview({ teacher, getToken }: { teacher: TeacherInfo; getToken: () =>
 
   return (
     <div>
+      {/* Rejection notification — shown immediately on overview before teacher navigates to Social Posts */}
+      {rejections && rejections.count > 0 && (
+        <div className="mb-5 flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <XCircle size={18} className="shrink-0 mt-0.5 text-red-500" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-red-700 text-sm">
+              {rejections.count} social post{rejections.count > 1 ? "s" : ""} rejected by admin
+            </p>
+            {rejections.posts[0]?.rejectionNote && (
+              <p className="text-xs text-red-600 mt-0.5 line-clamp-2">
+                &ldquo;{rejections.posts[0].rejectionNote}&rdquo;
+              </p>
+            )}
+            <button onClick={onGoToSocial}
+              className="mt-2 text-xs font-medium text-red-700 underline hover:text-red-900 transition-colors">
+              Review in Social Posts →
+            </button>
+          </div>
+        </div>
+      )}
       <div className="card border border-slate-200 mb-6 bg-gradient-to-br from-[#4b0082] to-[#7c3aed] text-white">
         <p className="text-white/60 text-sm mb-1">Welcome back</p>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">{teacher.name}</h2>
@@ -199,18 +225,26 @@ type SocialPost = {
   postedByName: string; rejectionNote: string | null; createdAt: string;
 };
 
+type LinkItem = { id: string; title: string };
+
 function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | null> }) {
   const { addToast } = useToast();
   const { data: accessData, loading: accessLoading } = useFetch<{ ok: boolean; data: SocialAccess }>("/portal/teacher/social/access", getToken);
   const { data: postsData, loading: postsLoading, reload: refetchPosts } = useFetch<{ ok: boolean; data: SocialPost[] }>("/portal/teacher/social/posts", getToken);
+  const { data: noticesData } = useFetch<{ ok: boolean; data: LinkItem[] }>("/portal/teacher/notices", getToken);
+  const { data: blogPostsData } = useFetch<{ ok: boolean; data: LinkItem[] }>("/portal/teacher/social/blog-posts", getToken);
 
   const access = accessData?.data;
   const posts = postsData?.data ?? [];
+  const noticeOptions = noticesData?.data ?? [];
+  const blogOptions = blogPostsData?.data ?? [];
 
   const [content, setContent] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [linkedNoticeId, setLinkedNoticeId] = useState("");
+  const [linkedBlogId, setLinkedBlogId] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
@@ -264,12 +298,16 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
       const res = await fetch(`${BASE}/api/v1/portal/teacher/social/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: content.trim(), platformTargets: selectedPlatforms, mediaUrls }),
+        body: JSON.stringify({
+        content: content.trim(), platformTargets: selectedPlatforms, mediaUrls,
+        linkedNoticeId: linkedNoticeId || undefined, linkedBlogId: linkedBlogId || undefined,
+      }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed");
       addToast("Post submitted for admin approval", "success");
       setContent(""); setSelectedPlatforms([]); setMediaUrls([]); setMediaUrlInput("");
+      setLinkedNoticeId(""); setLinkedBlogId("");
       refetchPosts();
     } catch (e) {
       addToast(e instanceof Error ? e.message : "Failed to submit", "error");
@@ -386,6 +424,26 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
             )}
           </div>
 
+          {/* Link to notice or blog post (optional) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Link Notice (optional)</label>
+              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-400 focus:border-purple-400 outline-none bg-white"
+                value={linkedNoticeId} onChange={e => setLinkedNoticeId(e.target.value)}>
+                <option value="">— None —</option>
+                {noticeOptions.map(n => <option key={n.id} value={n.id}>{n.title}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Link Blog Post (optional)</label>
+              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-400 focus:border-purple-400 outline-none bg-white"
+                value={linkedBlogId} onChange={e => setLinkedBlogId(e.target.value)}>
+                <option value="">— None —</option>
+                {blogOptions.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div className="pt-2">
             <button onClick={submitPost} disabled={saving || !content.trim() || !selectedPlatforms.length}
               className="flex items-center gap-2 px-5 py-2 rounded-lg bg-purple-700 text-white text-sm font-medium hover:bg-purple-800 transition-colors disabled:opacity-50">
@@ -453,6 +511,14 @@ export default function TeacherDashboard() {
   const { data: meData } = useFetch<{ data: { user: { name: string }; roleRecord: TeacherInfo | null } | null }>("/portal/me", tokenFn);
   const teacher = meData?.data?.roleRecord;
 
+  // Fetch unread rejected posts at root level so the badge and Overview alert
+  // are visible regardless of which section the teacher is currently viewing.
+  const { data: rejectionsData } = useFetch<{ ok: boolean; data: RejectionSummary }>("/portal/teacher/social/unread-rejections", tokenFn);
+  const rejections = rejectionsData?.data ?? null;
+  const rejectionCount = rejections?.count ?? 0;
+
+  function goToSocial() { setSection("social-posts"); setSidebarOpen(false); }
+
   return (
     <ToastProvider>
     <div className="min-h-[calc(100vh-4rem)] flex bg-[var(--color-slate-light)]">
@@ -470,7 +536,14 @@ export default function TeacherDashboard() {
           {NAV.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => { setSection(key); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${section === key ? "bg-white/15 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>
-              <Icon size={16} />{label}
+              <Icon size={16} />
+              <span className="flex-1 text-left">{label}</span>
+              {/* Badge — shows count of rejected social posts directly on nav item */}
+              {key === "social-posts" && rejectionCount > 0 && (
+                <span className="min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full bg-red-500 text-white px-1">
+                  {rejectionCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -485,11 +558,23 @@ export default function TeacherDashboard() {
         <div className="lg:hidden flex items-center gap-3 bg-[#4b0082] px-4 py-3">
           <button onClick={() => setSidebarOpen(true)} className="text-white"><Menu size={20} /></button>
           <p className="text-white font-semibold text-sm">{NAV.find(n => n.key === section)?.label}</p>
+          {rejectionCount > 0 && (
+            <span className="ml-auto min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold rounded-full bg-red-500 text-white px-1">
+              {rejectionCount}
+            </span>
+          )}
         </div>
         <div className="p-6 max-w-4xl">
           {!teacher && section === "overview" ? <NoProfile /> : (
             <>
-              {section === "overview" && teacher && <Overview teacher={{ ...teacher, name: meData?.data?.user.name ?? "" }} getToken={tokenFn} />}
+              {section === "overview" && teacher && (
+                <Overview
+                  teacher={{ ...teacher, name: meData?.data?.user.name ?? "" }}
+                  getToken={tokenFn}
+                  rejections={rejections}
+                  onGoToSocial={goToSocial}
+                />
+              )}
               {section === "schedule" && <ScheduleSection getToken={tokenFn} />}
               {section === "batches" && <BatchesSection getToken={tokenFn} />}
               {section === "notices" && <NoticesSection getToken={tokenFn} />}

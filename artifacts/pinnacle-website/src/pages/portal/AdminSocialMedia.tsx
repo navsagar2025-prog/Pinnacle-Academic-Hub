@@ -164,6 +164,8 @@ function AccountsTab({ getToken, accounts, reload }: {
       const popup = window.open(json.url, "social_oauth", "width=600,height=700,scrollbars=yes");
       if (!popup) { addToast("Popup blocked — please allow popups for this site", "error"); return; }
       function onMessage(e: MessageEvent) {
+        // Reject messages from unexpected origins to prevent injection
+        if (e.origin !== window.location.origin) return;
         if (e.data?.type === "social_oauth_success") {
           addToast(`${PLATFORMS.find(p => p.id === e.data.platform)?.label} connected via OAuth`, "success");
           setConnecting(null);
