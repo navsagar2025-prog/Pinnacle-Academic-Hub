@@ -130,84 +130,75 @@ export function buildFeeReceiptHtml(opts: {
   const statusBg: Record<string, string> = {
     paid: "#dcfce7", partial: "#fef9c3", due: "#fee2e2", overdue: "#fecaca", waived: "#f1f5f9",
   };
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fee Receipt &mdash; ${safe(centre)}</title>
-</head>
-<body style="margin:0;padding:24px;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-    <!-- Header -->
+  // Returns a self-contained table fragment (no html/head/body wrappers) so it
+  // can be safely embedded inside any email template without nesting documents.
+  return `
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin:16px 0;">
+    <!-- Receipt header -->
     <tr>
-      <td style="background:${BRAND.navy};padding:28px 32px;text-align:center;">
-        <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:800;">${safe(centre)}</h1>
-        <p style="margin:6px 0 10px;color:rgba(255,255,255,0.7);font-size:12px;">Fee Payment Receipt</p>
-        <span style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:20px;padding:3px 14px;font-size:11px;color:#ffffff;">Ref: ${safe(ref)}</span>
+      <td style="background:${BRAND.navy};padding:22px 28px;text-align:center;">
+        <p style="margin:0;color:#ffffff;font-size:17px;font-weight:800;">${safe(centre)}</p>
+        <p style="margin:5px 0 8px;color:rgba(255,255,255,0.7);font-size:11px;">Fee Payment Receipt</p>
+        <span style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:20px;padding:2px 12px;font-size:11px;color:#ffffff;">Ref: ${safe(ref)}</span>
       </td>
     </tr>
     <!-- Student Details -->
     <tr>
-      <td style="padding:28px 32px 0;">
-        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Student Details</p>
+      <td style="padding:20px 28px 0;">
+        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Student Details</p>
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="padding:5px 0;width:50%;font-size:11px;color:#94a3b8;">Name</td>
-            <td style="padding:5px 0;width:50%;font-size:11px;color:#94a3b8;">Period</td>
+            <td style="padding:4px 0;width:50%;font-size:11px;color:#94a3b8;">Name</td>
+            <td style="padding:4px 0;width:50%;font-size:11px;color:#94a3b8;">Period</td>
           </tr>
           <tr>
-            <td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.studentName)}</td>
-            <td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.period)}</td>
+            <td style="padding:0 0 8px;font-size:13px;font-weight:600;color:#1e293b;">${safe(opts.studentName)}</td>
+            <td style="padding:0 0 8px;font-size:13px;font-weight:600;color:#1e293b;">${safe(opts.period)}</td>
           </tr>
-          ${opts.paidDate ? `<tr><td style="padding:5px 0;font-size:11px;color:#94a3b8;">Payment Date</td><td style="padding:5px 0;font-size:11px;color:#94a3b8;">${opts.paymentMethod ? "Payment Mode" : "&nbsp;"}</td></tr><tr><td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${safe(opts.paidDate)}</td><td style="padding:0 0 10px;font-size:14px;font-weight:600;color:#1e293b;">${opts.paymentMethod ? safe(opts.paymentMethod) : ""}</td></tr>` : ""}
+          ${opts.paidDate ? `<tr><td style="padding:4px 0;font-size:11px;color:#94a3b8;">Payment Date</td><td style="padding:4px 0;font-size:11px;color:#94a3b8;">${opts.paymentMethod ? "Payment Mode" : "&nbsp;"}</td></tr><tr><td style="padding:0 0 8px;font-size:13px;font-weight:600;color:#1e293b;">${safe(opts.paidDate)}</td><td style="padding:0 0 8px;font-size:13px;font-weight:600;color:#1e293b;">${opts.paymentMethod ? safe(opts.paymentMethod) : ""}</td></tr>` : ""}
           <tr>
-            <td colspan="2" style="padding:5px 0;font-size:11px;color:#94a3b8;">Status</td>
+            <td colspan="2" style="padding:4px 0;font-size:11px;color:#94a3b8;">Status</td>
           </tr>
           <tr>
-            <td colspan="2" style="padding:0 0 10px;">
-              <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusBg[safeStatus] ?? "#f1f5f9"};color:${statusColor[safeStatus] ?? "#475569"};">${safe(statusLabel[opts.status] ?? opts.status)}</span>
+            <td colspan="2" style="padding:0 0 8px;">
+              <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${statusBg[safeStatus] ?? "#f1f5f9"};color:${statusColor[safeStatus] ?? "#475569"};">${safe(statusLabel[opts.status] ?? opts.status)}</span>
             </td>
           </tr>
         </table>
       </td>
     </tr>
     <!-- Divider -->
-    <tr><td style="padding:0 32px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 16px;" /></td></tr>
+    <tr><td style="padding:0 28px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 12px;" /></td></tr>
     <!-- Amount Details -->
     <tr>
-      <td style="padding:0 32px 24px;">
-        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Amount Details</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;" >
+      <td style="padding:0 28px 20px;">
+        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Amount Details</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;">
           <tr>
-            <td style="padding:8px 16px;font-size:13px;color:#64748b;">Total Fee</td>
-            <td style="padding:8px 16px;font-size:13px;color:#1e293b;font-weight:600;text-align:right;">${fmtINR(opts.amount)}</td>
+            <td style="padding:8px 14px;font-size:12px;color:#64748b;">Total Fee</td>
+            <td style="padding:8px 14px;font-size:12px;color:#1e293b;font-weight:600;text-align:right;">${fmtINR(opts.amount)}</td>
           </tr>
           <tr>
-            <td style="padding:8px 16px;font-size:13px;color:#64748b;">Amount Paid</td>
-            <td style="padding:8px 16px;font-size:14px;color:#166534;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
+            <td style="padding:8px 14px;font-size:12px;color:#64748b;">Amount Paid</td>
+            <td style="padding:8px 14px;font-size:13px;color:#166534;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
           </tr>
-          ${opts.paidAmount < opts.amount ? `<tr><td style="padding:8px 16px;font-size:13px;color:#64748b;">Balance Due</td><td style="padding:8px 16px;font-size:13px;color:#dc2626;font-weight:600;text-align:right;">${fmtINR(opts.amount - opts.paidAmount)}</td></tr>` : ""}
+          ${opts.paidAmount < opts.amount ? `<tr><td style="padding:8px 14px;font-size:12px;color:#64748b;">Balance Due</td><td style="padding:8px 14px;font-size:12px;color:#dc2626;font-weight:600;text-align:right;">${fmtINR(opts.amount - opts.paidAmount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="border-top:1px dashed #cbd5e1;padding:0;"></td></tr>
           <tr>
-            <td colspan="2" style="border-top:1px dashed #cbd5e1;"></td>
-          </tr>
-          <tr>
-            <td style="padding:10px 16px;font-size:15px;color:#0A1F5C;font-weight:700;">Net Amount Paid</td>
-            <td style="padding:10px 16px;font-size:15px;color:#0A1F5C;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
+            <td style="padding:10px 14px;font-size:14px;color:#0A1F5C;font-weight:700;">Net Amount Paid</td>
+            <td style="padding:10px 14px;font-size:14px;color:#0A1F5C;font-weight:700;text-align:right;">${fmtINR(opts.paidAmount)}</td>
           </tr>
         </table>
-        ${opts.notes ? `<p style="margin:12px 0 0;font-size:12px;color:#64748b;line-height:1.5;">Note: ${safe(opts.notes)}</p>` : ""}
+        ${opts.notes ? `<p style="margin:10px 0 0;font-size:11px;color:#64748b;line-height:1.5;">Note: ${safe(opts.notes)}</p>` : ""}
       </td>
     </tr>
-    <!-- Footer -->
+    <!-- Receipt footer note -->
     <tr>
-      <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">
-        <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">${safe(centre)} &bull; Computer-generated receipt. No signature required.<br/>For queries, contact the Pinnacle office.</p>
+      <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;text-align:center;">
+        <p style="margin:0;font-size:10px;color:#94a3b8;line-height:1.5;">${safe(centre)} &bull; Computer-generated receipt. No signature required.</p>
       </td>
     </tr>
-  </table>
-</body>
-</html>`;
+  </table>`;
 }
 
 export function buildFeePaymentConfirmationEmail(opts: {
@@ -228,7 +219,8 @@ export function buildFeePaymentConfirmationEmail(opts: {
 }): { subject: string; html: string } {
   const safe = escapeHtml;
   const subject = `Fee Payment Receipt — ${opts.period}`;
-  const receiptHtml = buildFeeReceiptHtml({
+  // buildFeeReceiptHtml returns a table fragment — embed it inside baseTemplate.
+  const receiptFragment = buildFeeReceiptHtml({
     feeRecordId: opts.feeRecordId,
     studentName: opts.studentName,
     period: opts.period,
@@ -242,48 +234,18 @@ export function buildFeePaymentConfirmationEmail(opts: {
     status: opts.status,
     centreName: opts.centreName,
   });
-  // Wrap the receipt with a greeting and portal link
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Fee Receipt</title></head>
-<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
-    <tr><td align="center">
-      <table width="640" cellpadding="0" cellspacing="0" style="max-width:100%;">
-        <!-- Greeting -->
-        <tr>
-          <td style="padding:0 0 16px;">
-            <p style="margin:0;font-size:15px;color:#374151;line-height:1.6;">
-              Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
-              The fee payment receipt for <strong>${safe(opts.studentName)}</strong> is attached below.
-            </p>
-          </td>
-        </tr>
-        <!-- Receipt -->
-        <tr>
-          <td>${receiptHtml}</td>
-        </tr>
-        <!-- Portal link -->
-        <tr>
-          <td style="padding:20px 0 8px;text-align:center;">
-            <a href="${safe(opts.portalUrl)}" style="display:inline-block;background:${BRAND.teal};color:#ffffff;padding:11px 26px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;">
-              View &amp; Download in Portal &rarr;
-            </a>
-          </td>
-        </tr>
-        <!-- Footer note -->
-        <tr>
-          <td style="padding:12px 0 0;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#8892a4;">
-              &copy; ${new Date().getFullYear()} Pinnacle Academic Classes. All rights reserved.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const html = baseTemplate(`
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+      Dear <strong>${safe(opts.recipientName)}</strong>,<br/>
+      The fee payment receipt for <strong>${safe(opts.studentName)}</strong> is shown below.
+    </p>
+    ${receiptFragment}
+    <div style="margin-top:24px;text-align:center;">
+      <a href="${safe(opts.portalUrl)}" style="display:inline-block;background:${BRAND.teal};color:#ffffff;padding:11px 26px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;">
+        View &amp; Download in Portal &rarr;
+      </a>
+    </div>
+  `);
   return { subject, html };
 }
 

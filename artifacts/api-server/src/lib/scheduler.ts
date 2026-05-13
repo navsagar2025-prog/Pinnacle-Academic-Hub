@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { feeRecords, students, parents, users, siteSettings, auditLogs } from "@workspace/db/schema";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
 
@@ -41,13 +41,6 @@ async function sendFeeReminders(): Promise<void> {
 
     if (dueSoon.length === 0) return;
 
-    const [siteRow] = await db
-      .select({ value: siteSettings.value })
-      .from(siteSettings)
-      .where(eq(siteSettings.key, "site_name"))
-      .limit(1);
-    const _centreName = siteRow?.value ?? "Pinnacle Academic Classes";
-
     for (const record of dueSoon) {
       if (!record.studentId) continue;
 
@@ -56,23 +49,29 @@ async function sendFeeReminders(): Promise<void> {
 
       const studentId = record.studentId;
 
-      // Idempotency: check audit_logs for a same-day reminder already sent
-      // for this fee record. Survives process restarts and multi-instance runs.
-      const existingLogs = await db
-        .select({ details: auditLogs.details })
-        .from(auditLogs)
-        .where(
-          and(
-            eq(auditLogs.action, "fee_reminder_sent"),
-            eq(auditLogs.entityType, "fee_record"),
-            eq(auditLogs.entityId, record.id),
-          ),
-        );
-      const alreadySentToday = existingLogs.some(
-        (l) => (l.details as { date?: string } | null)?.date === reminderDateKey,
-      );
-      if (alreadySentToday) {
-        logger.debug({ recordId: record.id, reminderDateKey }, "Skipping already-sent reminder");
+      // Atomic idempotency claim using INSERT WHERE NOT EXISTS.
+      // This is race-safe across restarts and multi-instance runs without
+      // requiring a unique index on audit_logs.
+      // rowCount == 0  → another instance already claimed this record today → skip.
+      // rowCount > 0   → we own the send for this record+day → proceed.
+      const claimResult = await db.execute(sql`
+        INSERT INTO audit_logs (id, action, entity_type, entity_id, details, created_at)
+        SELECT gen_random_uuid(),
+               'fee_reminder_sent',
+               'fee_record',
+               ${record.id},
+               ${JSON.stringify({ date: reminderDateKey })}::jsonb,
+               NOW()
+        WHERE NOT EXISTS (
+          SELECT 1 FROM audit_logs
+          WHERE action       = 'fee_reminder_sent'
+            AND entity_type  = 'fee_record'
+            AND entity_id    = ${record.id}
+            AND details->>'date' = ${reminderDateKey}
+        )
+      `);
+      if ((claimResult.rowCount ?? 0) === 0) {
+        logger.debug({ recordId: record.id, reminderDateKey }, "Skipping already-claimed reminder");
         continue;
       }
 
@@ -116,7 +115,6 @@ async function sendFeeReminders(): Promise<void> {
         }
       }
 
-      let sentCount = 0;
       for (const recipient of recipients) {
         try {
           const { subject, html } = buildFeeReminderEmail({
@@ -128,20 +126,9 @@ async function sendFeeReminders(): Promise<void> {
             portalUrl: PORTAL_URL,
           });
           await sendEmail({ to: recipient.email, subject, html });
-          sentCount++;
         } catch (err) {
           logger.warn({ err, recordId: record.id, to: recipient.email }, "Fee reminder email failed");
         }
-      }
-
-      // Record the send so future runs (including same-day restarts) skip this record.
-      if (sentCount > 0) {
-        await db.insert(auditLogs).values({
-          action: "fee_reminder_sent",
-          entityType: "fee_record",
-          entityId: record.id,
-          details: { date: reminderDateKey, recipients: sentCount },
-        });
       }
     }
 
