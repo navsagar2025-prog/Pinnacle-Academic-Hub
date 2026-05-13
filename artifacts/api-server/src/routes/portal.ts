@@ -7,6 +7,7 @@ import {
   attendance, studentTestResults, schedules, mockTests, mockTestAttempts,
   classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
+  socialTeacherAccess, socialPosts,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql } from "drizzle-orm";
 
@@ -697,6 +698,68 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
   } catch (e) { res.status(500).json({ error: "Failed to generate receipt" }); }
+});
+
+// ── Teacher: Social Media Posts ───────────────────────────────────────────────
+
+// Returns the teacher's social media access settings so the UI can show/hide the composer.
+router.get("/portal/teacher/social/access", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user || user.role !== "teacher") { res.json({ ok: true, data: { isEnabled: false, platformsAllowed: [] } }); return; }
+    const [access] = await db.select().from(socialTeacherAccess).where(eq(socialTeacherAccess.userId, user.id)).limit(1);
+    res.json({ ok: true, data: { isEnabled: access?.isEnabled ?? false, platformsAllowed: access?.platformsAllowed ?? [] } });
+  } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// Returns the teacher's own posts so they can track status.
+router.get("/portal/teacher/social/posts", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  try {
+    const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user || user.role !== "teacher") { res.json({ ok: true, data: [] }); return; }
+    const rows = await db.select().from(socialPosts)
+      .where(eq(socialPosts.postedByUserId, user.id))
+      .orderBy(desc(socialPosts.createdAt)).limit(50);
+    res.json({ ok: true, data: rows });
+  } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// Submit a social post for admin approval. Enforces teacher access + platform allowlist.
+router.post("/portal/teacher/social/posts", async (req, res) => {
+  const { userId: clerkUserId } = getAuth(req);
+  const { content, mediaUrls, platformTargets, linkedBlogId, linkedNoticeId } = req.body;
+  if (!content || !platformTargets?.length) {
+    res.status(400).json({ error: "content and platformTargets are required" }); return;
+  }
+  try {
+    const [user] = await db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
+    if (!user || user.role !== "teacher") { res.status(403).json({ error: "Teacher access required" }); return; }
+
+    // Enforce social media access for this teacher.
+    const [access] = await db.select().from(socialTeacherAccess).where(eq(socialTeacherAccess.userId, user.id)).limit(1);
+    if (!access?.isEnabled) { res.status(403).json({ error: "Social media access not granted for your account. Contact admin." }); return; }
+
+    // Validate each requested platform is in the teacher's allowlist.
+    const allowed: string[] = access.platformsAllowed ?? [];
+    const disallowed = (platformTargets as string[]).filter(p => !allowed.includes(p));
+    if (disallowed.length > 0) {
+      res.status(403).json({ error: `You do not have access to post on: ${disallowed.join(", ")}` }); return;
+    }
+
+    const [row] = await db.insert(socialPosts).values({
+      content, mediaUrls: mediaUrls || [], platformTargets,
+      status: "pending",
+      postedByUserId: user.id, postedByName: user.name,
+      linkedBlogId: linkedBlogId || null, linkedNoticeId: linkedNoticeId || null,
+    }).returning();
+
+    res.status(201).json({ ok: true, data: row });
+  } catch (e) {
+    console.error("POST /portal/teacher/social/posts error:", e);
+    res.status(500).json({ error: "Failed to submit post" });
+  }
 });
 
 export default router;

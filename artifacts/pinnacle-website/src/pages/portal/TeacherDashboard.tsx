@@ -1,14 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth, useUser, useClerk } from "@clerk/react";
-import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle } from "lucide-react";
-import { useFetch } from "./portalUtils";
+import { LayoutDashboard, Bell, Calendar, Users, LogOut, Menu, AlertCircle, Share2, Send, Check, X, Clock, XCircle, CheckCircle, Link2 } from "lucide-react";
+import { useFetch, useToast, ToastProvider } from "./portalUtils";
 
-type Section = "overview" | "schedule" | "batches" | "notices";
+type Section = "overview" | "schedule" | "batches" | "notices" | "social-posts";
 const NAV: { key: Section; label: string; Icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", Icon: LayoutDashboard },
   { key: "schedule", label: "My Schedule", Icon: Calendar },
   { key: "batches", label: "My Batches", Icon: Users },
   { key: "notices", label: "Notices", Icon: Bell },
+  { key: "social-posts", label: "Social Posts", Icon: Share2 },
 ];
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -176,6 +177,223 @@ function NoticesSection({ getToken }: { getToken: () => Promise<string | null> }
   );
 }
 
+const PLATFORM_LABELS: Record<string, string> = {
+  facebook: "📘 Facebook",
+  instagram: "📷 Instagram",
+  twitter: "🐦 Twitter/X",
+  linkedin: "💼 LinkedIn",
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+  pending:   { label: "Pending Approval", color: "text-amber-600 bg-amber-50 border-amber-200",   Icon: Clock },
+  approved:  { label: "Approved",         color: "text-blue-600 bg-blue-50 border-blue-200",      Icon: CheckCircle },
+  rejected:  { label: "Rejected",         color: "text-red-600 bg-red-50 border-red-200",         Icon: XCircle },
+  scheduled: { label: "Scheduled",        color: "text-purple-600 bg-purple-50 border-purple-200", Icon: Clock },
+  published: { label: "Published",        color: "text-green-600 bg-green-50 border-green-200",   Icon: CheckCircle },
+};
+
+type SocialAccess = { isEnabled: boolean; platformsAllowed: string[] };
+type SocialPost = {
+  id: string; content: string; mediaUrls: string[]; platformTargets: string[];
+  status: string; scheduledAt: string | null; publishedAt: string | null;
+  postedByName: string; rejectedReason: string | null; createdAt: string;
+};
+
+function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | null> }) {
+  const { addToast } = useToast();
+  const { data: accessData, loading: accessLoading } = useFetch<{ ok: boolean; data: SocialAccess }>("/portal/teacher/social/access", getToken);
+  const { data: postsData, loading: postsLoading, reload: refetchPosts } = useFetch<{ ok: boolean; data: SocialPost[] }>("/portal/teacher/social/posts", getToken);
+
+  const access = accessData?.data;
+  const posts = postsData?.data ?? [];
+
+  const [content, setContent] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [mediaUrlInput, setMediaUrlInput] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+
+  const allowedPlatforms = access?.platformsAllowed ?? [];
+
+  function togglePlatform(p: string) {
+    setSelectedPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+  }
+
+  function addMediaUrl() {
+    const url = mediaUrlInput.trim();
+    if (!url) return;
+    try { new URL(url); } catch { addToast("Enter a valid URL", "error"); return; }
+    if (mediaUrls.includes(url)) return;
+    setMediaUrls(prev => [...prev, url]);
+    setMediaUrlInput("");
+  }
+
+  async function submitPost() {
+    if (!content.trim()) { addToast("Post content is required", "error"); return; }
+    if (!selectedPlatforms.length) { addToast("Select at least one platform", "error"); return; }
+    setSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${import.meta.env.BASE_URL}api/portal/teacher/social/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: content.trim(), platformTargets: selectedPlatforms, mediaUrls }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed");
+      addToast("Post submitted for admin approval", "success");
+      setContent(""); setSelectedPlatforms([]); setMediaUrls([]); setMediaUrlInput("");
+      refetchPosts();
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Failed to submit", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (accessLoading) return <div className="py-12 text-center text-slate-500 text-sm">Loading social access…</div>;
+
+  if (!access?.isEnabled) {
+    return (
+      <div className="text-center py-16">
+        <Share2 size={40} className="mx-auto mb-4 text-slate-300" />
+        <p className="font-semibold text-slate-700 mb-2">Social media access not enabled</p>
+        <p className="text-sm text-slate-500">Ask your admin to enable social media posting for your account.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Social Posts</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Submit posts for admin approval before they go live.</p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+          {(["compose", "history"] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${activeTab === tab ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"}`}>
+              {tab === "compose" ? "Compose" : `History (${posts.length})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "compose" && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 max-w-2xl">
+          {/* Platform selection */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Post to *</label>
+            <div className="flex flex-wrap gap-2">
+              {allowedPlatforms.map(p => {
+                const isSelected = selectedPlatforms.includes(p);
+                return (
+                  <button key={p} onClick={() => togglePlatform(p)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? "border-purple-400 bg-purple-50 text-purple-700" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+                    {PLATFORM_LABELS[p] ?? p}
+                    {isSelected && <Check size={11} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Post Content *</label>
+            <textarea rows={5}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 outline-none"
+              placeholder="Write your post…"
+              value={content} onChange={e => setContent(e.target.value)} />
+            <p className="text-xs text-slate-400 mt-1">{content.length} characters</p>
+          </div>
+
+          {/* Media URLs */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+              <Link2 size={13} /> Media URLs (optional)
+            </label>
+            <div className="flex gap-2">
+              <input className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-purple-400 focus:border-purple-400 outline-none"
+                placeholder="Paste an image or video URL…"
+                value={mediaUrlInput} onChange={e => setMediaUrlInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }} />
+              <button onClick={addMediaUrl} type="button"
+                className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Add</button>
+            </div>
+            {mediaUrls.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {mediaUrls.map((url, i) => (
+                  <li key={i} className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-1.5">
+                    <span className="flex-1 truncate">{url}</span>
+                    <button onClick={() => setMediaUrls(prev => prev.filter((_, j) => j !== i))}
+                      className="text-slate-400 hover:text-red-500 transition-colors"><X size={12} /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-slate-400 mt-1">Paste a direct link to an image or video hosted online.</p>
+          </div>
+
+          <div className="pt-2">
+            <button onClick={submitPost} disabled={saving || !content.trim() || !selectedPlatforms.length}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-purple-700 text-white text-sm font-medium hover:bg-purple-800 transition-colors disabled:opacity-50">
+              <Send size={14} /> {saving ? "Submitting…" : "Submit for Approval"}
+            </button>
+            <p className="text-xs text-slate-400 mt-2">Your post will be reviewed by an admin before publishing.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "history" && (
+        <div>
+          {postsLoading ? (
+            <div className="py-8 text-center text-slate-400 text-sm">Loading…</div>
+          ) : posts.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 text-sm">No posts yet. Compose your first post above.</div>
+          ) : (
+            <div className="space-y-3">
+              {posts.map(post => {
+                const statusConf = STATUS_CONFIG[post.status] ?? STATUS_CONFIG.pending;
+                const StatusIcon = statusConf.Icon;
+                return (
+                  <div key={post.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <p className="text-sm text-slate-800 whitespace-pre-line line-clamp-3 flex-1">{post.content}</p>
+                      <span className={`shrink-0 flex items-center gap-1 text-xs font-medium border rounded-full px-2 py-0.5 ${statusConf.color}`}>
+                        <StatusIcon size={11} /> {statusConf.label}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {post.platformTargets.map(p => (
+                        <span key={p} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{PLATFORM_LABELS[p] ?? p}</span>
+                      ))}
+                      {post.mediaUrls?.length > 0 && (
+                        <span className="text-xs text-slate-400 flex items-center gap-0.5"><Link2 size={10} /> {post.mediaUrls.length} media</span>
+                      )}
+                      <span className="text-xs text-slate-400 ml-auto">{new Date(post.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                    </div>
+                    {post.status === "rejected" && post.rejectedReason && (
+                      <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">
+                        <strong>Reason:</strong> {post.rejectedReason}
+                      </p>
+                    )}
+                    {post.status === "published" && post.publishedAt && (
+                      <p className="mt-2 text-xs text-green-600">Published {new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TeacherDashboard() {
   const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
@@ -187,6 +405,7 @@ export default function TeacherDashboard() {
   const teacher = meData?.data?.roleRecord;
 
   return (
+    <ToastProvider>
     <div className="min-h-[calc(100vh-4rem)] flex bg-[var(--color-slate-light)]">
       <aside className={`fixed inset-y-0 left-0 z-40 w-60 bg-[#4b0082] flex flex-col transition-transform duration-300 top-0 lg:static lg:translate-x-0 lg:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="px-5 py-5 border-b border-white/10">
@@ -225,10 +444,12 @@ export default function TeacherDashboard() {
               {section === "schedule" && <ScheduleSection getToken={tokenFn} />}
               {section === "batches" && <BatchesSection getToken={tokenFn} />}
               {section === "notices" && <NoticesSection getToken={tokenFn} />}
+              {section === "social-posts" && <TeacherSocialSection getToken={tokenFn} />}
             </>
           )}
         </div>
       </div>
     </div>
+    </ToastProvider>
   );
 }

@@ -3,7 +3,7 @@ import {
   Share2, Plus, X, Check, AlertTriangle, RefreshCw,
   Clock, CheckCircle, XCircle, Send, Link2, Calendar,
   Trash2, Wifi, WifiOff, Settings, Users, FileText,
-  ChevronDown, ExternalLink, Eye,
+  ChevronDown, ExternalLink, Eye, Image as ImageIcon,
 } from "lucide-react";
 import { SkeletonList, useToast } from "./portalUtils";
 
@@ -288,7 +288,7 @@ function AccountsTab({ getToken, accounts, reload }: {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{platform.tokenLabel} *</label>
                   <textarea rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono resize-none" placeholder="Paste token here…" value={form.accessToken} onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))} />
-                  <p className="text-xs text-slate-400 mt-1">This token is stored encrypted and never shown again after saving.</p>
+                  <p className="text-xs text-slate-400 mt-1">Stored in the database — only admins can access it. The field is masked after saving.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -333,6 +333,8 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
   const [scheduledAt, setScheduledAt] = useState("");
   const [linkedNoticeId, setLinkedNoticeId] = useState("");
   const [linkedBlogId, setLinkedBlogId] = useState("");
+  const [mediaUrlInput, setMediaUrlInput] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const connectedPlatforms = accounts.filter(a => a.status === "connected" && !(a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date()));
@@ -351,6 +353,7 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
         method: "POST",
         body: JSON.stringify({
           content: content.trim(), platformTargets: selectedPlatforms,
+          mediaUrls,
           scheduledAt: scheduleMode && scheduledAt ? scheduledAt : undefined,
           linkedNoticeId: linkedNoticeId || undefined,
           linkedBlogId: linkedBlogId || undefined,
@@ -361,6 +364,7 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
       addToast(publishNow && isAdmin ? "Post published!" : isAdmin && scheduleMode ? "Post scheduled" : "Post submitted for approval", "success");
       setContent(""); setSelectedPlatforms([]); setScheduleMode(false);
       setScheduledAt(""); setLinkedNoticeId(""); setLinkedBlogId("");
+      setMediaUrls([]); setMediaUrlInput("");
       reload();
     } catch (e) {
       addToast(e instanceof Error ? e.message : "Failed to submit post", "error");
@@ -428,6 +432,52 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
             {charCount}/{maxChars}
           </p>
         </div>
+      </div>
+
+      {/* Media URLs */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+          <ImageIcon size={13} /> Media URLs (optional)
+        </label>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-[var(--color-teal)] focus:border-[var(--color-teal)] outline-none"
+            placeholder="Paste an image or video URL…"
+            value={mediaUrlInput}
+            onChange={e => setMediaUrlInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const url = mediaUrlInput.trim();
+                if (!url) return;
+                try { new URL(url); } catch { addToast("Enter a valid URL", "error"); return; }
+                if (!mediaUrls.includes(url)) setMediaUrls(prev => [...prev, url]);
+                setMediaUrlInput("");
+              }
+            }}
+          />
+          <button type="button" onClick={() => {
+            const url = mediaUrlInput.trim();
+            if (!url) return;
+            try { new URL(url); } catch { addToast("Enter a valid URL", "error"); return; }
+            if (!mediaUrls.includes(url)) setMediaUrls(prev => [...prev, url]);
+            setMediaUrlInput("");
+          }} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+            Add
+          </button>
+        </div>
+        {mediaUrls.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {mediaUrls.map((url, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-1.5">
+                <span className="flex-1 truncate">{url}</span>
+                <button onClick={() => setMediaUrls(prev => prev.filter((_, j) => j !== i))}
+                  className="text-slate-400 hover:text-red-500 transition-colors"><X size={12} /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-slate-400 mt-1">Paste a direct link to an image or video hosted online.</p>
       </div>
 
       {/* Link to notice or blog */}

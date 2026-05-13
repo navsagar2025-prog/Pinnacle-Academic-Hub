@@ -27,9 +27,12 @@ export function useModalEscape(onClose: () => void, enabled = true) {
 
 // ── Toast system ──────────────────────────────────────────────────────────────
 type ToastItem = { id: string; type: "success" | "error" | "info"; message: string };
-type ToastCtx = { toast: (type: ToastItem["type"], message: string) => void };
+type ToastCtx = {
+  toast: (type: ToastItem["type"], message: string) => void;
+  addToast: (message: string, type: ToastItem["type"]) => void;
+};
 
-const ToastContext = createContext<ToastCtx>({ toast: () => {} });
+const ToastContext = createContext<ToastCtx>({ toast: () => {}, addToast: () => {} });
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -52,9 +55,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     success: "✓", error: "✕", info: "ℹ",
   };
 
+  const addToast = useCallback((message: string, type: ToastItem["type"]) => toast(type, message), [toast]);
+
   return createElement(
     ToastContext.Provider,
-    { value: { toast } },
+    { value: { toast, addToast } },
     children,
     createElement(
       "div",

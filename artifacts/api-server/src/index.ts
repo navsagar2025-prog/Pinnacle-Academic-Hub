@@ -2,7 +2,7 @@ import app from "./app";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
-import { startFeeReminderScheduler } from "./lib/scheduler.js";
+import { startFeeReminderScheduler, startSocialPostScheduler } from "./lib/scheduler.js";
 
 const rawPort = process.env["PORT"];
 
@@ -48,9 +48,13 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
 
   applyStartupMigrations()
-    .then(() => startFeeReminderScheduler())
+    .then(() => {
+      startFeeReminderScheduler();
+      startSocialPostScheduler();
+    })
     .catch((migErr) => {
       logger.error({ err: migErr }, "Startup migration failed");
       startFeeReminderScheduler();
+      startSocialPostScheduler();
     });
 });

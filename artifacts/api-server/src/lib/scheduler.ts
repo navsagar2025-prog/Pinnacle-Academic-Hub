@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { feeRecords, students, parents, users } from "@workspace/db/schema";
+import { feeRecords, students, parents, users, socialPosts } from "@workspace/db/schema";
 import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { emailAvailable, sendEmail, buildFeeReminderEmail } from "./email.js";
 import { logger } from "./logger.js";
@@ -181,4 +181,121 @@ export function startFeeReminderScheduler(): void {
   }, RUN_INTERVAL_MS);
 
   logger.info("Fee reminder scheduler started (daily)");
+}
+
+// ── Scheduled social post processor ──────────────────────────────────────────
+// Checks every minute for social posts whose scheduled_at has passed and
+// transitions them to "published". Actual platform API calls require
+// configuring SOCIAL_FACEBOOK_TOKEN, SOCIAL_INSTAGRAM_TOKEN,
+// SOCIAL_TWITTER_TOKEN, and SOCIAL_LINKEDIN_TOKEN environment variables —
+// without these the post is marked published in the DB without a live URL.
+
+async function publishScheduledPosts(): Promise<void> {
+  const now = new Date();
+  try {
+    const due = await db.select({ id: socialPosts.id, content: socialPosts.content, platformTargets: socialPosts.platformTargets })
+      .from(socialPosts)
+      .where(and(eq(socialPosts.status, "scheduled"), lte(socialPosts.scheduledAt, now)));
+
+    if (due.length === 0) return;
+
+    for (const post of due) {
+      const publishedUrls: Record<string, string> = {};
+      const platforms: string[] = (post.platformTargets as string[]) ?? [];
+
+      // Per-platform publish. Real API calls are gated on env vars.
+      for (const platform of platforms) {
+        try {
+          const url = await publishToplatform(platform, post.content);
+          if (url) publishedUrls[platform] = url;
+        } catch (err) {
+          logger.warn({ err, postId: post.id, platform }, "Failed to publish social post to platform");
+        }
+      }
+
+      await db.update(socialPosts).set({
+        status: "published",
+        publishedAt: now,
+        publishedUrls,
+        updatedAt: now,
+      } as never).where(eq(socialPosts.id, post.id));
+
+      logger.info({ postId: post.id, platforms, publishedUrls }, "Scheduled social post published");
+    }
+  } catch (err) {
+    logger.error({ err }, "Error in scheduled social post processor");
+  }
+}
+
+// Attempts a real platform API call if the relevant token env var is set.
+// Returns the live post URL on success, null if credentials are missing.
+async function publishToplatform(platform: string, content: string): Promise<string | null> {
+  if (platform === "facebook") {
+    const token = process.env.SOCIAL_FACEBOOK_TOKEN;
+    const pageId = process.env.SOCIAL_FACEBOOK_PAGE_ID;
+    if (!token || !pageId) return null;
+    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: content, access_token: token }),
+    });
+    const json = (await res.json()) as { id?: string; error?: unknown };
+    return json.id ? `https://www.facebook.com/${json.id}` : null;
+  }
+  if (platform === "instagram") {
+    // Instagram requires a two-step: create container → publish.
+    const token = process.env.SOCIAL_INSTAGRAM_TOKEN;
+    const igUserId = process.env.SOCIAL_INSTAGRAM_USER_ID;
+    if (!token || !igUserId) return null;
+    const container = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caption: content, access_token: token }),
+    });
+    const c = (await container.json()) as { id?: string };
+    if (!c.id) return null;
+    const pub = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ creation_id: c.id, access_token: token }),
+    });
+    const p = (await pub.json()) as { id?: string };
+    return p.id ? `https://www.instagram.com/p/${p.id}/` : null;
+  }
+  if (platform === "twitter") {
+    const token = process.env.SOCIAL_TWITTER_TOKEN;
+    if (!token) return null;
+    const res = await fetch("https://api.twitter.com/2/tweets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ text: content }),
+    });
+    const json = (await res.json()) as { data?: { id?: string } };
+    return json.data?.id ? `https://twitter.com/i/web/status/${json.data.id}` : null;
+  }
+  if (platform === "linkedin") {
+    const token = process.env.SOCIAL_LINKEDIN_TOKEN;
+    const urn = process.env.SOCIAL_LINKEDIN_URN; // e.g. "urn:li:person:xxx" or "urn:li:organization:xxx"
+    if (!token || !urn) return null;
+    const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Restli-Protocol-Version": "2.0.0" },
+      body: JSON.stringify({
+        author: urn, lifecycleState: "PUBLISHED",
+        specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text: content }, shareMediaCategory: "NONE" } },
+        visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+      }),
+    });
+    const json = (await res.json()) as { id?: string };
+    return json.id ? `https://www.linkedin.com/feed/update/${json.id}` : null;
+  }
+  return null;
+}
+
+export function startSocialPostScheduler(): void {
+  const RUN_INTERVAL_MS = 60 * 1000; // every minute
+  setInterval(() => {
+    publishScheduledPosts().catch((err) => logger.error({ err }, "Scheduled social post run failed"));
+  }, RUN_INTERVAL_MS);
+  logger.info("Social post scheduler started (every 60s)");
 }
