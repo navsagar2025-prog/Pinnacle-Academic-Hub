@@ -12,14 +12,8 @@ import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
 // ── Token Encryption ──────────────────────────────────────────────────────────
-// Requires SOCIAL_TOKEN_ENCRYPTION_KEY env var (32-byte hex string, i.e. 64 hex chars).
-// Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-//
-// Security policy:
-//   - In production (NODE_ENV=production): missing or invalid key throws immediately
-//     so tokens are never written/read as plaintext in a live environment.
-//   - In development: missing key logs a warning and falls back to plaintext storage
-//     so local dev works without extra setup.
+// SOCIAL_TOKEN_ENCRYPTION_KEY: 64-char hex (32 bytes). Required in production;
+// dev falls back to plaintext with a warning.
 
 let _warnedOnce = false;
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -82,10 +76,6 @@ export type PublishResult =
   | { ok: true; url: string | null }
   | { ok: false; error: string };
 
-/**
- * Publish content to a single platform using the stored account credentials.
- * Returns { ok: true, url } on success or { ok: false, error } on failure.
- */
 export async function publishToAccount(
   platform: string,
   content: string,
@@ -118,9 +108,6 @@ export async function publishToAccount(
   }
 }
 
-/**
- * Publish to all target platforms for a post. Returns a summary of results.
- */
 const WEBSITE_BASE_URL = process.env.WEBSITE_BASE_URL ?? "";
 
 export async function resolveLinkedContentUrl(
