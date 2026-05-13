@@ -196,11 +196,25 @@ async function publishInstagram(
   return { ok: true, url: p.id ? `https://www.instagram.com/p/${p.id}/` : null };
 }
 
-async function publishTwitter(token: string, content: string, _mediaUrls: string[]): Promise<PublishResult> {
+async function publishTwitter(token: string, content: string, mediaUrls: string[]): Promise<PublishResult> {
+  // Twitter v2 API with OAuth 2 user context token.
+  // Media attachment via v1.1 media/upload.json requires OAuth 1.0a, which we don't have stored.
+  // If media URLs are present, append the first one as a link in the tweet text as best-effort.
+  let tweetText = content;
+  if (mediaUrls.length > 0) {
+    const suffix = ` ${mediaUrls[0]}`;
+    // Twitter limit 280 chars; truncate content if needed to fit
+    if ((tweetText + suffix).length <= 280) {
+      tweetText = tweetText + suffix;
+    } else {
+      const maxContent = 280 - suffix.length - 1;
+      tweetText = tweetText.slice(0, maxContent) + "…" + suffix;
+    }
+  }
   const res = await fetch("https://api.twitter.com/2/tweets", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ text: content }),
+    body: JSON.stringify({ text: tweetText }),
   });
   const json = (await res.json()) as { data?: { id?: string }; errors?: Array<{ message?: string }> };
   if (!res.ok || json.errors?.length) {
@@ -210,9 +224,24 @@ async function publishTwitter(token: string, content: string, _mediaUrls: string
 }
 
 async function publishLinkedIn(
-  token: string, urn: string | undefined, content: string, _mediaUrls: string[]
+  token: string, urn: string | undefined, content: string, mediaUrls: string[]
 ): Promise<PublishResult> {
   if (!urn) return { ok: false, error: "LinkedIn person/org URN not configured (set in accountId field)" };
+  // If media URLs are present, publish as an ARTICLE share so the image/link is referenced.
+  // Full binary media upload (IMAGE category) requires a separate asset registration flow
+  // not yet implemented; ARTICLE allows embedding a URL with thumbnail.
+  const hasMedia = mediaUrls.length > 0;
+  const shareContent: Record<string, unknown> = {
+    shareCommentary: { text: content },
+    shareMediaCategory: hasMedia ? "ARTICLE" : "NONE",
+  };
+  if (hasMedia) {
+    shareContent.media = [{
+      status: "READY",
+      originalUrl: mediaUrls[0],
+      title: { text: "Media" },
+    }];
+  }
   const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
     method: "POST",
     headers: {
@@ -223,12 +252,7 @@ async function publishLinkedIn(
     body: JSON.stringify({
       author: urn,
       lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text: content },
-          shareMediaCategory: "NONE",
-        },
-      },
+      specificContent: { "com.linkedin.ugc.ShareContent": shareContent },
       visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
     }),
   });

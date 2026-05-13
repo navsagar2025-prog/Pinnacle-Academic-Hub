@@ -707,13 +707,27 @@ router.get("/portal/fees/receipt/:id", async (req, res) => {
 // ── Teacher: Social Media Posts ───────────────────────────────────────────────
 
 // Returns the teacher's social media access settings so the UI can show/hide the composer.
+// Also returns connectedPlatforms so the composer can intersect allowed + connected platforms.
 router.get("/portal/teacher/social/access", async (req, res) => {
   const { userId: clerkUserId } = getAuth(req);
   try {
     const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.clerkUserId, clerkUserId!)).limit(1);
-    if (!user || user.role !== "teacher") { res.json({ ok: true, data: { isEnabled: false, platformsAllowed: [] } }); return; }
+    if (!user || user.role !== "teacher") {
+      res.json({ ok: true, data: { isEnabled: false, platformsAllowed: [], connectedPlatforms: [] } }); return;
+    }
     const [access] = await db.select().from(socialTeacherAccess).where(eq(socialTeacherAccess.userId, user.id)).limit(1);
-    res.json({ ok: true, data: { isEnabled: access?.isEnabled ?? false, platformsAllowed: access?.platformsAllowed ?? [] } });
+    const connected = await db
+      .select({ platform: socialAccounts.platform })
+      .from(socialAccounts)
+      .where(eq(socialAccounts.status, "connected"));
+    res.json({
+      ok: true,
+      data: {
+        isEnabled: access?.isEnabled ?? false,
+        platformsAllowed: access?.platformsAllowed ?? [],
+        connectedPlatforms: connected.map(c => c.platform),
+      },
+    });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 

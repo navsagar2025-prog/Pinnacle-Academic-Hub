@@ -218,7 +218,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; Icon: React.
   published: { label: "Published",        color: "text-green-600 bg-green-50 border-green-200",   Icon: CheckCircle },
 };
 
-type SocialAccess = { isEnabled: boolean; platformsAllowed: string[] };
+type SocialAccess = { isEnabled: boolean; platformsAllowed: string[]; connectedPlatforms: string[] };
 type SocialPost = {
   id: string; content: string; mediaUrls: string[]; platformTargets: string[];
   status: string; scheduledAt: string | null; publishedAt: string | null;
@@ -251,6 +251,10 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allowedPlatforms = access?.platformsAllowed ?? [];
+  const connectedPlatforms = new Set(access?.connectedPlatforms ?? []);
+  // Only platforms that are both allowed AND connected can actually be submitted.
+  const selectablePlatforms = allowedPlatforms.filter(p => connectedPlatforms.has(p));
+  const disconnectedAllowed = allowedPlatforms.filter(p => !connectedPlatforms.has(p));
 
   function togglePlatform(p: string) {
     setSelectedPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
@@ -367,7 +371,7 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Post to *</label>
             <div className="flex flex-wrap gap-2">
-              {allowedPlatforms.map(p => {
+              {selectablePlatforms.map(p => {
                 const isSelected = selectedPlatforms.includes(p);
                 return (
                   <button key={p} onClick={() => togglePlatform(p)}
@@ -377,7 +381,19 @@ function TeacherSocialSection({ getToken }: { getToken: () => Promise<string | n
                   </button>
                 );
               })}
+              {disconnectedAllowed.map(p => (
+                <span key={p} title="Admin has not connected this platform yet"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed opacity-60">
+                  {PLATFORM_LABELS[p] ?? p}
+                  <span className="text-[10px]">(not connected)</span>
+                </span>
+              ))}
             </div>
+            {disconnectedAllowed.length > 0 && (
+              <p className="text-xs text-amber-600 mt-1.5">
+                Some platforms are not yet connected by your admin and cannot be selected.
+              </p>
+            )}
           </div>
 
           {/* Content */}
