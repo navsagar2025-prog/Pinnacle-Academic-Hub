@@ -1065,12 +1065,24 @@ function HistoryTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
                     </div>
                   )}
                   {Object.keys(post.publishedUrls ?? {}).length > 0 && (
-                    <div className="flex gap-2 mt-2 flex-wrap">
+                    <div className="flex gap-2 mt-2 flex-wrap items-center">
                       {Object.entries(post.publishedUrls).map(([platform, url]) => (
                         <a key={platform} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-[var(--color-teal)] hover:underline">
-                          <ExternalLink size={11} /> View on {PLATFORMS.find(p => p.id === platform)?.label}
+                          <ExternalLink size={11} /> View on {PLATFORMS.find(p => p.id === platform)?.label ?? platform} →
                         </a>
                       ))}
+                    </div>
+                  )}
+                  {post.errorMessage && post.status === "published" && (
+                    <div className="flex items-start gap-1.5 mt-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                      <AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-500" />
+                      <span><strong>Partial failure:</strong> {post.errorMessage}</span>
+                    </div>
+                  )}
+                  {post.status === "failed" && (
+                    <div className="flex items-start gap-1.5 mt-2 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                      <XCircle size={12} className="shrink-0 mt-0.5 text-red-500" />
+                      <span><strong>Publish failed:</strong> {post.errorMessage ?? "Unknown error"}</span>
                     </div>
                   )}
                   {post.status === "published" && (
