@@ -52,3 +52,6 @@ Thumbs.db
 attached_assets/*.sql
 attached_assets/*.dump
 *.sql.gz
+
+# Release archives — generated on every merge, not committed to git
+releases/
