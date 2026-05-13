@@ -363,7 +363,8 @@ function DoubtsSection({ getToken }: { getToken: () => Promise<string | null> })
     try {
       const res = await apiMutation("POST", "/portal/student/doubts", { subject, topic, questionText }, getToken);
       if (res.ok) {
-        trackEvent("pinnacle_doubt_submitted", { subject, has_topic: Boolean(topic) });
+        const created = res.data as { id?: string } | undefined;
+        trackEvent("pinnacle_doubt_submitted", { subject, doubt_id: created?.id, has_topic: Boolean(topic) });
         setSubject("");
         setTopic("");
         setQuestionText("");
