@@ -25,6 +25,8 @@ import {
   type FeeSummary,
 } from "@/lib/api";
 
+type FeatherName = React.ComponentProps<typeof Feather>["name"];
+
 const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 const fmtDate = (iso: string | null) => {
   if (!iso) return "—";
@@ -43,7 +45,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   waived: { bg: "#F3F4F6", text: "#6B7280" },
 };
 
-const STATUS_ICONS: Record<string, string> = {
+const STATUS_ICONS: Record<string, FeatherName> = {
   paid: "check-circle",
   partial: "clock",
   due: "alert-circle",
@@ -159,7 +161,7 @@ export default function ParentFees() {
           ) : (
             records.map(f => {
               const sc = STATUS_COLORS[f.status] ?? STATUS_COLORS.due;
-              const icon = STATUS_ICONS[f.status] ?? "circle";
+              const icon: FeatherName = STATUS_ICONS[f.status] ?? "circle";
               const isPaid = f.status === "paid";
               return (
                 <View
@@ -167,7 +169,7 @@ export default function ParentFees() {
                   style={[styles.feeRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}
                 >
                   <View style={[styles.iconBox, { backgroundColor: sc.bg, borderRadius: 20 }]}>
-                    <Feather name={icon as any} size={16} color={sc.text} />
+                    <Feather name={icon} size={16} color={sc.text} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.period, { color: colors.foreground }]}>{f.period}</Text>
