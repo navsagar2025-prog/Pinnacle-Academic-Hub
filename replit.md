@@ -40,6 +40,15 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 _Populate as you build — sharp edges, "always run X before Y" rules._
 
+## Database
+
+- **Primary:** Supabase Postgres (region `ap-northeast-1`, accessed via Supavisor pooler).
+  - Runtime uses the **Transaction-mode pooled URL on port 6543**, stored in the `SUPABASE_DATABASE_URL` secret.
+  - For schema operations (`pnpm --filter db push`, `pg_dump`, `pg_restore`), use the **Session-mode pooler on port 5432** at the same hostname (the direct `db.<ref>.supabase.co` host is IPv6-only and unreachable from this sandbox without the IPv4 add-on).
+- **Fallback:** Replit-hosted Postgres in the `DATABASE_URL` secret. `lib/db/src/index.ts` and `lib/db/drizzle.config.ts` both resolve `SUPABASE_DATABASE_URL ?? DATABASE_URL`, so Supabase wins whenever it is set.
+- **Rollback:** delete the `SUPABASE_DATABASE_URL` secret (env-secrets skill) and restart the `artifacts/api-server: API Server` workflow. The app will fall back to the Replit DB. Keep the Replit `DATABASE_URL` set for ~14 days after the cutover as a safety net.
+- **Re-running data migration:** dump with `pg_dump "$DATABASE_URL" --data-only --no-owner --no-privileges --exclude-schema=drizzle -f dump.sql`, then restore through the session pooler wrapped in `BEGIN; SET session_replication_role='replica'; \i dump.sql; SET session_replication_role='origin'; COMMIT;` (Supabase's `postgres` role can't `DISABLE TRIGGER`, so use `session_replication_role` to bypass FK checks).
+
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
