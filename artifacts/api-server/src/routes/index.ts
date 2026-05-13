@@ -23,11 +23,8 @@ router.use("/v1", galleryRouter);
 router.use("/v1", noticesRouter);
 router.use("/v1", leaderboardRouter);
 router.use("/v1", ga4oauthRouter);
-router.use("/v1", adminRouter);
-router.use("/v1", admin2Router);
-router.use("/v1", portalRouter);
-
 // ── Public social media file serve (unauthenticated — platforms fetch directly) ─
+// Must be registered BEFORE portalRouter, which applies requireAuth() middleware.
 router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
   const { filename } = req.params;
   if (!/^[\w-]+\.\w+$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
@@ -39,5 +36,9 @@ router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   createReadStream(filePath).pipe(res);
 });
+
+router.use("/v1", adminRouter);
+router.use("/v1", admin2Router);
+router.use("/v1", portalRouter);
 
 export default router;
