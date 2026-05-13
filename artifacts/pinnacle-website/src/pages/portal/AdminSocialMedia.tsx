@@ -908,6 +908,15 @@ function HistoryTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
                     {post.scheduledAt && post.status === "scheduled" && <span>· Scheduled {new Date(post.scheduledAt).toLocaleString("en-IN")}</span>}
                     {post.rejectionNote && <span className="text-red-500">· Rejected: {post.rejectionNote}</span>}
                   </div>
+                  {post.mediaUrls && post.mediaUrls.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {post.mediaUrls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer">
+                          <img src={url} alt="media" className="h-14 w-14 object-cover rounded-md border border-slate-200" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                   {Object.keys(post.publishedUrls ?? {}).length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {Object.entries(post.publishedUrls).map(([platform, url]) => (

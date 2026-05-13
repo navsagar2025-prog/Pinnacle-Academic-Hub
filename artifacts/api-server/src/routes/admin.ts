@@ -1675,7 +1675,25 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
       } else if (status === "rejected") {
         updates.status = "rejected";
         if (rejectionNote !== undefined) updates.rejectionNote = rejectionNote;
-        // Notify teacher via in-portal flag (teacherNotified=false is default — teacher sees it in history)
+        if (emailAvailable()) {
+          const [existing] = await db
+            .select({ postedByUserId: socialPosts.postedByUserId, content: socialPosts.content })
+            .from(socialPosts).where(eq(socialPosts.id, req.params.id)).limit(1);
+          if (existing?.postedByUserId) {
+            const [teacher] = await db
+              .select({ email: users.email, name: users.name })
+              .from(users).where(eq(users.id, existing.postedByUserId)).limit(1);
+            if (teacher?.email) {
+              const note = rejectionNote ?? "";
+              await sendEmail({
+                to: teacher.email,
+                subject: "Your social media post was not approved — Pinnacle Academic Classes",
+                html: `<p>Hi ${teacher.name ?? "Teacher"},</p><p>Your social media post submission has been reviewed and was not approved for publishing.</p>${note ? `<p><strong>Reason:</strong> ${note}</p>` : ""}<p>You can view the post in your teacher dashboard. Please contact an admin if you have questions.</p><p>— Pinnacle Academic Classes</p>`,
+              });
+              logger.info({ postId: req.params.id }, "Rejection email sent to teacher");
+            }
+          }
+        }
         logger.info({ postId: req.params.id, rejectionNote }, "Social post rejected");
       } else {
         updates.status = status;
