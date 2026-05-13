@@ -760,6 +760,10 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
     const uploadDir = pathJoin(process.cwd(), "uploads", "social");
     if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 
+    // writeFinished resolves only after the write stream closes — awaited after busboy
+    // finishes so we never respond with savedUrl=null due to a timing race.
+    let writeFinished: Promise<void> = Promise.resolve();
+
     await new Promise<void>((resolve, reject) => {
       bb.on("file", (_field, file, info) => {
         const ext = info.filename.split(".").pop()?.toLowerCase() ?? "bin";
@@ -768,20 +772,26 @@ router.post("/portal/teacher/social/media-upload", async (req, res) => {
         const filename = `${randomUUID()}.${ext}`;
         const savePath = pathJoin(uploadDir, filename);
         const ws = createWriteStream(savePath);
-        file.pipe(ws);
-        ws.on("finish", () => {
-          // Must be an absolute HTTPS URL — social platforms fetch it directly.
-          // WEBSITE_BASE_URL takes priority; fall back to request origin (strips /api prefix).
-          const base = process.env.WEBSITE_BASE_URL
-            ?? `${req.protocol}://${req.get("host")}`;
-          savedUrl = `${base.replace(/\/$/, "")}/api/v1/social/media/${filename}`;
+        // Track the write-stream completion separately so we can await it after bb.finish.
+        writeFinished = new Promise<void>((wsResolve, wsReject) => {
+          ws.on("finish", () => {
+            // Must be an absolute HTTPS URL — social platforms fetch it directly.
+            // WEBSITE_BASE_URL takes priority; fall back to request origin.
+            const base = process.env.WEBSITE_BASE_URL
+              ?? `${req.protocol}://${req.get("host")}`;
+            savedUrl = `${base.replace(/\/$/, "")}/api/v1/social/media/${filename}`;
+            wsResolve();
+          });
+          ws.on("error", wsReject);
         });
-        ws.on("error", reject);
+        file.pipe(ws);
       });
       bb.on("finish", resolve);
       bb.on("error", reject);
       req.pipe(bb);
     });
+    // Wait for the write stream to fully flush before we check savedUrl.
+    await writeFinished;
 
     if (fileErr) { res.status(400).json({ error: fileErr }); return; }
     if (!savedUrl) { res.status(400).json({ error: "No file received" }); return; }
