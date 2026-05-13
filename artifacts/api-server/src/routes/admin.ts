@@ -16,6 +16,74 @@ import { logger } from "../lib/logger.js";
 import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, createOAuthState, validateOAuthState, generateCodeVerifier } from "../lib/social.js";
 
 const router = Router();
+
+// ── OAuth Callback — PUBLIC (no auth middleware) ──────────────────────────────
+// The OAuth callback must be registered before requireAuth() because the popup
+// redirect from the provider does not carry a Clerk session cookie. Security is
+// provided entirely by server-side state validation (validateOAuthState) which
+// uses a cryptographically random one-time token with a 10-minute TTL.
+router.get("/admin/social/oauth/callback", async (req, res) => {
+  const { code, state, error: oauthError } = req.query as Record<string, string>;
+  const closeWithMsg = (data: Record<string, string>) =>
+    res.send(`<!doctype html><html><body><script>
+      window.opener?.postMessage(${JSON.stringify(data)}, window.location.origin);
+      window.close();
+    </script></body></html>`);
+
+  if (oauthError) { closeWithMsg({ type: "social_oauth_error", error: oauthError }); return; }
+  if (!code || !state) {
+    res.status(400).send("<p>Missing code or state. Close this window and try again.</p>");
+    return;
+  }
+
+  // Validate state — one-time use, prevents CSRF/replay even without auth
+  const stateEntry = validateOAuthState(state);
+  if (!stateEntry) {
+    closeWithMsg({ type: "social_oauth_error", error: "OAuth state invalid or expired. Please try connecting again." });
+    return;
+  }
+
+  const { platform, codeVerifier } = stateEntry;
+
+  try {
+    const result = await exchangeOAuthCode(platform, code, codeVerifier);
+    if (!result) {
+      closeWithMsg({ type: "social_oauth_error", error: "Token exchange failed — check server env vars" });
+      return;
+    }
+
+    const encAccess = encryptToken(result.accessToken);
+    const encRefresh = result.refreshToken ? encryptToken(result.refreshToken) : null;
+
+    await db.insert(socialAccounts).values({
+      platform,
+      accountName: result.accountName ?? `${platform} (OAuth)`,
+      accountId: result.accountId ?? null,
+      accessToken: encAccess,
+      refreshToken: encRefresh,
+      tokenExpiresAt: result.expiresAt ?? null,
+      status: "connected",
+      connectedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: socialAccounts.platform,
+      set: {
+        accessToken: encAccess,
+        refreshToken: encRefresh,
+        tokenExpiresAt: result.expiresAt ?? null,
+        status: "connected",
+        connectedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info({ platform }, "Social account connected via OAuth");
+    closeWithMsg({ type: "social_oauth_success", platform });
+  } catch (e) {
+    logger.error({ e }, "OAuth callback error");
+    closeWithMsg({ type: "social_oauth_error", error: "Server error during token exchange" });
+  }
+});
+
 router.use(requireAuth());
 
 async function requireAdminRole(req: Request, res: Response, next: NextFunction) {
@@ -1621,77 +1689,6 @@ router.get("/admin/social/oauth/initiate/:platform", (req, res) => {
   }
   res.json({ ok: true, url });
   // Note: do NOT return state to client — it is validated server-side only
-});
-
-// GET /admin/social/oauth/callback?code=...&state=...
-// OAuth provider redirects here after user approval. Validates state (CSRF guard),
-// exchanges code for token (with PKCE verifier for Twitter), encrypts, and stores.
-// Responds with a self-closing HTML page that postMessages the result to the opener.
-router.get("/admin/social/oauth/callback", async (req, res) => {
-  const { code, state, error: oauthError } = req.query as Record<string, string>;
-  // The opener origin is embedded in origin header; for postMessage we use
-  // window.location.origin (same-origin) so the message stays within the domain.
-  const closeWithMsg = (data: Record<string, string>) =>
-    res.send(`<!doctype html><html><body><script>
-      window.opener?.postMessage(${JSON.stringify(data)}, window.location.origin);
-      window.close();
-    </script></body></html>`);
-
-  if (oauthError) {
-    closeWithMsg({ type: "social_oauth_error", error: oauthError });
-    return;
-  }
-  if (!code || !state) {
-    res.status(400).send("<p>Missing code or state. Close this window and try again.</p>");
-    return;
-  }
-
-  // Validate state — one-time use, prevents CSRF/replay
-  const stateEntry = validateOAuthState(state);
-  if (!stateEntry) {
-    closeWithMsg({ type: "social_oauth_error", error: "OAuth state invalid or expired. Please try connecting again." });
-    return;
-  }
-
-  const { platform, codeVerifier } = stateEntry;
-
-  try {
-    const result = await exchangeOAuthCode(platform, code, codeVerifier);
-    if (!result) {
-      closeWithMsg({ type: "social_oauth_error", error: "Token exchange failed — check server env vars" });
-      return;
-    }
-
-    const encAccess = encryptToken(result.accessToken);
-    const encRefresh = result.refreshToken ? encryptToken(result.refreshToken) : null;
-
-    await db.insert(socialAccounts).values({
-      platform,
-      accountName: result.accountName ?? `${platform} (OAuth)`,
-      accountId: result.accountId ?? null,
-      accessToken: encAccess,
-      refreshToken: encRefresh,
-      tokenExpiresAt: result.expiresAt ?? null,
-      status: "connected",
-      connectedAt: new Date(),
-    }).onConflictDoUpdate({
-      target: socialAccounts.platform,
-      set: {
-        accessToken: encAccess,
-        refreshToken: encRefresh,
-        tokenExpiresAt: result.expiresAt ?? null,
-        status: "connected",
-        connectedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    logger.info({ platform }, "Social account connected via OAuth");
-    closeWithMsg({ type: "social_oauth_success", platform });
-  } catch (e) {
-    logger.error({ e }, "OAuth callback error");
-    closeWithMsg({ type: "social_oauth_error", error: "Server error during token exchange" });
-  }
 });
 
 // ── Social Media: Teacher Access ────────────────────────────────────────────
