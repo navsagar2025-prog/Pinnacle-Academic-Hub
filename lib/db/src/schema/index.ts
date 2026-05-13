@@ -1001,9 +1001,26 @@ export const socialTeacherAccess = pgTable("social_teacher_access", {
   uniqueIndex("social_teacher_access_user_uq").on(t.userId),
 ]);
 
+export const socialPostMetrics = pgTable("social_post_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  postId: uuid("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  likes: integer("likes"),
+  shares: integer("shares"),
+  comments: integer("comments"),
+  reach: integer("reach"),
+  impressions: integer("impressions"),
+  fetchError: text("fetch_error"),
+  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("social_post_metrics_post_platform_uq").on(t.postId, t.platform),
+  index("social_post_metrics_post_id_idx").on(t.postId),
+]);
+
 export type SocialAccount = typeof socialAccounts.$inferSelect;
 export type SocialPost = typeof socialPosts.$inferSelect;
 export type SocialTeacherAccess = typeof socialTeacherAccess.$inferSelect;
+export type SocialPostMetrics = typeof socialPostMetrics.$inferSelect;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;

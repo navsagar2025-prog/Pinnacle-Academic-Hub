@@ -7,7 +7,7 @@
 
 import crypto from "crypto";
 import { db } from "@workspace/db";
-import { socialAccounts, blogPosts, notices } from "@workspace/db/schema";
+import { socialAccounts, socialPostMetrics, blogPosts, notices } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
@@ -618,4 +618,260 @@ export async function exchangeOAuthCode(
   }
 
   return null;
+}
+
+// ── Post Engagement Metrics ───────────────────────────────────────────────────
+
+export type PlatformMetrics = {
+  platform: string;
+  likes: number | null;
+  shares: number | null;
+  comments: number | null;
+  reach: number | null;
+  impressions: number | null;
+  fetchError?: string;
+  fetchedAt: string;
+};
+
+async function fetchFacebookMetrics(token: string, postUrl: string): Promise<Omit<PlatformMetrics, "fetchedAt">> {
+  const base = { platform: "facebook", likes: null, shares: null, comments: null, reach: null, impressions: null };
+  const match = postUrl.match(/facebook\.com\/(\d+(?:_\d+)?)/);
+  if (!match) return { ...base, fetchError: "Could not extract post ID from URL" };
+  const postId = match[1];
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${postId}?fields=likes.summary(true),comments.summary(true),shares&access_token=${token}`,
+    );
+    const json = (await res.json()) as {
+      likes?: { summary?: { total_count?: number } };
+      comments?: { summary?: { total_count?: number } };
+      shares?: { count?: number };
+      error?: { message?: string };
+    };
+    if (json.error) return { ...base, fetchError: json.error.message ?? "Facebook API error" };
+
+    let reach: number | null = null;
+    let impressions: number | null = null;
+    try {
+      const ir = await fetch(
+        `https://graph.facebook.com/v19.0/${postId}/insights?metric=post_impressions,post_reach&access_token=${token}`,
+      );
+      const ij = (await ir.json()) as { data?: { name: string; values: { value: number }[] }[] };
+      for (const item of ij.data ?? []) {
+        const val = item.values?.[0]?.value ?? null;
+        if (item.name === "post_impressions") impressions = val;
+        if (item.name === "post_reach") reach = val;
+      }
+    } catch { /* insights may not be available for all post types */ }
+
+    return {
+      ...base,
+      likes: json.likes?.summary?.total_count ?? null,
+      comments: json.comments?.summary?.total_count ?? null,
+      shares: json.shares?.count ?? null,
+      reach,
+      impressions,
+    };
+  } catch (e) {
+    return { ...base, fetchError: e instanceof Error ? e.message : "Fetch failed" };
+  }
+}
+
+async function fetchInstagramMetrics(token: string, postUrl: string): Promise<Omit<PlatformMetrics, "fetchedAt">> {
+  const base = { platform: "instagram", likes: null, shares: null, comments: null, reach: null, impressions: null };
+  const match = postUrl.match(/instagram\.com\/p\/([^/?]+)/);
+  if (!match) return { ...base, fetchError: "Could not extract media ID from URL" };
+  const mediaId = match[1];
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${mediaId}/insights?metric=likes,comments,shares,reach,impressions&access_token=${token}`,
+    );
+    const json = (await res.json()) as {
+      data?: { name: string; values: { value: number }[] }[];
+      error?: { message?: string };
+    };
+    if (json.error) return { ...base, fetchError: json.error.message ?? "Instagram API error" };
+    const metrics: Record<string, number> = {};
+    for (const item of json.data ?? []) {
+      metrics[item.name] = item.values?.[0]?.value ?? 0;
+    }
+    return {
+      ...base,
+      likes: metrics["likes"] ?? null,
+      comments: metrics["comments"] ?? null,
+      shares: metrics["shares"] ?? null,
+      reach: metrics["reach"] ?? null,
+      impressions: metrics["impressions"] ?? null,
+    };
+  } catch (e) {
+    return { ...base, fetchError: e instanceof Error ? e.message : "Fetch failed" };
+  }
+}
+
+async function fetchTwitterMetrics(token: string, postUrl: string): Promise<Omit<PlatformMetrics, "fetchedAt">> {
+  const base = { platform: "twitter", likes: null, shares: null, comments: null, reach: null, impressions: null };
+  const match = postUrl.match(/(?:status|statuses)\/(\d+)/);
+  if (!match) return { ...base, fetchError: "Could not extract tweet ID from URL" };
+  const tweetId = match[1];
+  try {
+    const res = await fetch(
+      `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=public_metrics`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const json = (await res.json()) as {
+      data?: { public_metrics?: { like_count?: number; retweet_count?: number; reply_count?: number; impression_count?: number } };
+      errors?: { message?: string }[];
+    };
+    if (json.errors?.length) return { ...base, fetchError: json.errors[0]?.message ?? "Twitter API error" };
+    const m = json.data?.public_metrics;
+    return {
+      ...base,
+      likes: m?.like_count ?? null,
+      shares: m?.retweet_count ?? null,
+      comments: m?.reply_count ?? null,
+      impressions: m?.impression_count ?? null,
+      reach: null,
+    };
+  } catch (e) {
+    return { ...base, fetchError: e instanceof Error ? e.message : "Fetch failed" };
+  }
+}
+
+async function fetchLinkedInMetrics(token: string, postUrl: string, accountId: string | null): Promise<Omit<PlatformMetrics, "fetchedAt">> {
+  const base = { platform: "linkedin", likes: null, shares: null, comments: null, reach: null, impressions: null };
+  const match = postUrl.match(/feed\/update\/(urn:[^?#]+)/);
+  if (!match) return { ...base, fetchError: "Could not extract post URN from URL" };
+  const shareUrn = decodeURIComponent(match[1]);
+  if (!accountId) return { ...base, fetchError: "No LinkedIn account URN configured" };
+  try {
+    const params = new URLSearchParams({
+      q: "organizationalEntity",
+      organizationalEntity: accountId,
+      shares: shareUrn,
+    });
+    const res = await fetch(
+      `https://api.linkedin.com/v2/organizationalEntityShareStatistics?${params}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Restli-Protocol-Version": "2.0.0",
+        },
+      },
+    );
+    const json = (await res.json()) as {
+      elements?: {
+        totalShareStatistics?: {
+          likeCount?: number;
+          shareCount?: number;
+          commentCount?: number;
+          impressionCount?: number;
+          uniqueImpressionsCount?: number;
+        };
+      }[];
+      message?: string;
+    };
+    if (!res.ok) return { ...base, fetchError: json.message ?? "LinkedIn API error" };
+    const s = json.elements?.[0]?.totalShareStatistics;
+    return {
+      ...base,
+      likes: s?.likeCount ?? null,
+      shares: s?.shareCount ?? null,
+      comments: s?.commentCount ?? null,
+      impressions: s?.impressionCount ?? null,
+      reach: s?.uniqueImpressionsCount ?? null,
+    };
+  } catch (e) {
+    return { ...base, fetchError: e instanceof Error ? e.message : "Fetch failed" };
+  }
+}
+
+/**
+ * Fetch live engagement metrics for a post, only for platforms with a stored
+ * published URL (i.e. platforms that actually succeeded at publish time).
+ *
+ * Cache behaviour:
+ * - On SUCCESS: upsert all metric columns + clear fetchError.
+ * - On FAILURE: only update fetchError + fetchedAt; metric columns are left
+ *   intact so previously-good values are preserved even after token expiry.
+ */
+export async function fetchAndCachePostMetrics(
+  postId: string,
+  publishedUrls: Record<string, string>,
+): Promise<PlatformMetrics[]> {
+  const now = new Date();
+  const results: PlatformMetrics[] = [];
+
+  // Only process platforms that actually published — avoids noisy error rows
+  // for targets that silently failed at publish time.
+  const publishedPlatforms = Object.keys(publishedUrls);
+
+  await Promise.all(publishedPlatforms.map(async (platform) => {
+    const url = publishedUrls[platform];
+    const [account] = await db.select().from(socialAccounts)
+      .where(eq(socialAccounts.platform, platform)).limit(1);
+
+    let partial: Omit<PlatformMetrics, "fetchedAt">;
+
+    if (!account?.accessToken) {
+      partial = { platform, likes: null, shares: null, comments: null, reach: null, impressions: null, fetchError: "Platform account disconnected — reconnect to fetch stats" };
+    } else {
+      const token = decryptToken(account.accessToken);
+      switch (platform) {
+        case "facebook": partial = await fetchFacebookMetrics(token, url); break;
+        case "instagram": partial = await fetchInstagramMetrics(token, url); break;
+        case "twitter": partial = await fetchTwitterMetrics(token, url); break;
+        case "linkedin": partial = await fetchLinkedInMetrics(token, url, account.accountId); break;
+        default: partial = { platform, likes: null, shares: null, comments: null, reach: null, impressions: null, fetchError: "Unknown platform" };
+      }
+    }
+
+    try {
+      if (partial.fetchError) {
+        // Failure path: preserve existing metric values — only update error metadata.
+        await db.insert(socialPostMetrics).values({
+          postId,
+          platform,
+          fetchError: partial.fetchError,
+          fetchedAt: now,
+        }).onConflictDoUpdate({
+          target: [socialPostMetrics.postId, socialPostMetrics.platform],
+          set: {
+            fetchError: partial.fetchError,
+            fetchedAt: now,
+            // Metric columns intentionally omitted — prior good values stay intact.
+          },
+        });
+      } else {
+        // Success path: update all metric columns and clear any prior error.
+        await db.insert(socialPostMetrics).values({
+          postId,
+          platform,
+          likes: partial.likes,
+          shares: partial.shares,
+          comments: partial.comments,
+          reach: partial.reach,
+          impressions: partial.impressions,
+          fetchError: null,
+          fetchedAt: now,
+        }).onConflictDoUpdate({
+          target: [socialPostMetrics.postId, socialPostMetrics.platform],
+          set: {
+            likes: partial.likes,
+            shares: partial.shares,
+            comments: partial.comments,
+            reach: partial.reach,
+            impressions: partial.impressions,
+            fetchError: null,
+            fetchedAt: now,
+          },
+        });
+      }
+    } catch (e) {
+      logger.warn({ postId, platform, e }, "Failed to cache post metrics");
+    }
+
+    results.push({ ...partial, fetchedAt: now.toISOString() });
+  }));
+
+  return results;
 }

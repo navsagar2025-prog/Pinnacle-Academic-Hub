@@ -107,6 +107,30 @@ async function applyStartupMigrations(): Promise<void> {
     ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS teacher_seen_at TIMESTAMPTZ
   `);
 
+  // Engagement metrics cache per post per platform
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS social_post_metrics (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+      platform TEXT NOT NULL,
+      likes INTEGER,
+      shares INTEGER,
+      comments INTEGER,
+      reach INTEGER,
+      impressions INTEGER,
+      fetch_error TEXT,
+      fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS social_post_metrics_post_platform_uq
+      ON social_post_metrics (post_id, platform)
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS social_post_metrics_post_id_idx
+      ON social_post_metrics (post_id)
+  `);
+
   logger.info("Startup migrations applied");
 }
 

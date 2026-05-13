@@ -4,6 +4,7 @@ import {
   Clock, CheckCircle, XCircle, Send, Link2, Calendar, CalendarClock,
   Trash2, Wifi, WifiOff, Settings, Users, FileText,
   ChevronDown, ExternalLink, Eye, Image as ImageIcon, Upload,
+  BarChart2, Heart, MessageCircle, Repeat2, Users2, TrendingUp,
 } from "lucide-react";
 import { SkeletonList, useToast } from "./portalUtils";
 
@@ -114,6 +115,151 @@ type TeacherAccess = {
   platformsAllowed: string[]; isEnabled: boolean;
 };
 type TeacherUser = { id: string; name: string; email: string };
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type PlatformMetrics = {
+  platform: string;
+  likes: number | null;
+  shares: number | null;
+  comments: number | null;
+  reach: number | null;
+  impressions: number | null;
+  fetchError?: string;
+  fetchedAt: string;
+  fromCache?: boolean;
+  stale?: boolean;
+};
+
+// ── Stats Modal ───────────────────────────────────────────────────────────────
+
+function StatsModal({ post, getToken, onClose }: {
+  post: SocialPost;
+  getToken: GetToken;
+  onClose: () => void;
+}) {
+  const [metrics, setMetrics] = useState<PlatformMetrics[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    apiFetch(`/admin/social/posts/${post.id}/stats`, getToken)
+      .then(json => {
+        if (cancelled) return;
+        if (json.ok) setMetrics(json.data);
+        else setError(json.error ?? "Failed to fetch stats");
+      })
+      .catch(() => { if (!cancelled) setError("Network error"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [post.id, getToken]);
+
+  const METRIC_ROWS: { key: keyof PlatformMetrics; label: string; icon: React.ReactNode }[] = [
+    { key: "likes", label: "Likes", icon: <Heart size={14} className="text-red-400" /> },
+    { key: "comments", label: "Comments", icon: <MessageCircle size={14} className="text-blue-400" /> },
+    { key: "shares", label: "Shares / Retweets", icon: <Repeat2 size={14} className="text-green-500" /> },
+    { key: "reach", label: "Reach / Unique Impressions", icon: <Users2 size={14} className="text-purple-400" /> },
+    { key: "impressions", label: "Impressions", icon: <TrendingUp size={14} className="text-amber-500" /> },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={18} className="text-[var(--color-navy)]" />
+            <h3 className="font-bold text-[var(--color-navy)]">Engagement Stats</h3>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-slate-500 line-clamp-2">{post.content}</p>
+
+          {loading && (
+            <div className="flex items-center justify-center gap-3 py-10 text-slate-400 text-sm">
+              <div className="w-5 h-5 border-2 border-[var(--color-teal)] border-t-transparent rounded-full animate-spin" />
+              Fetching live stats from platforms…
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <AlertTriangle size={14} className="shrink-0" /> {error}
+            </div>
+          )}
+
+          {!loading && metrics && metrics.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-6">No metrics available for this post.</p>
+          )}
+
+          {!loading && metrics && metrics.length > 0 && (
+            <div className="space-y-4">
+              {metrics.map(m => {
+                const platform = PLATFORMS.find(p => p.id === m.platform);
+                return (
+                  <div key={m.platform} className={`border rounded-xl p-4 ${platform ? platform.border + " " + platform.bg : "border-slate-200 bg-slate-50"}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{platform?.emoji}</span>
+                        <span className={`text-sm font-semibold ${platform?.text ?? "text-slate-700"}`}>{platform?.label ?? m.platform}</span>
+                      </div>
+                      <span className="text-xs text-slate-400">
+                        {m.stale ? "Stale · " : m.fromCache ? "Cached · " : "Live · "}
+                        {new Date(m.fetchedAt).toLocaleTimeString("en-IN")}
+                      </span>
+                    </div>
+
+                    {m.stale && (
+                      <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5 mb-2">
+                        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                        <span>Live refresh failed ({m.fetchError}) — showing last known values.</span>
+                      </div>
+                    )}
+
+                    {!m.stale && m.fetchError ? (
+                      <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                        <span>{m.fetchError}</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {METRIC_ROWS.map(({ key, label, icon }) => {
+                          const val = m[key as keyof PlatformMetrics];
+                          if (val === null || val === undefined) return null;
+                          return (
+                            <div key={key} className="bg-white rounded-lg p-3 border border-white/60 shadow-sm text-center">
+                              <div className="flex items-center justify-center gap-1 text-xs text-slate-500 mb-1">
+                                {icon} {label}
+                              </div>
+                              <p className="text-xl font-bold text-[var(--color-navy)]">
+                                {typeof val === "number" ? val.toLocaleString("en-IN") : val}
+                              </p>
+                            </div>
+                          );
+                        })}
+                        {METRIC_ROWS.every(({ key }) => m[key as keyof PlatformMetrics] === null) && (
+                          <p className="col-span-3 text-xs text-slate-400 text-center py-2">No metrics returned by this platform.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end px-5 pb-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Accounts Tab ─────────────────────────────────────────────────────────────
 
@@ -848,6 +994,7 @@ function HistoryTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPlatform, setFilterPlatform] = useState("all");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [statsPost, setStatsPost] = useState<SocialPost | null>(null);
 
   async function deletePost(id: string) {
     if (!confirm("Delete this post record?")) return;
@@ -926,6 +1073,16 @@ function HistoryTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
                       ))}
                     </div>
                   )}
+                  {post.status === "published" && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setStatsPost(post)}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-[var(--color-teal)] hover:text-[var(--color-teal)] transition-colors"
+                      >
+                        <BarChart2 size={12} /> Stats
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => deletePost(post.id)} disabled={deleting === post.id} className="p-1.5 text-slate-300 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
                   <Trash2 size={14} />
@@ -934,6 +1091,10 @@ function HistoryTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
             </div>
           ))}
         </div>
+      )}
+
+      {statsPost && (
+        <StatsModal post={statsPost} getToken={getToken} onClose={() => setStatsPost(null)} />
       )}
     </div>
   );

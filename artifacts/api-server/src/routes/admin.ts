@@ -7,13 +7,13 @@ import {
   mockTests, doubts, siteSettings, seoOverrides, watermarkSettings,
   pageViews, securityEvents, ipLockouts, auditLogs, questionBank,
   practiceSets, practiceSetQuestions, practiceSetAssignments,
-  socialAccounts, socialPosts, socialTeacherAccess,
+  socialAccounts, socialPosts, socialTeacherAccess, socialPostMetrics,
 } from "@workspace/db/schema";
 import { desc, eq, sql, asc, and, or, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { getEffectiveCreds, runReportWithCreds, runEventReport } from "../lib/ga4.js";
 import { emailAvailable, sendEmail, buildFeePaymentConfirmationEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
-import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier } from "../lib/social.js";
+import { encryptToken, buildOAuthUrl, exchangeOAuthCode, publishPostToPlatforms, resolveLinkedContentUrl, createOAuthState, validateOAuthState, generateCodeVerifier, fetchAndCachePostMetrics } from "../lib/social.js";
 
 const router = Router();
 
@@ -1723,6 +1723,72 @@ router.delete("/admin/social/posts/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
+// GET /admin/social/posts/:id/stats
+// Returns cached engagement metrics; if cache is older than 1 hour (or missing),
+// fetches live from platform APIs, caches, and returns fresh data.
+// When a live fetch fails for a platform, stale cached values are returned
+// (with stale: true) so previously-good metrics are never lost.
+router.get("/admin/social/posts/:id/stats", async (req, res) => {
+  try {
+    const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, req.params.id)).limit(1);
+    if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+
+    if (post.status !== "published") {
+      res.json({ ok: true, data: [], note: "Stats are only available for published posts." });
+      return;
+    }
+
+    const mapCachedRow = (r: typeof socialPostMetrics.$inferSelect) => ({
+      platform: r.platform,
+      likes: r.likes,
+      shares: r.shares,
+      comments: r.comments,
+      reach: r.reach,
+      impressions: r.impressions,
+      fetchError: r.fetchError ?? undefined,
+      fetchedAt: r.fetchedAt.toISOString(),
+    });
+
+    // Load existing cached rows for this post
+    const cached = await db.select().from(socialPostMetrics).where(eq(socialPostMetrics.postId, post.id));
+    const cachedByPlatform = Object.fromEntries(cached.map(r => [r.platform, r]));
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const isFresh = cached.length > 0 && cached.every(r => r.fetchedAt > oneHourAgo);
+
+    if (isFresh) {
+      const data = cached.map(r => ({ ...mapCachedRow(r), fromCache: true, stale: false }));
+      res.json({ ok: true, data });
+      return;
+    }
+
+    // Fetch live — only for platforms with a stored published URL
+    const urls = (post.publishedUrls ?? {}) as Record<string, string>;
+    if (Object.keys(urls).length === 0) {
+      res.json({ ok: true, data: [], note: "No published URLs found for this post." });
+      return;
+    }
+
+    const fresh = await fetchAndCachePostMetrics(post.id, urls);
+
+    // For platforms where live fetch failed, fall back to stale cache if available
+    const data = fresh.map(m => {
+      if (m.fetchError) {
+        const stale = cachedByPlatform[m.platform];
+        if (stale && (stale.likes !== null || stale.shares !== null || stale.comments !== null || stale.reach !== null || stale.impressions !== null)) {
+          // Return stale cached metrics, indicate that they're old and the refresh failed
+          return { ...mapCachedRow(stale), fetchError: m.fetchError, stale: true, fromCache: true };
+        }
+      }
+      return { ...m, fromCache: false, stale: false };
+    });
+
+    res.json({ ok: true, data });
+  } catch (e) {
+    console.error("GET /admin/social/posts/:id/stats error:", e);
+    res.status(500).json({ error: "Failed to fetch stats" });
   }
 });
 
