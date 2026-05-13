@@ -1089,9 +1089,11 @@ export function AdminSocialMedia({ getToken, defaultTab }: { getToken: GetToken;
 
   const pendingCount = posts.filter(p => p.status === "pending").length;
   const expiredCount = accounts.filter(a => a.status === "expired" || (a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date())).length;
+  const disconnectedCount = accounts.filter(a => a.status !== "connected" && !(a.status === "expired" || (a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date()))).length;
+  const accountWarnCount = expiredCount + disconnectedCount;
 
   const TABS: { id: Tab; label: string; badge?: number; warn?: number }[] = [
-    { id: "accounts", label: "Accounts", warn: expiredCount },
+    { id: "accounts", label: "Accounts", warn: accountWarnCount },
     { id: "compose", label: "Compose" },
     { id: "pending", label: "Pending Approval", badge: pendingCount },
     { id: "history", label: "Post History" },
@@ -1106,9 +1108,12 @@ export function AdminSocialMedia({ getToken, defaultTab }: { getToken: GetToken;
           <h2 className="text-xl font-bold text-[var(--color-navy)]">Social Media</h2>
         </div>
         <div className="flex items-center gap-2">
-          {expiredCount > 0 && (
+          {accountWarnCount > 0 && (
             <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-              <AlertTriangle size={12} /> {expiredCount} token{expiredCount > 1 ? "s" : ""} expired
+              <AlertTriangle size={12} />
+              {expiredCount > 0 && `${expiredCount} expired`}
+              {expiredCount > 0 && disconnectedCount > 0 && ", "}
+              {disconnectedCount > 0 && `${disconnectedCount} disconnected`}
             </span>
           )}
           <button onClick={() => { loadAccounts(); loadPosts(); }} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--color-navy)] transition-colors">
