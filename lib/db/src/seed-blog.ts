@@ -258,7 +258,7 @@ const TOPICS: Topic[] = [
 async function callAnthropic(prompt: string, retries = 3): Promise<string> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const res = await fetch(`${ANT_BASE}/messages`, {
+      const res = await fetch(`${ANT_BASE}/v1/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
