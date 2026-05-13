@@ -12,3 +12,15 @@ id = "e_xhdcNftx5WMdpEsho8k"
 uri = "file://pinnacle-production-package.zip"
 type = "unspecified"
 title = "Pinnacle Academic Classes — Production Package (14.3 MB)"
+
+[[outputs]]
+id = "KRZnxGhiTfR3Fquz04ozz"
+uri = "file://pinnacle-prebuilt-docker.zip"
+type = "unspecified"
+title = "Version 1: Pre-built (Run instantly — no build needed) — 14.3 MB"
+
+[[outputs]]
+id = "E0D2ZkzfYAsbHWEXCZEYj"
+uri = "file://pinnacle-build-from-source.zip"
+type = "unspecified"
+title = "Version 2: Build from Source (Full source + mobile app) — 17.9 MB"
