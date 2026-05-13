@@ -112,7 +112,7 @@ export default function StudentFees() {
   return (
     <>
       <ScreenContainer onRefresh={onRefresh} refreshing={refreshing}>
-        {nextDueRecord && (
+        {nextDueRecord ? (
           <View style={[styles.nextDueCard, { backgroundColor: colors.primary, borderRadius: colors.radius }]}>
             <Text style={[styles.nextDueLabel, { color: "rgba(255,255,255,0.75)" }]}>
               Next Fee Due · {nextDueRecord.period}
@@ -124,7 +124,12 @@ export default function StudentFees() {
               Due on {fmtDate(nextDueRecord.dueDate)}
             </Text>
           </View>
-        )}
+        ) : records.length > 0 ? (
+          <View style={[styles.allClearCard, { backgroundColor: colors.success + "18", borderRadius: colors.radius, borderColor: colors.success + "40", borderWidth: 1 }]}>
+            <Feather name="check-circle" size={22} color={colors.success} />
+            <Text style={[styles.allClearText, { color: colors.success }]}>All fees paid — no outstanding dues</Text>
+          </View>
+        ) : null}
 
         {summary && (
           <View style={[styles.summaryRow, { marginTop: nextDueRecord ? 12 : 0, marginBottom: 4 }]}>
@@ -227,6 +232,8 @@ export default function StudentFees() {
 }
 
 const styles = StyleSheet.create({
+  allClearCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, marginBottom: 4 },
+  allClearText: { fontSize: 14, fontWeight: "600" },
   nextDueCard: { padding: 20, marginBottom: 4, gap: 6 },
   nextDueLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
   nextDueAmount: { fontSize: 36, fontWeight: "800" },
