@@ -123,12 +123,12 @@ export default function ParentFees() {
               Due: {fmtDate(nextDueRecord.dueDate)}
             </Text>
           </View>
-        ) : (
+        ) : records.length > 0 ? (
           <View style={[styles.allClearCard, { backgroundColor: colors.success + "18", borderRadius: colors.radius, borderColor: colors.success + "40", borderWidth: 1 }]}>
             <Feather name="check-circle" size={22} color={colors.success} />
             <Text style={[styles.allClearText, { color: colors.success }]}>All fees paid — no outstanding dues</Text>
           </View>
-        )}
+        ) : null}
 
         {summary && (
           <View style={[styles.summaryRow, { marginTop: 12, marginBottom: 4 }]}>
@@ -196,7 +196,7 @@ export default function ParentFees() {
                         ) : (
                           <Feather name="file-text" size={13} color={colors.primary} />
                         )}
-                        <Text style={[styles.receiptBtnText, { color: colors.primary }]}>Receipt</Text>
+                        <Text style={[styles.receiptBtnText, { color: colors.primary }]}>View Receipt</Text>
                       </TouchableOpacity>
                     )}
                   </View>

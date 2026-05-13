@@ -198,7 +198,7 @@ export default function StudentFees() {
                         ) : (
                           <Feather name="file-text" size={13} color={colors.primary} />
                         )}
-                        <Text style={[styles.receiptBtnText, { color: colors.primary }]}>Receipt</Text>
+                        <Text style={[styles.receiptBtnText, { color: colors.primary }]}>View Receipt</Text>
                       </TouchableOpacity>
                     )}
                   </View>
