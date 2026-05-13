@@ -55,10 +55,19 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
     const encAccess = encryptToken(result.accessToken);
     const encRefresh = result.refreshToken ? encryptToken(result.refreshToken) : null;
 
+    // Facebook: result.accountId holds the Page ID — must go into pageId column
+    // (publishFacebook reads account.pageId; account.accountId is unused for FB)
+    // Instagram, Twitter, LinkedIn: result.accountId goes into accountId column
+    const isPageBased = platform === "facebook";
+    const insertAccountId = isPageBased ? null : (result.accountId ?? null);
+    const insertPageId = isPageBased ? (result.accountId ?? null) : null;
+    const insertAccountName = result.accountName ?? `${platform} (OAuth)`;
+
     await db.insert(socialAccounts).values({
       platform,
-      accountName: result.accountName ?? `${platform} (OAuth)`,
-      accountId: result.accountId ?? null,
+      accountName: insertAccountName,
+      accountId: insertAccountId,
+      pageId: insertPageId,
       accessToken: encAccess,
       refreshToken: encRefresh,
       tokenExpiresAt: result.expiresAt ?? null,
@@ -67,6 +76,9 @@ router.get("/admin/social/oauth/callback", async (req, res) => {
     }).onConflictDoUpdate({
       target: socialAccounts.platform,
       set: {
+        accountName: insertAccountName,
+        accountId: insertAccountId,
+        pageId: insertPageId,
         accessToken: encAccess,
         refreshToken: encRefresh,
         tokenExpiresAt: result.expiresAt ?? null,
@@ -1622,21 +1634,32 @@ router.patch("/admin/social/posts/:id", async (req, res) => {
         // Fetch current post for content/targets if not overridden
         const [existing] = await db.select().from(socialPosts).where(eq(socialPosts.id, req.params.id)).limit(1);
         if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-        const targets = (platformTargets ?? existing.platformTargets) as string[];
-        const postContent = content ?? existing.content;
-        const postMedia = (mediaUrls ?? existing.mediaUrls) as string[];
 
-        const { publishedUrls, errors } = await publishPostToPlatforms(targets, postContent, postMedia);
-        const allFailed = Object.keys(errors).length === targets.length;
+        const scheduleDate = scheduledAt ? new Date(scheduledAt) : null;
+        if (scheduleDate && scheduleDate > now) {
+          // Approve-then-schedule: don't publish now, queue for later
+          updates.status = "scheduled";
+          updates.scheduledAt = scheduleDate;
+          updates.approvedByUserId = user?.id || null;
+          logger.info({ postId: req.params.id, scheduledAt: scheduleDate }, "Admin approved post and scheduled");
+        } else {
+          // Immediate publish
+          const targets = (platformTargets ?? existing.platformTargets) as string[];
+          const postContent = content ?? existing.content;
+          const postMedia = (mediaUrls ?? existing.mediaUrls) as string[];
 
-        updates.status = allFailed ? "failed" : "published";
-        updates.publishedAt = allFailed ? null : now;
-        updates.publishedUrls = publishedUrls;
-        updates.errorMessage = Object.keys(errors).length
-          ? Object.entries(errors).map(([p, e]) => `${p}: ${e}`).join("; ")
-          : null;
-        updates.approvedByUserId = user?.id || null;
-        logger.info({ postId: req.params.id, publishedUrls, errors }, "Admin approve/publish executed");
+          const { publishedUrls, errors } = await publishPostToPlatforms(targets, postContent, postMedia);
+          const allFailed = Object.keys(errors).length === targets.length;
+
+          updates.status = allFailed ? "failed" : "published";
+          updates.publishedAt = allFailed ? null : now;
+          updates.publishedUrls = publishedUrls;
+          updates.errorMessage = Object.keys(errors).length
+            ? Object.entries(errors).map(([p, e]) => `${p}: ${e}`).join("; ")
+            : null;
+          updates.approvedByUserId = user?.id || null;
+          logger.info({ postId: req.params.id, publishedUrls, errors }, "Admin approve/publish executed");
+        }
       } else if (status === "rejected") {
         updates.status = "rejected";
         if (rejectionNote !== undefined) updates.rejectionNote = rejectionNote;

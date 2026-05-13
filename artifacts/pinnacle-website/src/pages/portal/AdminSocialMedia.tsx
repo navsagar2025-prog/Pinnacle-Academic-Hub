@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Share2, Plus, X, Check, AlertTriangle, RefreshCw,
-  Clock, CheckCircle, XCircle, Send, Link2, Calendar,
+  Clock, CheckCircle, XCircle, Send, Link2, Calendar, CalendarClock,
   Trash2, Wifi, WifiOff, Settings, Users, FileText,
   ChevronDown, ExternalLink, Eye, Image as ImageIcon, Upload,
 } from "lucide-react";
@@ -630,12 +630,14 @@ function ComposeTab({ getToken, accounts, notices, blogPosts, isAdmin, reload }:
 function PendingTab({ getToken, posts, reload }: { getToken: GetToken; posts: SocialPost[]; reload: () => void }) {
   const { addToast } = useToast();
   const [rejectModal, setRejectModal] = useState<SocialPost | null>(null);
+  const [scheduleModal, setScheduleModal] = useState<SocialPost | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
+  const [scheduleDate, setScheduleDate] = useState("");
   const [acting, setActing] = useState<string | null>(null);
 
   const pending = posts.filter(p => p.status === "pending");
 
-  async function approve(post: SocialPost) {
+  async function approveNow(post: SocialPost) {
     setActing(post.id);
     try {
       const json = await apiFetch(`/admin/social/posts/${post.id}`, getToken, {
@@ -647,6 +649,29 @@ function PendingTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
       reload();
     } catch (e) {
       addToast(e instanceof Error ? e.message : "Failed to approve", "error");
+    } finally {
+      setActing(null);
+    }
+  }
+
+  async function approveScheduled() {
+    if (!scheduleModal) return;
+    if (!scheduleDate) { addToast("Please pick a date and time", "error"); return; }
+    const dt = new Date(scheduleDate);
+    if (dt <= new Date()) { addToast("Scheduled time must be in the future", "error"); return; }
+    setActing(scheduleModal.id);
+    try {
+      const json = await apiFetch(`/admin/social/posts/${scheduleModal.id}`, getToken, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "approved", scheduledAt: dt.toISOString() }),
+      });
+      if (!json.ok) throw new Error(json.error ?? "Failed");
+      addToast("Post approved and scheduled", "success");
+      setScheduleModal(null);
+      setScheduleDate("");
+      reload();
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Failed to schedule", "error");
     } finally {
       setActing(null);
     }
@@ -700,13 +725,20 @@ function PendingTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => approve(post)}
+              onClick={() => approveNow(post)}
               disabled={acting === post.id}
               className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
               <Check size={14} /> Approve & Publish
+            </button>
+            <button
+              onClick={() => { setScheduleModal(post); setScheduleDate(""); }}
+              disabled={acting === post.id}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-teal)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
+            >
+              <CalendarClock size={14} /> Approve & Schedule
             </button>
             <button
               onClick={() => { setRejectModal(post); setRejectionNote(""); }}
@@ -718,6 +750,40 @@ function PendingTab({ getToken, posts, reload }: { getToken: GetToken; posts: So
           </div>
         </div>
       ))}
+
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <h3 className="font-bold text-[var(--color-navy)]">Approve & Schedule</h3>
+              <button onClick={() => setScheduleModal(null)}><X size={18} className="text-slate-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-600 line-clamp-3 bg-slate-50 p-3 rounded-lg italic">"{scheduleModal.content}"</p>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Publish at</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  value={scheduleDate}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  onChange={e => setScheduleDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button onClick={() => setScheduleModal(null)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
+              <button
+                onClick={approveScheduled}
+                disabled={acting === scheduleModal.id || !scheduleDate}
+                className="px-4 py-2 text-sm bg-[var(--color-teal)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {acting === scheduleModal.id ? "Scheduling…" : "Approve & Schedule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {rejectModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
