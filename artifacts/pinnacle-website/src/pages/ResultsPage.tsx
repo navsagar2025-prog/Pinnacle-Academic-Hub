@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
-import { TOPPERS } from "@/lib/data";
+import { TOPPERS, BOARD_PASS_RATES } from "@/lib/data";
 import { Star, Trophy } from "lucide-react";
 
 const YEAR_STATS = [
@@ -64,11 +64,21 @@ export default function ResultsPage() {
               <span className="badge-gold mb-3 inline-block">Pinnacle Toppers</span>
               <h2 className="section-heading">Our Star Achievers</h2>
             </div>
+            <div className="mb-10 grid grid-cols-3 gap-4">
+              {BOARD_PASS_RATES.map((r) => (
+                <div key={r.subject} className="card text-center border-t-4 border-t-[var(--color-gold)]">
+                  <div className="text-3xl mb-1">{r.icon}</div>
+                  <div className="text-3xl font-bold text-[var(--color-teal)] font-[family-name:var(--font-playfair)]">{r.rate}</div>
+                  <div className="text-slate-600 text-sm font-semibold mt-1">{r.subject} Pass Rate</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Board Exams 2020</div>
+                </div>
+              ))}
+            </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {TOPPERS.map((t) => (
-                <div key={`${t.name}-${t.exam}`} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
+              {TOPPERS.map((t, i) => (
+                <div key={`${t.name}-${t.college}-${i}`} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
                   <div className="flex items-center gap-1 mb-3">
-                    {[...Array(5)].map((_, i) => <Star key={i} size={13} className="text-[var(--color-gold)]" fill="currentColor" />)}
+                    {[...Array(5)].map((_, j) => <Star key={j} size={13} className="text-[var(--color-gold)]" fill="currentColor" />)}
                   </div>
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[var(--color-gold)] to-[var(--color-maroon)] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
@@ -86,7 +96,7 @@ export default function ResultsPage() {
                     </div>
                   )}
                   {t.quote && <p className="text-slate-600 text-sm italic">&ldquo;{t.quote}&rdquo;</p>}
-                  <div className="text-xs text-slate-400 mt-2">{t.batch} · 2024</div>
+                  <div className="text-xs text-slate-400 mt-2">{t.batch}</div>
                 </div>
               ))}
             </div>

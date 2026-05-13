@@ -417,16 +417,16 @@ function ToppersSection() {
     <section className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
-          <span className="badge-gold mb-3 inline-block">2024 Results</span>
+          <span className="badge-gold mb-3 inline-block">Board Results</span>
           <h2 className="section-heading">Our Toppers Shine Bright</h2>
           <p className="section-subheading mx-auto">
-            Students who trusted Pinnacle and achieved their dream ranks in JEE and NEET 2024.
+            Students who trusted Pinnacle and achieved outstanding scores in CBSE board exams.
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {TOPPERS.map((t) => (
-            <div key={t.name} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
+          {TOPPERS.map((t, i) => (
+            <div key={`${t.name}-${t.college}-${i}`} className="card border-l-4 border-l-[var(--color-gold)] hover:shadow-elevated transition-all">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--color-gold)] to-[var(--color-maroon)] flex items-center justify-center text-white font-bold flex-shrink-0">
                   {t.initials}

@@ -29,6 +29,13 @@ export default function AboutPage() {
               <div>
                 <span className="badge-navy mb-3 inline-block">Our Mission</span>
                 <h2 className="section-heading">Shaping the Future, One Student at a Time</h2>
+                <div className="mt-4 rounded-2xl overflow-hidden shadow-md">
+                  <img
+                    src="/gallery/campus/img04.jpg"
+                    alt="Pinnacle Academic Classes — Gaur City 2, Greater Noida"
+                    className="w-full h-48 object-cover object-top"
+                  />
+                </div>
                 <p className="text-slate-600 mt-4 leading-relaxed">
                   At Pinnacle, we believe that every student has the potential to achieve great things.
                   Our mission is to provide world-class teaching, structured guidance, and a supportive

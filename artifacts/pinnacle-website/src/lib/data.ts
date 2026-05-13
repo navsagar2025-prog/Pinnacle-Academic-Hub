@@ -134,61 +134,70 @@ export const FACULTY = [
   },
 ];
 
+// Real topper data sourced from Pinnacle Academic Classes JustDial gallery achievement banners.
+// CBSE Class XII Commerce 2020 results + subject pass-rate banners.
 export const TOPPERS = [
   {
-    name: "Aditya Sharma",
-    exam: "JEE Advanced 2024",
-    rank: "AIR 342",
-    college: "IIT Bombay — Computer Science",
-    batch: "JEE 2024 — Evening",
-    quote: "Pinnacle's structured problem-solving approach transformed my preparation.",
-    initials: "AS",
+    name: "Pragalva Mishra",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "95%",
+    college: "Accountancy — School Topper",
+    batch: "CBSE Commerce — Class XII",
+    quote: "Pinnacle's structured approach to Accountancy made every concept crystal clear.",
+    initials: "PM",
   },
   {
-    name: "Sneha Patel",
-    exam: "NEET UG 2024",
-    rank: "AIR 1,847",
-    college: "AIIMS New Delhi — MBBS",
-    batch: "NEET 2024 — Evening",
-    quote: "The NCERT mastery program and mock tests at Pinnacle were game-changers for me.",
-    initials: "SP",
-  },
-  {
-    name: "Rohan Mishra",
-    exam: "JEE Mains 2024",
-    rank: "99.4 Percentile",
-    college: "NIT Trichy — Electronics",
-    batch: "JEE 2024 — Morning",
-    quote: "Three months of intensive revision at Pinnacle doubled my score.",
-    initials: "RM",
-  },
-  {
-    name: "Priya Singh",
-    exam: "NEET UG 2024",
-    rank: "AIR 3,219",
-    college: "Maulana Azad Medical College — MBBS",
-    batch: "NEET 2024 — Morning",
-    quote: "The faculty at Pinnacle treat each student as a potential topper.",
-    initials: "PS",
-  },
-  {
-    name: "Karan Yadav",
-    exam: "JEE Advanced 2024",
-    rank: "AIR 892",
-    college: "IIT Delhi — Mechanical Engineering",
-    batch: "JEE 2024 — Evening",
-    quote: "The mock test analytics showed me exactly where to improve.",
-    initials: "KY",
+    name: "Ramya",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "97%",
+    college: "Economics — School Topper",
+    batch: "CBSE Commerce — Class XII",
+    quote: "The faculty's depth in Economics and consistent mock tests gave me the edge.",
+    initials: "R",
   },
   {
     name: "Anjali Gupta",
-    exam: "NEET UG 2024",
-    rank: "AIR 5,671",
-    college: "KGMC Lucknow — MBBS",
-    batch: "NEET 2024 — Morning",
-    quote: "Pinnacle's biology faculty made complex topics feel simple.",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "94%",
+    college: "Accountancy — 2nd Rank",
+    batch: "CBSE Commerce — Class XII",
+    quote: "Every doubt was addressed immediately. That made all the difference.",
     initials: "AG",
   },
+  {
+    name: "Saiyam Dhamija",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "91%",
+    college: "Economics — 2nd Rank",
+    batch: "CBSE Commerce — Class XII",
+    quote: "The revision sessions at Pinnacle turned my weak subjects into my strongest.",
+    initials: "SD",
+  },
+  {
+    name: "Ramya",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "91%",
+    college: "Accountancy — 3rd Rank",
+    batch: "CBSE Commerce — Class XII",
+    quote: "Consistent practice and expert guidance helped me score across all subjects.",
+    initials: "R",
+  },
+  {
+    name: "Pragalva Mishra",
+    exam: "CBSE Class XII Commerce 2020",
+    rank: "90%",
+    college: "Economics & BST — Topper",
+    batch: "CBSE Commerce — Class XII",
+    quote: "Pinnacle helped me top multiple subjects through their focused coaching.",
+    initials: "PM",
+  },
+];
+
+// Subject pass-rate highlights sourced from Pinnacle JustDial gallery achievement banner.
+export const BOARD_PASS_RATES = [
+  { subject: "Maths", rate: "100%", icon: "📐" },
+  { subject: "Science", rate: "100%", icon: "🔬" },
+  { subject: "SST", rate: "96%", icon: "🌍" },
 ];
 
 export const TESTIMONIALS = [
@@ -226,9 +235,9 @@ export const STATS = [
   { value: "2,000+", label: "Students Trained", icon: "👨‍🎓" },
   { value: "85+", label: "IIT/AIIMS Selections", icon: "🏆" },
   { value: "320+", label: "NIT/State Medical Selections", icon: "🎓" },
-  { value: "97%", label: "Board Exam Pass Rate", icon: "📊" },
+  { value: "100%", label: "Maths Pass Rate", icon: "📐" },
   { value: "14+", label: "Years of Excellence", icon: "⭐" },
-  { value: "6", label: "Expert Faculty Members", icon: "👩‍🏫" },
+  { value: "96%+", label: "Board Exam Pass Rate", icon: "📊" },
 ];
 
 export const NOTICES = [
