@@ -1,0 +1,51 @@
+# ============================================================
+# Pinnacle Academic Classes — Pre-built image
+# Use this when you already have the built artifacts:
+#   api/    → pre-built API bundle
+#   web/    → pre-built static website
+#
+# No source code or build tools needed.
+# ============================================================
+
+# ── API image ─────────────────────────────────────────────
+FROM node:20-alpine AS api
+
+RUN addgroup -S pinnacle && adduser -S pinnacle -G pinnacle
+
+WORKDIR /app
+
+# Copy the pre-built bundle
+COPY api/ ./dist/
+
+# Install ONLY native runtime deps that couldn't be bundled
+# (pg for DB, googleapis for social/GA4 connections).
+# We create a minimal package.json with just those deps.
+RUN echo '{"name":"pinnacle-api","version":"1.0.0","type":"module","dependencies":{"pg":"^8","googleapis":"^144"}}' > package.json && \
+    npm install --omit=dev --ignore-scripts 2>/dev/null || \
+    npm install --omit=dev
+
+RUN mkdir -p /app/uploads/social && chown -R pinnacle:pinnacle /app
+
+USER pinnacle
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:${PORT}/api/healthz || exit 1
+
+CMD ["node", "--enable-source-maps", "dist/index.mjs"]
+
+
+# ── Web image (Nginx serving pre-built static files) ───────
+FROM nginx:1.27-alpine AS web
+
+COPY web/ /usr/share/nginx/html/
+COPY docker/nginx-web.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget -qO- http://localhost:80/ || exit 1

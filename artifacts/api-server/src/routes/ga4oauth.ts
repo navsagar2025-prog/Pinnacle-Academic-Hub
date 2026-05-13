@@ -205,7 +205,7 @@ router.get("/admin/ga4/oauth/callback", async (req, res) => {
 
     const redirectUri = settings.ga4_oauth_redirect_uri || buildCallbackUri(req);
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    let tokens: Awaited<ReturnType<typeof oauth2Client.getToken>>["tokens"];
+    let tokens: { access_token?: string | null; refresh_token?: string | null; expiry_date?: number | null };
     try {
       ({ tokens } = await oauth2Client.getToken(code));
     } catch (tokenErr) {

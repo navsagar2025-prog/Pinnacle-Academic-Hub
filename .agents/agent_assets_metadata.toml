@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GPuw_OHjAF6bAl8ydKNJV"
+uri = "file://pinnacle-production.zip"
+type = "unspecified"
+title = "Pinnacle Production Package (pre-built, no build required)"

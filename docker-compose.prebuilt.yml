@@ -1,0 +1,51 @@
+version: "3.9"
+
+# Pre-built image — no source code or build tools required on the server.
+# Use this with the pinnacle-production.zip package.
+#
+# Usage:
+#   cp .env.example .env && nano .env
+#   docker compose -f docker-compose.prebuilt.yml up -d
+
+services:
+  api:
+    image: pinnacle-api:latest
+    # Or pull from a registry:
+    # image: ghcr.io/your-org/pinnacle-api:latest
+    container_name: pinnacle-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8080"
+      NODE_ENV: production
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - pinnacle
+
+  web:
+    image: pinnacle-web:latest
+    container_name: pinnacle-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - pinnacle
+
+volumes:
+  uploads:
+
+networks:
+  pinnacle:
+    driver: bridge

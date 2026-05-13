@@ -26,7 +26,7 @@ router.use("/v1", ga4oauthRouter);
 // ── Public social media file serve (unauthenticated — platforms fetch directly) ─
 // Must be registered BEFORE portalRouter, which applies requireAuth() middleware.
 router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
-  const { filename } = req.params;
+  const filename = String(req.params["filename"]);
   if (!/^[\w-]+\.\w+$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
   const filePath = pathJoin(process.cwd(), "uploads", "social", filename);
   if (!existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }

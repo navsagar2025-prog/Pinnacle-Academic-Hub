@@ -1087,7 +1087,7 @@ export function AdminSocialMedia({ getToken, defaultTab }: { getToken: GetToken;
       apiFetch("/admin/blog", getToken),
     ]);
     if (nJson.ok) setNotices((nJson.data as { id: string; title: string }[]).slice(0, 50));
-    if (bJson.ok) setBlogPosts((bJson.data as { id: string; title: string }[]).filter((b: { status?: string }) => b.status === "published").slice(0, 50));
+    if (bJson.ok) setBlogPosts((bJson.data as { id: string; title: string; status?: string }[]).filter(b => b.status === "published").map(({ id, title }) => ({ id, title })).slice(0, 50));
   }, [getToken]);
 
   useEffect(() => {

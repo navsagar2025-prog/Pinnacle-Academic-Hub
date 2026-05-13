@@ -126,7 +126,7 @@ export function AdminUsers({ getToken }: { getToken: () => Promise<string | null
       toast("success", `User ${addForm.name} created and approved`);
       setShowAdd(false); setAddForm(EMPTY_FORM); setConfirm(null); load();
     } else {
-      const msg = res.data?.error ?? "Failed to create user";
+      const msg = res.error ?? "Failed to create user";
       toast("error", msg);
     }
     setAddSaving(false);
