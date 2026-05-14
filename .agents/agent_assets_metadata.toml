@@ -24,3 +24,15 @@ id = "E0D2ZkzfYAsbHWEXCZEYj"
 uri = "file://pinnacle-build-from-source.zip"
 type = "unspecified"
 title = "Version 2: Build from Source (Full source + mobile app) — 17.9 MB"
+
+[[outputs]]
+id = "QG4Hpl5wgewfVPgxZWhlj"
+uri = "file://releases/pinnacle-dist-2026-05-13.zip"
+type = "unspecified"
+title = "Pinnacle — Pre-built Production Bundle (dist, 22 MB)"
+
+[[outputs]]
+id = "4I-VqCpARzxBBj2QgBacK"
+uri = "file://releases/pinnacle-source-2026-05-13.zip"
+type = "unspecified"
+title = "Pinnacle — Full Source Archive (103 MB)"
