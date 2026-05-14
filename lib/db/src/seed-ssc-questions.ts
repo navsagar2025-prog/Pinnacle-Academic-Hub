@@ -27,10 +27,13 @@ if (!ANTHROPIC_KEY) throw new Error("AI_INTEGRATIONS_ANTHROPIC_API_KEY not set")
 
 const pool = new Pool({ connectionString: DB_URL });
 
-const BATCH_SIZE = 12;
-const CONCURRENCY = 4;
-const TARGET_PER_SUBJECT = 180;
-const MAX_OUTPUT_TOKENS = 16384;
+// Env-overrideable so the same script handles 4-row smoke tests and 20k bulk runs.
+const BATCH_SIZE         = parseInt(process.env.SSC_BATCH_SIZE  || "12", 10);
+const CONCURRENCY        = parseInt(process.env.SSC_CONCURRENCY || "4",  10);
+const TARGET_PER_SUBJECT = parseInt(process.env.SSC_TARGET      || "180", 10);
+const MAX_OUTPUT_TOKENS  = parseInt(process.env.SSC_MAX_TOKENS  || "16384", 10);
+// SSC_ONLY_SUBJECT (optional) restricts the run to one subject for resume / repair.
+const ONLY_SUBJECT = process.env.SSC_ONLY_SUBJECT || "";
 
 type SubjectKey = "Quantitative Aptitude" | "Reasoning" | "English" | "General Awareness";
 
@@ -232,11 +235,16 @@ async function insertBatch(
       // skip bad rows; conflicts already eaten by ON CONFLICT
       const msg = (e as Error)?.message ?? "";
       if (!msg.includes("duplicate key")) {
-        console.warn(`  · skip: ${msg.slice(0, 100)}`);
+        console.warn(`  · skip: ${msg.slice(0, 140)}`);
       }
     }
   }
   return count;
+}
+
+// Quick visibility on what the AI returns vs what we manage to insert.
+function logBatch(subject: string, generated: number, inserted: number, dedup: number): void {
+  console.log(`    · [${subject}] gen=${generated} ins=${inserted} dedup/skip=${dedup}`);
 }
 
 async function seedSubject(subject: SubjectKey): Promise<number> {
@@ -251,7 +259,9 @@ async function seedSubject(subject: SubjectKey): Promise<number> {
       group.map(async (bi) => {
         const slice = cfg.topics.slice((bi * 5) % cfg.topics.length).concat(cfg.topics.slice(0, 5));
         const qs = await generateBatch(subject, slice, BATCH_SIZE, cfg.bilingual, cfg.pyqFlavour);
-        return insertBatch(subject, qs, cfg.examTargets, cfg.bilingual);
+        const ins = await insertBatch(subject, qs, cfg.examTargets, cfg.bilingual);
+        logBatch(subject, qs.length, ins, qs.length - ins);
+        return ins;
       }),
     );
     for (const r of results) {
@@ -274,7 +284,10 @@ async function main(): Promise<void> {
   console.log(`Target: ${TARGET_PER_SUBJECT} × 4 subjects = ${TARGET_PER_SUBJECT * 4}`);
   console.log("=".repeat(60));
   let grand = 0;
-  for (const subj of Object.keys(SUBJECT_CONFIG) as SubjectKey[]) {
+  const all = Object.keys(SUBJECT_CONFIG) as SubjectKey[];
+  const subjects = ONLY_SUBJECT ? all.filter((s) => s === ONLY_SUBJECT) : all;
+  if (!subjects.length) throw new Error(`SSC_ONLY_SUBJECT='${ONLY_SUBJECT}' matched none of: ${all.join(", ")}`);
+  for (const subj of subjects) {
     grand += await seedSubject(subj);
   }
   console.log(`\n✅ Seeding complete: ${grand} new SSC questions inserted.`);

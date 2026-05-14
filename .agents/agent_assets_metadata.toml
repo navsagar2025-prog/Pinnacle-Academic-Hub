@@ -36,3 +36,15 @@ id = "4I-VqCpARzxBBj2QgBacK"
 uri = "file://releases/pinnacle-source-2026-05-13.zip"
 type = "unspecified"
 title = "Pinnacle — Full Source Archive (103 MB)"
+
+[[outputs]]
+id = "kT-dp9NcAc83BFEjQmvnR"
+uri = "file://releases/pinnacle-source-2026-05-14.zip"
+type = "unspecified"
+title = "Pinnacle — Source (2026-05-14)"
+
+[[outputs]]
+id = "5rucGopxUIBfWTrHlXImV"
+uri = "file://releases/pinnacle-dist-2026-05-14.zip"
+type = "unspecified"
+title = "Pinnacle — Dist / built artifacts (2026-05-14)"
