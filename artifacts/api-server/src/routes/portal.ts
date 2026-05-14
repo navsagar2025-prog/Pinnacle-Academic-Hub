@@ -8,7 +8,7 @@ import {
   classRecordings, doubts, doubtAnswers,
   watermarkSettings, siteSettings,
   socialTeacherAccess, socialPosts, socialAccounts, blogPosts,
-  questionBank, questionBookmarks,
+  questionBank, questionBookmarks, examTemplates, examTemplateSections,
 } from "@workspace/db/schema";
 import { eq, and, or, isNull, gte, desc, asc, inArray, sql, arrayContains } from "drizzle-orm";
 import busboy from "busboy";
@@ -298,6 +298,20 @@ router.get("/portal/student/question-bank", async (req, res) => {
     if (questionType) conditions.push(eq(questionBank.questionType, questionType as "mcq" | "short" | "long" | "numerical"));
     if (examTarget) conditions.push(arrayContains(questionBank.examTarget, [examTarget]));
 
+    // examTrack: high-level toggle that maps to multiple exam_target values.
+    // 'JEE_NEET' (DEFAULT — preserves pre-SSC behaviour for existing callers)
+    // | 'SSC_CGL' | 'SSC_CHSL' | 'ALL' (opt-in to see everything).
+    const { examTrack = "JEE_NEET" } = req.query as Record<string, string>;
+    if (examTrack === "SSC_CGL") {
+      conditions.push(arrayOverlaps(questionBank.examTarget, ["SSC_CGL", "SSC_TIER_1", "SSC_TIER_2"]));
+    } else if (examTrack === "SSC_CHSL") {
+      conditions.push(arrayOverlaps(questionBank.examTarget, ["SSC_CHSL", "SSC_TIER_1"]));
+    } else if (examTrack !== "ALL") {
+      // Default JEE_NEET — old students never see SSC rows unless they ask.
+      conditions.push(arrayOverlaps(questionBank.examTarget,
+        ["JEE_MAIN", "JEE_ADVANCED", "NEET", "CBSE_BOARDS", "FOUNDATION"]));
+    }
+
     let searchCondition = undefined;
     if (search?.trim()) {
       const tsq = search.trim().split(/\s+/).map((w: string) => w + ":*").join(" & ");
@@ -319,6 +333,10 @@ router.get("/portal/student/question-bank", async (req, res) => {
       imageUrl: questionBank.imageUrl,
       marks: questionBank.marks,
       examTarget: questionBank.examTarget,
+      language: questionBank.language,
+      questionTextHi: questionBank.questionTextHi,
+      optionsHi: questionBank.optionsHi,
+      solutionHi: questionBank.solutionHi,
     }).from(questionBank)
       .where(whereClause)
       .orderBy(desc(questionBank.createdAt))

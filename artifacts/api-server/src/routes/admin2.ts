@@ -538,6 +538,81 @@ router.get("/admin/question-bank/:id", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed to fetch question" }); }
 });
 
+/**
+ * POST /admin/question-bank/import-ssc-paper — STUB endpoint for SSC PYQ ingestion.
+ *
+ * Accepts a paper metadata payload + an array of pre-extracted bilingual questions,
+ * tags them with `source = SSC-<exam>-<year>-<tier>-<shift>`, and inserts them.
+ *
+ * NOTE: Real PDF vision-extraction is deferred until the user provides source PDFs.
+ * For now, this just ingests already-structured rows so the admin pipeline exists.
+ *
+ * Body shape:
+ *   {
+ *     paper: { exam: "CGL"|"CHSL", year: 2024, tier: "TIER_1"|"TIER_2", shift?: "S1"|"S2"|"S3" },
+ *     questions: [{ subject, topic?, difficulty, questionType, questionText, questionTextHi?,
+ *                   options, optionsHi?, correctAnswer, solution?, solutionHi?, marks }, ...]
+ *   }
+ */
+router.post("/admin/question-bank/import-ssc-paper", async (req, res) => {
+  try {
+    const { paper, questions } = req.body as {
+      paper?: { exam?: string; year?: number; tier?: string; shift?: string };
+      questions?: Array<Record<string, unknown>>;
+    };
+    if (!paper?.exam || !paper?.year || !paper?.tier) {
+      res.status(400).json({ error: "paper.exam, paper.year, paper.tier are required" }); return;
+    }
+    if (!Array.isArray(questions) || questions.length === 0) {
+      res.status(400).json({ error: "questions[] required (non-empty)" }); return;
+    }
+    const examFamily = `SSC_${paper.exam}`; // SSC_CGL or SSC_CHSL
+    const tierTarget = paper.tier === "TIER_2" ? "SSC_TIER_2" : "SSC_TIER_1";
+    const sourceTag = `SSC-${paper.exam}-${paper.year}-${paper.tier}${paper.shift ? `-${paper.shift}` : ""}`;
+    const examName = `${examFamily} ${paper.year} ${paper.tier}${paper.shift ? ` ${paper.shift}` : ""}`;
+
+    let inserted = 0;
+    let skipped = 0;
+    for (const q of questions) {
+      const qt = String(q.questionText ?? "").trim();
+      const ca = String(q.correctAnswer ?? "").trim();
+      const subj = String(q.subject ?? "").trim();
+      if (!qt || !ca || !subj) { skipped++; continue; }
+      try {
+        await db.insert(questionBank).values({
+          subject: subj,
+          topic: (q.topic as string | undefined)?.trim() || null,
+          year: paper.year,
+          difficulty: (q.difficulty as "easy" | "medium" | "hard" | undefined) ?? "medium",
+          questionType: (q.questionType as "mcq" | "short" | "long" | "numerical" | undefined) ?? "mcq",
+          questionText: qt,
+          questionTextHi: (q.questionTextHi as string | undefined)?.trim() || null,
+          options: (q.options as Record<string, string> | undefined) ?? null,
+          optionsHi: (q.optionsHi as Record<string, string> | undefined) ?? null,
+          correctAnswer: ca,
+          solution: (q.solution as string | undefined)?.trim() || null,
+          solutionHi: (q.solutionHi as string | undefined)?.trim() || null,
+          examName,
+          marks: typeof q.marks === "number" ? q.marks : 2,
+          isPublished: true,
+          examTarget: [examFamily, tierTarget],
+          source: sourceTag,
+          language: q.questionTextHi ? "bi" : "en",
+          reviewStatus: "approved",
+        }).onConflictDoNothing();
+        inserted++;
+      } catch (rowErr) {
+        skipped++;
+        console.warn("[import-ssc-paper] row skipped:", rowErr);
+      }
+    }
+    res.json({ ok: true, inserted, skipped, source: sourceTag });
+  } catch (e) {
+    console.error("POST /admin/question-bank/import-ssc-paper error:", e);
+    res.status(500).json({ error: "Failed to import SSC paper" });
+  }
+});
+
 router.post("/admin/question-bank", async (req, res) => {
   const { subject, topic, classGrade, year, difficulty, questionType, questionText, options, correctAnswer, solution, examName, marks, examTarget, source, language } = req.body;
   if (!subject || !questionText || !correctAnswer) { res.status(400).json({ error: "subject, questionText, correctAnswer required" }); return; }

@@ -167,6 +167,59 @@ export async function fetchQuestionBank(params: {
   };
 }
 
+// ---------- SSC Public Question Bank ----------
+export type SscQuestion = QBQuestion & {
+  marks: number;
+  language: string;
+  questionTextHi: string | null;
+  optionsHi: Record<string, string> | null;
+  solutionHi: string | null;
+  examTarget: string[] | null;
+};
+
+export type ExamTemplate = {
+  id: string;
+  code: string;
+  name: string;
+  examFamily: string;
+  tier: string | null;
+  totalDurationMinutes: number;
+  marksPerCorrect: string;
+  negativeMarks: string;
+  description: string | null;
+  totalQuestions: number;
+  sections: { id: string; name: string; subject: string; questionCount: number; durationMinutes: number | null }[];
+};
+
+export async function fetchSscQuestionBank(params: {
+  track?: "SSC_CGL" | "SSC_CHSL";
+  subject?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ items: SscQuestion[]; total: number; page: number }> {
+  const sp = new URLSearchParams();
+  sp.set("track", params.track ?? "SSC_CGL");
+  if (params.subject && params.subject !== "All") sp.set("subject", params.subject);
+  if (params.difficulty) sp.set("difficulty", params.difficulty);
+  if (params.search?.trim()) sp.set("search", params.search.trim());
+  sp.set("page", String(params.page ?? 1));
+  sp.set("pageSize", String(params.pageSize ?? 20));
+  const data = await getJson<{ items?: SscQuestion[]; total?: number; page?: number }>(
+    `/api/v1/public/ssc/question-bank?${sp.toString()}`,
+  );
+  return { items: data?.items ?? [], total: data?.total ?? 0, page: data?.page ?? 1 };
+}
+
+export async function fetchSscExamTemplates(family?: "SSC_CGL" | "SSC_CHSL"): Promise<ExamTemplate[]> {
+  const path = family
+    ? `/api/v1/public/ssc/exam-templates?family=${family}`
+    : `/api/v1/public/ssc/exam-templates`;
+  const data = await getJson<{ items?: ExamTemplate[] }>(path);
+  return data?.items ?? [];
+}
+
 export async function toggleQuestionBookmark(
   questionId: string,
   bookmark: boolean,

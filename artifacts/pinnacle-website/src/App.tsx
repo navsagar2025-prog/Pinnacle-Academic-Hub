@@ -23,6 +23,7 @@ import BlogPage from "@/pages/BlogPage";
 import BlogDetailPage from "@/pages/BlogDetailPage";
 import GalleryPage from "@/pages/GalleryPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
+import SscPage from "@/pages/SscPage";
 import StudentPortalPage from "@/pages/portal/StudentPortalPage";
 import ParentPortalPage from "@/pages/portal/ParentPortalPage";
 import TeacherPortalPage from "@/pages/portal/TeacherPortalPage";
@@ -313,6 +314,8 @@ function Router() {
       <Route path="/blog/:slug" component={BlogDetailPage} />
       <Route path="/gallery" component={GalleryPage} />
       <Route path="/leaderboard" component={LeaderboardPage} />
+      {/* SSC CGL & CHSL public question bank — bilingual practice + mock blueprints */}
+      <Route path="/ssc" component={SscPage} />
 
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />

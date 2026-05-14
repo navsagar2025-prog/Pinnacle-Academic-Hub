@@ -49,11 +49,25 @@ type RecycleBinItem = {
   deletedAt: string; deletionReason: string | null;
 };
 
-const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General"];
+const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "English", "General",
+  "Quantitative Aptitude", "Reasoning", "General Awareness"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
 const TYPES = ["mcq", "numerical", "short", "long"];
-const SOURCES = ["MANUAL", "PYQ", "NCERT_EXEMPLAR", "AI", "THIRD_PARTY_FREE"];
-const EXAM_TARGETS = ["JEE_MAIN", "JEE_ADVANCED", "NEET", "CBSE_BOARDS", "FOUNDATION"];
+const SOURCES = ["MANUAL", "PYQ", "NCERT_EXEMPLAR", "AI", "AI_SSC", "THIRD_PARTY_FREE"];
+const EXAM_TARGETS = ["JEE_MAIN", "JEE_ADVANCED", "NEET", "CBSE_BOARDS", "FOUNDATION",
+  "SSC_CGL", "SSC_CHSL", "SSC_TIER_1", "SSC_TIER_2"];
+
+// High-level Exam Track filter — maps to one or more exam_target values via API.
+const EXAM_TRACK_FILTERS = [
+  { value: "", label: "All Tracks" },
+  { value: "JEE_MAIN", label: "JEE Main" },
+  { value: "JEE_ADVANCED", label: "JEE Advanced" },
+  { value: "NEET", label: "NEET" },
+  { value: "SSC_CGL", label: "SSC CGL" },
+  { value: "SSC_CHSL", label: "SSC CHSL" },
+  { value: "SSC_TIER_1", label: "SSC Tier-1" },
+  { value: "SSC_TIER_2", label: "SSC Tier-2" },
+];
 
 const LANGUAGES = [{ value: "en", label: "English" }, { value: "hi", label: "Hindi" }, { value: "bi", label: "Bilingual" }];
 const CLASS_GRADES = ["8", "9", "10", "11", "12", "Dropper"];

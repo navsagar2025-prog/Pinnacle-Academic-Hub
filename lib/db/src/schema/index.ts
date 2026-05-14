@@ -476,10 +476,50 @@ export const mockTests = pgTable("mock_tests", {
   scheduledStart: timestamp("scheduled_start"),
   scheduledEnd: timestamp("scheduled_end"),
   autoPublishAtStart: boolean("auto_publish_at_start").default(false).notNull(),
+  // Optional link to an exam template (CGL Tier-1, CHSL Tier-1, etc.) so the
+  // mock runner can honour sectional timing + marking from a shared blueprint.
+  // Nullable so legacy non-templated tests (the existing JEE/NEET ones) still work.
+  examTemplateId: uuid("exam_template_id").references(() => examTemplates.id, { onDelete: "set null" }),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Exam templates — paper-specific blueprints (CGL Tier-1, CGL Tier-2, CHSL
+// Tier-1) that drive sectional timing/count/marking on the mock runner. Stored
+// at module scope so `mockTests.examTemplateId` can reference it above.
+export const examTemplates = pgTable("exam_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Stable code, e.g. 'SSC_CGL_TIER_1', 'SSC_CGL_TIER_2_PAPER_1', 'SSC_CHSL_TIER_1'.
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  // 'SSC_CGL' | 'SSC_CHSL' | 'JEE' | 'NEET' (free-form; validated app-side).
+  examFamily: text("exam_family").notNull(),
+  // 'Tier1' | 'Tier2' | null
+  tier: text("tier"),
+  totalDurationMinutes: integer("total_duration_minutes").notNull(),
+  // Stored as text to preserve decimal exactness (e.g. "0.5" negative marks).
+  marksPerCorrect: text("marks_per_correct").notNull(),
+  negativeMarks: text("negative_marks").default("0").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("exam_templates_family_idx").on(t.examFamily),
+]);
+
+export const examTemplateSections = pgTable("exam_template_sections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id").references(() => examTemplates.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  // Subject value matching question_bank.subject (e.g. "Quantitative Aptitude").
+  subject: text("subject").notNull(),
+  questionCount: integer("question_count").notNull(),
+  durationMinutes: integer("duration_minutes"),
+  sortOrder: integer("sort_order").default(0).notNull(),
+}, (t) => [
+  index("exam_template_sections_template_idx").on(t.templateId),
+]);
 
 // Optional sections within a mock test (e.g. Physics / Chemistry / Maths).
 // A test without rows here is treated as a single un-sectioned test.
@@ -645,8 +685,15 @@ export const questionBank = qbSchema.table("question_bank", {
   // an admin/teacher before they can be published. Allowed values:
   // 'pending' | 'approved' | 'rejected'.
   reviewStatus: text("review_status").default("approved").notNull(),
-  // Language code for forward-compat (Hindi translation later). Default 'en'.
+  // Language code. 'en' | 'hi' | 'bi' (bilingual — both fields populated).
+  // For 'bi' rows the canonical English is in question_text/options/solution
+  // and the Hindi mirror in *Hi columns below.
   language: text("language").default("en").notNull(),
+  // Bilingual mirrors. Nullable so legacy English-only rows stay valid.
+  // Options stored as JSON object {A,B,C,D} (or array) so MCQs translate cleanly.
+  questionTextHi: text("question_text_hi"),
+  optionsHi: jsonb("options_hi"),
+  solutionHi: text("solution_hi"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1076,6 +1123,10 @@ export type PracticeSetQuestion = typeof practiceSetQuestions.$inferSelect;
 export type PracticeSetAssignment = typeof practiceSetAssignments.$inferSelect;
 export type QuestionBankSavedView = typeof questionBankSavedViews.$inferSelect;
 export type InsertQuestionBankSavedView = typeof questionBankSavedViews.$inferInsert;
+export type ExamTemplate = typeof examTemplates.$inferSelect;
+export type InsertExamTemplate = typeof examTemplates.$inferInsert;
+export type ExamTemplateSection = typeof examTemplateSections.$inferSelect;
+export type InsertExamTemplateSection = typeof examTemplateSections.$inferInsert;
 
 // ── Assignment Submissions ─────────────────────────────────────────────────
 export const assignmentSubmissions = pgTable("assignment_submissions", {

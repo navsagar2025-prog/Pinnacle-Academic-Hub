@@ -13,6 +13,7 @@ import admin2Router from "./admin2";
 import ga4oauthRouter from "./ga4oauth";
 import portalRouter from "./portal";
 import questionBankRouter from "./questionBank";
+import sscPublicRouter from "./ssc";
 import seedDemoRouter from "./seedDemo";
 
 const router: IRouter = Router();
@@ -38,6 +39,10 @@ router.get("/v1/social/media/:filename", (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   createReadStream(filePath).pipe(res);
 });
+
+// Public SSC endpoints — must be registered BEFORE portalRouter (which applies
+// requireAuth()) so anonymous visitors can browse the SSC question bank.
+router.use("/v1", sscPublicRouter);
 
 router.use("/v1", adminRouter);
 router.use("/v1", admin2Router);

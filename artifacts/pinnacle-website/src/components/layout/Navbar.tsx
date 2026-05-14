@@ -33,6 +33,7 @@ const MORE_LINKS = [
 const PRIMARY_LINKS = [
   { label: "Home", href: "/" },
   { label: "Courses", href: "/courses" },
+  { label: "SSC", href: "/ssc" },
   { label: "Faculty", href: "/faculty" },
   { label: "Admissions", href: "/admissions" },
 ];
