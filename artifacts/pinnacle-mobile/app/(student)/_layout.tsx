@@ -85,6 +85,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="ssc"
+        options={{
+          title: "SSC",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="briefcase" tintColor={color} size={24} /> : <Feather name="briefcase" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="timetable"
         options={{
           title: "Schedule",

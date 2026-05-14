@@ -10,7 +10,7 @@ import {
   socialTeacherAccess, socialPosts, socialAccounts, blogPosts,
   questionBank, questionBookmarks, examTemplates, examTemplateSections,
 } from "@workspace/db/schema";
-import { eq, and, or, isNull, gte, desc, asc, inArray, sql, arrayContains } from "drizzle-orm";
+import { eq, and, or, isNull, gte, desc, asc, inArray, sql, arrayContains, arrayOverlaps } from "drizzle-orm";
 import busboy from "busboy";
 import { createWriteStream, createReadStream, existsSync, mkdirSync } from "fs";
 import { join as pathJoin, extname } from "path";

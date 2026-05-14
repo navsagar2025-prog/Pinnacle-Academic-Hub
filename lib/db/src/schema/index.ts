@@ -705,10 +705,19 @@ export const questionBank = qbSchema.table("question_bank", {
   deletionRequestedBy: uuid("deletion_requested_by").references(() => users.id),
   deletionReason: text("deletion_reason"),
   deletedAt: timestamp("deleted_at"),
-  // Generated tsvector for full-text search: question_text (A) > topic (B) > solution (C).
-  // Stored generated column — Postgres only supports STORED, which Drizzle emits by default.
+  // Generated tsvector for full-text search. Bilingual: indexes English columns
+  // with the 'english' dictionary AND Hindi columns with the 'simple' dictionary
+  // (Postgres has no Hindi stemmer, so 'simple' tokenises Devanagari literally).
+  // Live SQL applied to the DB matches this expression.
   searchVector: tsvector("search_vector").generatedAlwaysAs(
-    sql`setweight(to_tsvector('english', coalesce(question_text, '')), 'A') || setweight(to_tsvector('english', coalesce(topic, '')), 'B') || setweight(to_tsvector('english', coalesce(solution, '')), 'C')`,
+    sql`setweight(to_tsvector('english', coalesce(question_text, '')), 'A') || setweight(to_tsvector('english', coalesce(topic, '')), 'B') || setweight(to_tsvector('english', coalesce(solution, '')), 'C') || setweight(to_tsvector('simple', coalesce(question_text_hi, '')), 'A') || setweight(to_tsvector('simple', coalesce(solution_hi, '')), 'C')`,
+  ),
+  // Generated normalized text used by the bilingual dedupe guard:
+  // lowercased, whitespace-collapsed, punctuation-stripped concatenation of
+  // English + Hindi prompts. Combined with (subject, language) it forms the
+  // partial unique index `(subject, language, normalized_text) WHERE deleted_at IS NULL`.
+  normalizedText: text("normalized_text").generatedAlwaysAs(
+    sql`regexp_replace(lower(coalesce(question_text, '') || ' ' || coalesce(question_text_hi, '')), '[^a-z0-9\u0900-\u097f]+', ' ', 'g')`,
   ),
 }, (t) => [
   index("question_bank_subject_idx").on(t.subject),
@@ -718,6 +727,10 @@ export const questionBank = qbSchema.table("question_bank", {
   index("question_bank_deleted_at_idx").on(t.deletedAt),
   index("question_bank_deletion_requested_at_idx").on(t.deletionRequestedAt),
   index("question_bank_search_vector_idx").using("gin", t.searchVector),
+  // Partial UNIQUE — the dedupe guard. Live in DB; mirrored here for parity.
+  uniqueIndex("question_bank_dedupe_partial_idx")
+    .on(t.subject, t.language, t.normalizedText)
+    .where(sql`deleted_at IS NULL`),
   index("question_bank_source_idx").on(t.source),
   index("question_bank_review_status_idx").on(t.reviewStatus),
   index("question_bank_class_grade_idx").on(t.classGrade),
