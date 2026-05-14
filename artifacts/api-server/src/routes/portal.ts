@@ -302,10 +302,13 @@ router.get("/portal/student/question-bank", async (req, res) => {
     // 'JEE_NEET' (DEFAULT — preserves pre-SSC behaviour for existing callers)
     // | 'SSC_CGL' | 'SSC_CHSL' | 'ALL' (opt-in to see everything).
     const { examTrack = "JEE_NEET" } = req.query as Record<string, string>;
+    // Family tag is REQUIRED for SSC tracks — SSC_TIER_1/SSC_TIER_2 are
+    // secondary facets only (used by mock templates), never as the primary
+    // family discriminator. This prevents CHSL Tier-1 rows leaking into CGL.
     if (examTrack === "SSC_CGL") {
-      conditions.push(arrayOverlaps(questionBank.examTarget, ["SSC_CGL", "SSC_TIER_1", "SSC_TIER_2"]));
+      conditions.push(arrayContains(questionBank.examTarget, ["SSC_CGL"]));
     } else if (examTrack === "SSC_CHSL") {
-      conditions.push(arrayOverlaps(questionBank.examTarget, ["SSC_CHSL", "SSC_TIER_1"]));
+      conditions.push(arrayContains(questionBank.examTarget, ["SSC_CHSL"]));
     } else if (examTrack !== "ALL") {
       // Default JEE_NEET — old students never see SSC rows unless they ask.
       conditions.push(arrayOverlaps(questionBank.examTarget,

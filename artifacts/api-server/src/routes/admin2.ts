@@ -572,6 +572,7 @@ router.post("/admin/question-bank/import-ssc-paper", async (req, res) => {
     const examName = `${examFamily} ${paper.year} ${paper.tier}${paper.shift ? ` ${paper.shift}` : ""}`;
 
     let inserted = 0;
+    let duplicate = 0;
     let skipped = 0;
     for (const q of questions) {
       const qt = String(q.questionText ?? "").trim();
@@ -579,7 +580,8 @@ router.post("/admin/question-bank/import-ssc-paper", async (req, res) => {
       const subj = String(q.subject ?? "").trim();
       if (!qt || !ca || !subj) { skipped++; continue; }
       try {
-        await db.insert(questionBank).values({
+        // .returning() lets us tell apart real inserts from dedupe-skips.
+        const inserted_rows = await db.insert(questionBank).values({
           subject: subj,
           topic: (q.topic as string | undefined)?.trim() || null,
           year: paper.year,
@@ -599,14 +601,15 @@ router.post("/admin/question-bank/import-ssc-paper", async (req, res) => {
           source: sourceTag,
           language: q.questionTextHi ? "bi" : "en",
           reviewStatus: "approved",
-        }).onConflictDoNothing();
-        inserted++;
+        }).onConflictDoNothing().returning({ id: questionBank.id });
+        if (inserted_rows.length > 0) inserted++;
+        else duplicate++;
       } catch (rowErr) {
         skipped++;
         console.warn("[import-ssc-paper] row skipped:", rowErr);
       }
     }
-    res.json({ ok: true, inserted, skipped, source: sourceTag });
+    res.json({ ok: true, inserted, duplicate, skipped, source: sourceTag });
   } catch (e) {
     console.error("POST /admin/question-bank/import-ssc-paper error:", e);
     res.status(500).json({ error: "Failed to import SSC paper" });

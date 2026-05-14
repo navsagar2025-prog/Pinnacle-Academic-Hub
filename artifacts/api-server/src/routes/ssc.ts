@@ -14,13 +14,17 @@ import { db } from "@workspace/db";
 import {
   questionBank, examTemplates, examTemplateSections,
 } from "@workspace/db/schema";
-import { eq, and, isNull, desc, asc, sql, arrayOverlaps } from "drizzle-orm";
+import { eq, and, isNull, desc, asc, sql, arrayOverlaps, arrayContains } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const TRACK_TARGETS: Record<string, string[]> = {
-  SSC_CGL:  ["SSC_CGL", "SSC_TIER_1", "SSC_TIER_2"],
-  SSC_CHSL: ["SSC_CHSL", "SSC_TIER_1"],
+// The family tag (SSC_CGL / SSC_CHSL) is the PRIMARY filter — it must be
+// present on every row of that exam. Tier tags (SSC_TIER_1 / SSC_TIER_2) are
+// secondary facets used by exam_template_sections, never as the family
+// discriminator (would leak CHSL Tier-1 into CGL).
+const TRACK_FAMILY: Record<string, string> = {
+  SSC_CGL:  "SSC_CGL",
+  SSC_CHSL: "SSC_CHSL",
 };
 
 // GET /v1/public/ssc/question-bank — paginated bilingual SSC questions
@@ -29,7 +33,7 @@ router.get("/public/ssc/question-bank", async (req, res) => {
     const { subject, difficulty, search, track = "SSC_CGL", page = "1", pageSize = "20" } =
       req.query as Record<string, string>;
 
-    const targets = TRACK_TARGETS[track] ?? TRACK_TARGETS.SSC_CGL;
+    const family = TRACK_FAMILY[track] ?? "SSC_CGL";
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limit = Math.min(50, parseInt(pageSize) || 20);
     const offset = (pageNum - 1) * limit;
@@ -38,7 +42,7 @@ router.get("/public/ssc/question-bank", async (req, res) => {
       isNull(questionBank.deletedAt),
       eq(questionBank.isPublished, true),
       eq(questionBank.reviewStatus, "approved"),
-      arrayOverlaps(questionBank.examTarget, targets),
+      arrayContains(questionBank.examTarget, [family]),
     ];
     if (subject) conditions.push(eq(questionBank.subject, subject));
     if (difficulty) {
